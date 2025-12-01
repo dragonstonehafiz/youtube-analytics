@@ -1,0 +1,4 @@
+jupyter
+google-api-python-client
+flask
+plotly
