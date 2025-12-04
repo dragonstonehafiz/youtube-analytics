@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Directories with private data
+secrets/
+data/
+
 # Distribution / packaging
 .Python
 build/

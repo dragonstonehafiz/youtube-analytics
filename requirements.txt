@@ -1,4 +1,6 @@
 jupyter
 google-api-python-client
+google-auth-oauthlib
+pandas
 flask
 plotly
