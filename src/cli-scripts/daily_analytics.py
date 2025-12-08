@@ -3,27 +3,23 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
+
+SRC_DIR = Path(__file__).resolve().parents[1]
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
 
 import pandas as pd
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-SCOPES: Sequence[str] = (
-    "https://www.googleapis.com/auth/yt-analytics.readonly",
-    "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",
-    "https://www.googleapis.com/auth/youtube.readonly",
-)
-
-CLIENT_SECRETS_FILE = Path("secrets/client_secret.json")
-TOKEN_FILE = Path("secrets/youtube-token.json")
-DATA_DIR = Path("data")
+from utils.auth import get_credentials
+from utils.config import CLIENT_SECRETS_FILE, DATA_DIR, SCOPES, TOKEN_FILE
+from utils.youtube import list_channel_video_ids
 
 
 @dataclass(frozen=True)
@@ -39,6 +35,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", help="ISO date (YYYY-MM-DD). Defaults to 28 days before yesterday.")
     parser.add_argument("--end-date", help="ISO date (YYYY-MM-DD). Defaults to yesterday.")
     parser.add_argument(
+        "--full-history",
+        action="store_true",
+        help="Fetch metrics starting from the first uploaded video (incompatible with --start-date/--end-date).",
+    )
+    parser.add_argument(
         "--output",
         help=(
             "Output CSV path. Defaults to data/youtube_daily_analytics_<start>_to_<end>.csv "
@@ -48,58 +49,66 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def determine_date_range(start: str | None, end: str | None) -> DateRange:
+def determine_date_range(
+    start: str | None,
+    end: str | None,
+    use_full_history: bool,
+    earliest_upload_date: str | None,
+) -> DateRange:
+    if use_full_history and (start or end):
+        raise ValueError("--full-history cannot be combined with --start-date/--end-date.")
     if bool(start) ^ bool(end):
         raise ValueError("You must supply both --start-date and --end-date, or neither.")
+    computed_end = (date.today() - timedelta(days=1)).isoformat()
+    if use_full_history:
+        if not earliest_upload_date:
+            raise ValueError("Unable to determine the first upload date for this channel.")
+        return DateRange(start=earliest_upload_date, end=computed_end)
     if start and end:
         return DateRange(start=start, end=end)
-    computed_end = (date.today() - timedelta(days=1)).isoformat()
     computed_start = (date.fromisoformat(computed_end) - timedelta(days=27)).isoformat()
     return DateRange(start=computed_start, end=computed_end)
 
 
-def get_credentials(client_secret_file: Path, token_file: Path, scopes: Sequence[str]) -> Credentials:
-    if not client_secret_file.exists():
-        raise FileNotFoundError(
-            f"Client secret file not found at {client_secret_file}. Download it from the Google Cloud console."
-        )
-
-    creds: Credentials | None = None
-    if token_file.exists():
-        creds = Credentials.from_authorized_user_file(token_file, scopes)
-
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-    if not creds or not creds.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(client_secret_file, scopes)
-        creds = flow.run_local_server(port=0, prompt="consent")
-        token_file.parent.mkdir(parents=True, exist_ok=True)
-        token_file.write_text(creds.to_json())
-        print(f"Saved refresh token to {token_file}")
-    return creds
-
-
-def list_channel_video_ids(youtube_service) -> list[str]:
-    channels_response = youtube_service.channels().list(part="contentDetails", mine=True).execute()
-    items = channels_response.get("items", [])
-    if not items:
-        return []
-    uploads_playlist = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
-    video_ids: list[str] = []
-    next_page_token: str | None = None
-    while True:
-        playlist_response = youtube_service.playlistItems().list(
-            part="contentDetails",
-            playlistId=uploads_playlist,
-            maxResults=50,
-            pageToken=next_page_token,
-        ).execute()
-        for item in playlist_response.get("items", []):
-            video_ids.append(item["contentDetails"]["videoId"])
-        next_page_token = playlist_response.get("nextPageToken")
-        if not next_page_token:
-            break
-    return video_ids
+def execute_with_retry(
+    request_callable: Callable[[], dict[str, Any]],
+    *,
+    video_id: str,
+    start_index: int,
+    max_attempts: int = 5,
+) -> dict[str, Any] | None:
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return request_callable()
+        except HttpError as error:
+            status = getattr(error, "resp", None)
+            status_code: int | None = None
+            if status is not None:
+                try:
+                    status_code = int(getattr(status, "status", None))
+                except (TypeError, ValueError):
+                    status_code = None
+            if status_code and status_code >= 500:
+                if attempt == max_attempts:
+                    print(
+                        (
+                            f"  Giving up on video {video_id} at startIndex {start_index} "
+                            f"after {max_attempts} attempts ({status_code})."
+                        ),
+                        file=sys.stderr,
+                    )
+                    return None
+                sleep_seconds = min(2 ** (attempt - 1), 30)
+                print(
+                    (
+                        f"  Received {status_code} from API for video {video_id} (startIndex {start_index}, "
+                        f"attempt {attempt}/{max_attempts}). Retrying in {sleep_seconds:.1f}s..."
+                    )
+                )
+                time.sleep(sleep_seconds)
+                continue
+            raise
+    return None
 
 
 def fetch_daily_metrics_per_video(
@@ -123,7 +132,14 @@ def fetch_daily_metrics_per_video(
             "startIndex": 1,
         }
         while True:
-            response = analytics_service.reports().query(**request_params).execute()
+            current_params = dict(request_params)
+            response = execute_with_retry(
+                lambda: analytics_service.reports().query(**current_params).execute(),
+                video_id=video_id,
+                start_index=current_params["startIndex"],
+            )
+            if response is None:
+                break
             rows = response.get("rows", [])
             if metric_headers is None:
                 metric_headers = response.get("columnHeaders", [])
@@ -186,17 +202,26 @@ def determine_output_path(output_arg: str | None, date_range: DateRange) -> Path
 
 def main() -> int:
     args = parse_args()
-    date_range = determine_date_range(args.start_date, args.end_date)
-    print(f"Requesting analytics for {date_range.start} → {date_range.end}")
 
     credentials = get_credentials(CLIENT_SECRETS_FILE, TOKEN_FILE, SCOPES)
     yt_analytics = build("youtubeAnalytics", "v2", credentials=credentials)
     youtube = build("youtube", "v3", credentials=credentials)
 
-    video_ids = list_channel_video_ids(youtube)
+    video_ids, earliest_upload_date = list_channel_video_ids(youtube)
     if not video_ids:
         print("No uploads found for this channel. Confirm the authenticated account owns at least one video.")
         return 1
+    try:
+        date_range = determine_date_range(
+            args.start_date,
+            args.end_date,
+            args.full_history,
+            earliest_upload_date,
+        )
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 1
+    print(f"Requesting analytics for {date_range.start} → {date_range.end}")
     print(f"Found {len(video_ids)} uploads. Fetching daily metrics for each video...")
 
     try:
