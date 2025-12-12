@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import sys
-import time
-from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 
 SRC_DIR = Path(__file__).resolve().parents[1]
 if str(SRC_DIR) not in sys.path:
@@ -15,17 +14,25 @@ if str(SRC_DIR) not in sys.path:
 
 import pandas as pd
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-
+from tqdm.auto import tqdm
+from utils.analytics import (
+    DateRange,
+    build_video_publish_map,
+    determine_date_range,
+    ensure_video_metadata,
+    extract_video_ids_and_earliest,
+    fetch_daily_metrics_per_video,
+    rows_to_dataframe,
+)
 from utils.auth import get_credentials
-from utils.config import CLIENT_SECRETS_FILE, DATA_DIR, SCOPES, TOKEN_FILE
-from utils.youtube import list_channel_video_ids
-
-
-@dataclass(frozen=True)
-class DateRange:
-    start: str
-    end: str
+from utils.config import (
+    CLIENT_SECRETS_FILE,
+    DAILY_ANALYTICS_FILE,
+    DATA_DIR,
+    SCOPES,
+    TOKEN_FILE,
+    VIDEO_DATA_FILE,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,150 +56,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def determine_date_range(
-    start: str | None,
-    end: str | None,
-    use_full_history: bool,
-    earliest_upload_date: str | None,
-) -> DateRange:
-    if use_full_history and (start or end):
-        raise ValueError("--full-history cannot be combined with --start-date/--end-date.")
-    if bool(start) ^ bool(end):
-        raise ValueError("You must supply both --start-date and --end-date, or neither.")
-    computed_end = (date.today() - timedelta(days=1)).isoformat()
-    if use_full_history:
-        if not earliest_upload_date:
-            raise ValueError("Unable to determine the first upload date for this channel.")
-        return DateRange(start=earliest_upload_date, end=computed_end)
-    if start and end:
-        return DateRange(start=start, end=end)
-    computed_start = (date.fromisoformat(computed_end) - timedelta(days=27)).isoformat()
-    return DateRange(start=computed_start, end=computed_end)
-
-
-def execute_with_retry(
-    request_callable: Callable[[], dict[str, Any]],
-    *,
-    video_id: str,
-    start_index: int,
-    max_attempts: int = 5,
-) -> dict[str, Any] | None:
-    for attempt in range(1, max_attempts + 1):
-        try:
-            return request_callable()
-        except HttpError as error:
-            status = getattr(error, "resp", None)
-            status_code: int | None = None
-            if status is not None:
-                try:
-                    status_code = int(getattr(status, "status", None))
-                except (TypeError, ValueError):
-                    status_code = None
-            if status_code and status_code >= 500:
-                if attempt == max_attempts:
-                    print(
-                        (
-                            f"  Giving up on video {video_id} at startIndex {start_index} "
-                            f"after {max_attempts} attempts ({status_code})."
-                        ),
-                        file=sys.stderr,
-                    )
-                    return None
-                sleep_seconds = min(2 ** (attempt - 1), 30)
-                print(
-                    (
-                        f"  Received {status_code} from API for video {video_id} (startIndex {start_index}, "
-                        f"attempt {attempt}/{max_attempts}). Retrying in {sleep_seconds:.1f}s..."
-                    )
-                )
-                time.sleep(sleep_seconds)
-                continue
-            raise
-    return None
-
-
-def fetch_daily_metrics_per_video(
-    analytics_service,
-    video_ids: Sequence[str],
-    start_date: str,
-    end_date: str,
-    max_results: int = 200,
-) -> tuple[list[dict[str, Any]], list[list[Any]]]:
-    aggregated_rows: list[list[Any]] = []
-    metric_headers: list[dict[str, Any]] | None = None
-    for index, video_id in enumerate(video_ids, start=1):
-        request_params = {
-            "ids": "channel==MINE",
-            "startDate": start_date,
-            "endDate": end_date,
-            "metrics": "views,estimatedMinutesWatched,estimatedRevenue",
-            "dimensions": "day",
-            "filters": f"video=={video_id}",
-            "maxResults": max_results,
-            "startIndex": 1,
-        }
-        while True:
-            current_params = dict(request_params)
-            response = execute_with_retry(
-                lambda: analytics_service.reports().query(**current_params).execute(),
-                video_id=video_id,
-                start_index=current_params["startIndex"],
-            )
-            if response is None:
-                break
-            rows = response.get("rows", [])
-            if metric_headers is None:
-                metric_headers = response.get("columnHeaders", [])
-            for row in rows:
-                aggregated_rows.append([video_id, *row])
-            if len(rows) < max_results:
-                break
-            request_params["startIndex"] += max_results
-        if index % 50 == 0:
-            print(f"  Processed {index} videos so far...")
-    if not aggregated_rows or metric_headers is None:
-        return [], []
-    headers = [{"name": "video"}, *metric_headers]
-    return headers, aggregated_rows
-
-
-def fetch_video_titles(youtube_service, video_ids: Sequence[str]) -> dict[str, str]:
-    titles: dict[str, str] = {}
-    ids = [video_id for video_id in video_ids if video_id]
-    for start in range(0, len(ids), 50):
-        batch = ids[start : start + 50]
-        response = youtube_service.videos().list(
-            part="snippet",
-            id=",".join(batch),
-            maxResults=50,
-        ).execute()
-        for item in response.get("items", []):
-            titles[item["id"]] = item["snippet"]["title"]
-    return titles
-
-
-def rows_to_dataframe(headers: Sequence[dict[str, Any]], rows: Sequence[Sequence[Any]]) -> pd.DataFrame:
-    if not rows:
-        return pd.DataFrame()
-    ordered_columns = [header["name"] for header in headers]
-    df = pd.DataFrame(rows, columns=ordered_columns)
-    value_columns = [col for col in df.columns if col not in {"video", "day"}]
-    for column in value_columns:
-        df[column] = pd.to_numeric(df[column], errors="coerce")
-    df = df.rename(
-        columns={
-            "day": "date",
-            "estimatedMinutesWatched": "watch_time_minutes",
-            "estimatedRevenue": "estimated_revenue_usd",
-        }
-    )
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
-    if "watch_time_minutes" in df.columns:
-        df["watch_time_hours"] = (df["watch_time_minutes"] / 60).round(2)
-    return df
-
-
 def determine_output_path(output_arg: str | None, date_range: DateRange) -> Path:
     if output_arg:
         return Path(output_arg)
@@ -200,16 +63,59 @@ def determine_output_path(output_arg: str | None, date_range: DateRange) -> Path
     return DATA_DIR / f"youtube_daily_analytics_{date_range.start}_to_{date_range.end}.csv"
 
 
+def add_months(base_date: date, months: int) -> date:
+    month = base_date.month - 1 + months
+    year = base_date.year + month // 12
+    month = month % 12 + 1
+    day = min(base_date.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def chunk_date_range(date_range: DateRange, months_per_chunk: int = 4) -> list[DateRange]:
+    start = date.fromisoformat(date_range.start)
+    end = date.fromisoformat(date_range.end)
+    segments: list[DateRange] = []
+    current = start
+    while current <= end:
+        next_start = add_months(current, months_per_chunk)
+        segment_end = min(next_start - timedelta(days=1), end)
+        segments.append(DateRange(current.isoformat(), segment_end.isoformat()))
+        current = segment_end + timedelta(days=1)
+    return segments
+
+
+def determine_resume_start(cache_path: Path, default_start: str) -> str:
+    if not cache_path.exists():
+        return default_start
+    try:
+        cache_df = pd.read_csv(cache_path, usecols=["date"])
+    except Exception:
+        return default_start
+    cache_df["date"] = pd.to_datetime(cache_df["date"], errors="coerce")
+    cache_df = cache_df.dropna(subset=["date"])
+    if cache_df.empty:
+        return default_start
+    latest_date = cache_df["date"].max().date() + timedelta(days=1)
+    computed = latest_date.isoformat()
+    return computed if computed > default_start else default_start
+
+
 def main() -> int:
     args = parse_args()
 
     credentials = get_credentials(CLIENT_SECRETS_FILE, TOKEN_FILE, SCOPES)
     yt_analytics = build("youtubeAnalytics", "v2", credentials=credentials)
-    youtube = build("youtube", "v3", credentials=credentials)
 
-    video_ids, earliest_upload_date = list_channel_video_ids(youtube)
+    try:
+        video_metadata = ensure_video_metadata(VIDEO_DATA_FILE)
+    except RuntimeError as error:
+        print(error, file=sys.stderr)
+        return 1
+
+    video_ids, earliest_upload_date = extract_video_ids_and_earliest(video_metadata)
+    publish_map = build_video_publish_map(video_metadata)
     if not video_ids:
-        print("No uploads found for this channel. Confirm the authenticated account owns at least one video.")
+        print("No uploads found in video metadata. Confirm the authenticated account owns at least one video.")
         return 1
     try:
         date_range = determine_date_range(
@@ -221,27 +127,45 @@ def main() -> int:
     except ValueError as error:
         print(error, file=sys.stderr)
         return 1
+    resume_start = determine_resume_start(DAILY_ANALYTICS_FILE, date_range.start)
+    if resume_start > date_range.start:
+        print(f"Resuming from {resume_start} based on {DAILY_ANALYTICS_FILE.name}")
+        date_range = DateRange(start=resume_start, end=date_range.end)
     print(f"Requesting analytics for {date_range.start} → {date_range.end}")
     print(f"Found {len(video_ids)} uploads. Fetching daily metrics for each video...")
 
-    try:
-        headers, rows = fetch_daily_metrics_per_video(
-            yt_analytics,
-            video_ids,
-            date_range.start,
-            date_range.end,
-        )
-    except HttpError as error:
-        print(f"Request failed: {error}", file=sys.stderr)
-        return 1
+    segments = chunk_date_range(date_range)
+    aggregated_headers: list[dict[str, Any]] | None = None
+    aggregated_rows: list[list[Any]] = []
+    for segment in segments:
+        print(f"  Fetching {segment.start} → {segment.end}")
+        with tqdm(total=len(video_ids), desc=f"{segment.start} → {segment.end}", unit="video", leave=False) as progress:
+            headers, rows = fetch_daily_metrics_per_video(
+                yt_analytics,
+                video_ids,
+                segment.start,
+                segment.end,
+                append_path=DAILY_ANALYTICS_FILE,
+                progress=progress,
+                publish_map=publish_map,
+            )
+        if not rows:
+            continue
+        if aggregated_headers is None:
+            aggregated_headers = headers
+        aggregated_rows.extend(rows)
 
-    metrics_df = rows_to_dataframe(headers, rows)
-    if metrics_df.empty:
+    if not aggregated_rows or aggregated_headers is None:
         print("No analytics rows were returned for the selected period.")
         return 0
 
-    title_map = fetch_video_titles(youtube, metrics_df["video"].tolist())
-    metrics_df["title"] = metrics_df["video"].map(title_map).fillna("<title unavailable>")
+    metrics_df = rows_to_dataframe(aggregated_headers, aggregated_rows)
+
+    if {"video_id", "title"}.issubset(video_metadata.columns):
+        title_series = video_metadata.dropna(subset=["video_id"]).drop_duplicates("video_id").set_index("video_id")["title"]
+        metrics_df["title"] = metrics_df["video"].map(title_series).fillna("<title unavailable>")
+    else:
+        metrics_df["title"] = "<title unavailable>"
     ordered_columns = [
         "date",
         "title",

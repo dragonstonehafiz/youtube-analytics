@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -24,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export one metadata row per video in the channel uploads playlist.")
     parser.add_argument(
         "--output",
-        help="CSV destination. Defaults to data/video_data_<timestamp>.csv (directory created if missing).",
+        help="CSV destination. Defaults to data/video_data.csv (directory created if missing).",
     )
     return parser.parse_args()
 
@@ -93,8 +92,7 @@ def fetch_video_metadata(youtube_service, video_ids: Sequence[str]) -> list[dict
 def determine_output_path(user_path: str | None) -> Path:
     if user_path:
         return Path(user_path)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return DATA_DIR / f"video_data_{timestamp}.csv"
+    return DATA_DIR / "video_data.csv"
 
 
 def main() -> int:
