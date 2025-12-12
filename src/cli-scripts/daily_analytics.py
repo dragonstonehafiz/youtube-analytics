@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         help=(
-            "Output CSV path. Defaults to data/youtube_daily_analytics_<start>_to_<end>.csv "
+            "Output CSV path. Defaults to data/daily_analytics.csv "
             "(directory is created if needed)."
         ),
     )
@@ -60,7 +60,7 @@ def determine_output_path(output_arg: str | None, date_range: DateRange) -> Path
     if output_arg:
         return Path(output_arg)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return DATA_DIR / f"youtube_daily_analytics_{date_range.start}_to_{date_range.end}.csv"
+    return DATA_DIR / "daily_analytics.csv"
 
 
 def add_months(base_date: date, months: int) -> date:
