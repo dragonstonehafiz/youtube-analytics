@@ -1,7 +1,8 @@
-jupyter
+fastapi
 google-api-python-client
 google-auth-oauthlib
 pandas
-flask
 plotly
+pydantic-settings
 tqdm
+uvicorn
