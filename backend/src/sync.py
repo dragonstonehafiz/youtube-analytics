@@ -1,25 +1,38 @@
 from __future__ import annotations
 
 from datetime import datetime, date as date_type, timedelta
+from threading import Lock
 
+from utils.logger import get_logger
 from src.database.analytics import upsert_daily_analytics
+from src.database.channel_daily import upsert_channel_daily
+from src.database.comments import upsert_comments
 from src.database.db import get_connection
+from src.database.traffic_sources import upsert_traffic_sources
 from src.database.videos import upsert_videos
 from src.youtube.analytics import (
     DateRange,
     chunk_date_range,
     determine_date_range,
+    fetch_channel_daily,
     fetch_daily_metrics,
+    fetch_traffic_sources,
 )
+from src.youtube.comments import extract_comments
 from src.youtube.videos import safe_get_videos
-from tqdm.auto import tqdm
+
+_progress_lock = Lock()
+_sync_progress: dict[str, object] = {}
+_logger = get_logger("sync", filename="sync.log", console=False)
 
 
-def sync_videos() -> dict:
+def sync_videos() -> None:
     """Sync all video metadata into the database."""
+    _set_progress(0, 1, _format_pull_progress("videos", 0, 1))
+    _logger.info("Starting videos sync")
     videos = safe_get_videos()
-    inserted = upsert_videos(videos)
-    return {"videos_synced": inserted}
+    upsert_videos(videos)
+    _set_progress(1, 1, _format_pull_progress("videos", 1, 1))
 
 
 def get_earliest_upload_date() -> str | None:
@@ -44,6 +57,15 @@ def get_latest_analytics_dates() -> dict[str, str]:
         if row["latest"]:
             latest_by_video[row["video_id"]] = str(row["latest"])
     return latest_by_video
+
+
+def _get_latest_date(table: str) -> str | None:
+    """Return the latest date in a given analytics table."""
+    with get_connection() as conn:
+        row = conn.execute(f"SELECT MAX(date) AS latest FROM {table}").fetchone()
+    if not row or not row["latest"]:
+        return None
+    return str(row["latest"])
 
 
 def list_video_ids() -> list[str]:
@@ -71,7 +93,8 @@ def sync_daily_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
     deep_sync: bool = False,
-) -> dict:
+    segments: list[DateRange] | None = None,
+) -> None:
     """Sync daily analytics rows into the database."""
     video_ids = list_video_ids()
     if not video_ids:
@@ -79,7 +102,7 @@ def sync_daily_analytics(
         video_ids = list_video_ids()
     earliest = get_earliest_upload_date()
     if not earliest:
-        return {"daily_analytics_synced": 0}
+        return None
 
     date_range = determine_date_range(earliest)
     if start_date:
@@ -87,39 +110,44 @@ def sync_daily_analytics(
     if end_date:
         date_range = DateRange(start=date_range.start, end=end_date)
     if date_range.start > date_range.end:
-        return {
-            "daily_analytics_synced": 0,
-            "daily_analytics_range": {"start": date_range.start, "end": date_range.end},
-            "segments": 0,
-            "videos": len(video_ids),
-        }
+        return None
 
     latest_by_video = {} if deep_sync else get_latest_analytics_dates()
-    segments = chunk_date_range(date_range)
-    publish_map = build_publish_map()
-    print(
-        f"[sync] daily analytics range: {date_range.start} -> {date_range.end} "
-        f"({len(segments)} segments, {len(video_ids)} videos)"
+    if segments is None:
+        segments = chunk_date_range(date_range)
+    _logger.info(
+        "Starting daily analytics sync for %s -> %s (%s segments)",
+        date_range.start,
+        date_range.end,
+        len(segments),
     )
+    publish_map = build_publish_map()
     total_rows = 0
 
-    for segment in segments:
+    for segment_index, segment in enumerate(segments, start=1):
+        _set_progress(
+            segment_index,
+            max(len(segments), 1),
+            _format_daily_progress(
+                segment_index,
+                max(len(segments), 1),
+                f"{segment.start} -> {segment.end}",
+            ),
+        )
+        _logger.info(
+            "Daily analytics segment %s/%s: %s -> %s",
+            segment_index,
+            len(segments),
+            segment.start,
+            segment.end,
+        )
         segment_videos = []
         for video_id in video_ids:
             publish_date = publish_map.get(video_id)
             if publish_date and publish_date > segment.end:
                 continue
             segment_videos.append(video_id)
-        print(
-            f"[sync] segment: {segment.start} -> {segment.end} "
-            f"({len(segment_videos)}/{len(video_ids)} videos)"
-        )
-        for video_id in tqdm(
-            segment_videos,
-            desc=f"{segment.start} -> {segment.end}",
-            unit="video",
-            leave=False,
-        ):
+        for video_id in segment_videos:
             latest = latest_by_video.get(video_id)
             # Resume per video from the day after the latest stored row.
             if latest:
@@ -134,22 +162,245 @@ def sync_daily_analytics(
             )
             total_rows += upsert_daily_analytics(video_id, rows)
 
-    return {
-        "daily_analytics_synced": total_rows,
-        "daily_analytics_range": {"start": date_range.start, "end": date_range.end},
-        "segments": len(segments),
-        "videos": len(video_ids),
-    }
+    return None
+
+
+def sync_channel_daily(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+) -> None:
+    """Sync channel-level daily analytics rows."""
+    earliest = get_earliest_upload_date()
+    if not earliest:
+        return None
+    date_range = determine_date_range(earliest)
+    if start_date:
+        date_range = DateRange(start=start_date, end=date_range.end)
+    if end_date:
+        date_range = DateRange(start=date_range.start, end=end_date)
+    latest = None if deep_sync else _get_latest_date("channel_daily_analytics")
+    if latest:
+        next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
+        if next_day > date_range.start:
+            date_range = DateRange(start=next_day, end=date_range.end)
+    if date_range.start > date_range.end:
+        return None
+    segments = chunk_date_range(date_range, months_per_chunk=4)
+    _logger.info(
+        "Starting channel daily sync for %s -> %s (%s segments)",
+        date_range.start,
+        date_range.end,
+        len(segments),
+    )
+    total_rows = 0
+    for index, segment in enumerate(segments, start=1):
+        _set_progress(
+            index,
+            max(len(segments), 1),
+            _format_pull_progress("channel daily", index, max(len(segments), 1)),
+        )
+        _logger.info(
+            "Channel daily segment %s/%s: %s -> %s",
+            index,
+            len(segments),
+            segment.start,
+            segment.end,
+        )
+        rows = fetch_channel_daily(segment.start, segment.end)
+        total_rows += upsert_channel_daily(rows)
+    return None
+
+
+def sync_traffic_sources(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+) -> None:
+    """Sync traffic source analytics rows."""
+    earliest = get_earliest_upload_date()
+    if not earliest:
+        return None
+    date_range = determine_date_range(earliest)
+    if start_date:
+        date_range = DateRange(start=start_date, end=date_range.end)
+    if end_date:
+        date_range = DateRange(start=date_range.start, end=end_date)
+    latest = None if deep_sync else _get_latest_date("traffic_sources_daily")
+    if latest:
+        next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
+        if next_day > date_range.start:
+            date_range = DateRange(start=next_day, end=date_range.end)
+    if date_range.start > date_range.end:
+        return None
+    segments = chunk_date_range(date_range, months_per_chunk=12)
+    _logger.info(
+        "Starting traffic sources sync for %s -> %s (%s segments)",
+        date_range.start,
+        date_range.end,
+        len(segments),
+    )
+    total_rows = 0
+    for index, segment in enumerate(segments, start=1):
+        _set_progress(
+            index,
+            max(len(segments), 1),
+            _format_pull_progress("traffic sources", index, max(len(segments), 1)),
+        )
+        _logger.info(
+            "Traffic sources segment %s/%s: %s -> %s",
+            index,
+            len(segments),
+            segment.start,
+            segment.end,
+        )
+        rows = fetch_traffic_sources(segment.start, segment.end)
+        total_rows += upsert_traffic_sources(rows)
+    return None
+
+
+
+
+
+
+
+
+def sync_comments() -> None:
+    """Sync all comments for all videos."""
+    _logger.info("Starting comments sync")
+    video_ids = list_video_ids()
+    if not video_ids:
+        sync_videos()
+        video_ids = list_video_ids()
+    total_videos = max(len(video_ids), 1)
+    _set_progress(0, total_videos, _format_pull_progress("comments", 0, total_videos))
+    total = 0
+    for index, video_id in enumerate(video_ids, start=1):
+        _logger.info("Comments video %s/%s", index, len(video_ids))
+        rows = extract_comments(video_id)
+        _set_progress(
+            index,
+            total_videos,
+            _format_pull_progress("comments", index, total_videos),
+        )
+        total += upsert_comments(rows)
 
 
 def sync_all(
     start_date: str | None = None,
     end_date: str | None = None,
     deep_sync: bool = False,
+    pulls: list[str] | None = None,
 ) -> dict:
     """Sync videos and daily analytics, returning a summary payload."""
-    results = {}
-    results.update(sync_videos())
-    results.update(sync_daily_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync))
-    results["synced_at"] = datetime.utcnow().isoformat() + "Z"
-    return results
+    _init_progress(1)
+    started_at = datetime.utcnow().isoformat() + "Z"
+    run_id = _create_sync_run(started_at, start_date, end_date, deep_sync, pulls)
+    selected = {item.lower() for item in pulls} if pulls else None
+    try:
+        if _should_run(selected, "videos"):
+            sync_videos()
+        if _should_run(selected, "comments"):
+            sync_comments()
+        if _should_run(selected, "traffic"):
+            sync_traffic_sources(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+        if _should_run(selected, "channel_daily"):
+            sync_channel_daily(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+        if _should_run(selected, "daily_analytics"):
+            sync_daily_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+        _set_progress(1, 1, _format_pull_progress("sync complete", 1, 1))
+        with _progress_lock:
+            _sync_progress["status"] = "done"
+            _sync_progress["is_syncing"] = False
+        _finish_sync_run(run_id, "success")
+    except Exception as exc:
+        with _progress_lock:
+            _sync_progress["status"] = "failed"
+            _sync_progress["is_syncing"] = False
+            _sync_progress["message"] = "Sync failed"
+        _finish_sync_run(run_id, "failed", str(exc))
+        raise
+    return None
+
+
+def _should_run(selected: set[str] | None, key: str) -> bool:
+    """Return True when a sync step is enabled."""
+    if not selected:
+        return True
+    return key in selected
+
+
+def _init_progress(max_steps: int) -> None:
+    """Initialize in-memory sync progress state."""
+    with _progress_lock:
+        _sync_progress.clear()
+        _sync_progress.update(
+            {
+                "started_at": datetime.utcnow().isoformat() + "Z",
+                "status": "running",
+                "is_syncing": True,
+                "current_step": 0,
+                "max_steps": max_steps,
+                "message": "",
+            }
+        )
+
+
+def _set_progress(current: int, total: int, message: str) -> None:
+    """Set the progress counters directly for the current stage."""
+    with _progress_lock:
+        safe_total = max(int(total), 1)
+        safe_current = max(0, min(int(current), safe_total))
+        _sync_progress["current_step"] = safe_current
+        _sync_progress["max_steps"] = safe_total
+        _sync_progress["message"] = message
+
+
+def _format_pull_progress(label: str, current: int, total: int) -> str:
+    """Format a generic pull progress label."""
+    return f"Pulling {label}... [{current}/{total}]"
+
+
+def _format_daily_progress(current: int, total: int, detail: str | None = None) -> str:
+    """Format daily analytics progress with range detail."""
+    base = f"Daily analytics [{current}/{total}]"
+    if detail:
+        return f"{base} {detail}"
+    return base
+
+
+def get_sync_progress() -> dict:
+    """Return the current in-memory sync progress state."""
+    with _progress_lock:
+        return dict(_sync_progress)
+
+
+def _create_sync_run(
+    started_at: str,
+    start_date: str | None,
+    end_date: str | None,
+    deep_sync: bool,
+    pulls: list[str] | None,
+) -> int:
+    """Insert a sync run row and return its ID."""
+    pulls_value = ",".join(pulls) if pulls else None
+    with get_connection() as conn:
+        cursor = conn.execute(
+            (
+                "INSERT INTO sync_runs (started_at, status, start_date, end_date, deep_sync, pulls) "
+                "VALUES (?, ?, ?, ?, ?, ?)"
+            ),
+            (started_at, "running", start_date, end_date, 1 if deep_sync else 0, pulls_value),
+        )
+        conn.commit()
+        return int(cursor.lastrowid)
+
+
+def _finish_sync_run(run_id: int, status: str, error_message: str | None = None) -> None:
+    """Mark a sync run as finished."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE sync_runs SET finished_at = ?, status = ?, error_message = ? WHERE id = ?",
+            (datetime.utcnow().isoformat() + "Z", status, error_message, run_id),
+        )
+        conn.commit()

@@ -18,6 +18,13 @@ def upsert_videos(items: list[dict]) -> int:
         content = item.get("contentDetails", {})
         stats = item.get("statistics", {})
         status = item.get("status", {})
+        file_details = item.get("fileDetails", {})
+        video_streams = file_details.get("videoStreams", []) if isinstance(file_details, dict) else []
+        stream = video_streams[0] if video_streams else {}
+        width = stream.get("widthPixels")
+        height = stream.get("heightPixels")
+        duration_seconds = parse_duration_to_seconds(content.get("duration"))
+        content_type = _determine_content_type(width, height, duration_seconds)
 
         rows.append(
             (
@@ -29,12 +36,15 @@ def upsert_videos(items: list[dict]) -> int:
                 snippet.get("channelTitle"),
                 status.get("privacyStatus"),
                 1 if status.get("madeForKids") else 0 if status.get("madeForKids") is not None else None,
-                parse_duration_to_seconds(content.get("duration")),
+                duration_seconds,
                 int(stats["viewCount"]) if "viewCount" in stats else None,
                 int(stats["likeCount"]) if "likeCount" in stats else None,
                 int(stats["commentCount"]) if "commentCount" in stats else None,
                 int(stats["favoriteCount"]) if "favoriteCount" in stats else None,
                 snippet.get("thumbnails", {}).get("high", {}).get("url"),
+                width,
+                height,
+                content_type,
                 now,
             )
         )
@@ -43,9 +53,10 @@ def upsert_videos(items: list[dict]) -> int:
         INSERT INTO videos (
             id, title, description, published_at, channel_id, channel_title,
             privacy_status, made_for_kids, duration_seconds, view_count,
-            like_count, comment_count, favorite_count, thumbnail_url, updated_at
+            like_count, comment_count, favorite_count, thumbnail_url,
+            video_width, video_height, content_type, updated_at
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         ON CONFLICT(id) DO UPDATE SET
             title=excluded.title,
@@ -61,6 +72,9 @@ def upsert_videos(items: list[dict]) -> int:
             comment_count=excluded.comment_count,
             favorite_count=excluded.favorite_count,
             thumbnail_url=excluded.thumbnail_url,
+            video_width=excluded.video_width,
+            video_height=excluded.video_height,
+            content_type=excluded.content_type,
             updated_at=excluded.updated_at
     """
 
@@ -68,3 +82,14 @@ def upsert_videos(items: list[dict]) -> int:
         conn.executemany(sql, rows)
         conn.commit()
     return len(rows)
+
+
+def _determine_content_type(width: int | None, height: int | None, duration_seconds: int | None) -> str:
+    """Classify videos as short/video/unknown using aspect ratio + duration."""
+    if not width or not height:
+        return "video"
+    if not duration_seconds:
+        return "video"
+    if height > width and duration_seconds <= 60:
+        return "short"
+    return "video"

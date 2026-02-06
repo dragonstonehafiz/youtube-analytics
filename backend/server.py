@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import logging
 
 import uvicorn
 from fastapi import FastAPI
@@ -28,6 +29,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(router)
+
+
+class _SkipProgressAccessLog(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        return "/sync/progress" not in message
+
+
+logging.getLogger("uvicorn.access").addFilter(_SkipProgressAccessLog())
 
 
 if __name__ == "__main__":

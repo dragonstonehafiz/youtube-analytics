@@ -17,7 +17,7 @@ function App() {
           </NavLink>
           <NavLink to="/videos">Videos</NavLink>
           <NavLink to="/analytics">Analytics</NavLink>
-          <NavLink to="/sync">Sync & Settings</NavLink>
+          <NavLink to="/sync">Sync</NavLink>
         </nav>
       </aside>
       <main className="content">

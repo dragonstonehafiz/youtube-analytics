@@ -23,12 +23,22 @@ def sync(
     end_date: str | None = None,
     deep_sync: bool = False,
     start_data: str | None = None,
+    pull: str | None = None,
 ) -> dict:
     """Trigger a sync with optional date range and deep sync flag."""
     # Allow start_data as an alias for start_date (typo-friendly).
     if start_date is None and start_data is not None:
         start_date = start_data
-    background_tasks.add_task(sync_all, start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+    pulls: list[str] | None = None
+    if pull:
+        pulls = [item.strip() for item in pull.split(",") if item.strip()]
+    background_tasks.add_task(
+        sync_all,
+        start_date=start_date,
+        end_date=end_date,
+        deep_sync=deep_sync,
+        pulls=pulls,
+    )
     return {"queued": True}
 
 
@@ -133,10 +143,19 @@ def list_daily_analytics(
 def list_analytics_years() -> dict:
     """Return distinct years present in daily analytics data."""
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT strftime('%Y', date) AS year FROM daily_analytics ORDER BY year DESC"
-        ).fetchall()
-    years = [row["year"] for row in rows if row["year"]]
+        daily_row = conn.execute(
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM daily_analytics"
+        ).fetchone()
+        channel_row = conn.execute(
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM channel_daily_analytics"
+        ).fetchone()
+    min_dates = [row["min_date"] for row in (daily_row, channel_row) if row and row["min_date"]]
+    max_dates = [row["max_date"] for row in (daily_row, channel_row) if row and row["max_date"]]
+    if not min_dates or not max_dates:
+        return {"years": []}
+    min_year = int(str(min(min_dates))[:4])
+    max_year = int(str(max(max_dates))[:4])
+    years = [str(year) for year in range(max_year, min_year - 1, -1)]
     return {"years": years}
 
 
@@ -174,6 +193,39 @@ def list_daily_summary(start_date: str, end_date: str) -> dict:
         "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
     }
     totals["subscribers_net"] = totals["subscribers_gained"] - totals["subscribers_lost"]
+    return {"items": items, "totals": totals}
+
+
+@router.get("/analytics/channel-daily")
+def list_channel_daily(start_date: str, end_date: str) -> dict:
+    """Return channel-level daily analytics rows for a range."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                date AS day,
+                views,
+                watch_time_minutes,
+                estimated_revenue,
+                average_view_duration_seconds,
+                subscribers_gained,
+                subscribers_lost
+            FROM channel_daily_analytics
+            WHERE date >= ? AND date <= ?
+            ORDER BY date ASC
+            """,
+            (start_date, end_date),
+        ).fetchall()
+
+    items = [row_to_dict(row) for row in rows]
+    totals = {
+        "views": sum(item.get("views") or 0 for item in items),
+        "watch_time_minutes": sum(item.get("watch_time_minutes") or 0 for item in items),
+        "estimated_revenue": sum(item.get("estimated_revenue") or 0 for item in items),
+        "average_view_duration_seconds": sum(item.get("average_view_duration_seconds") or 0 for item in items),
+        "subscribers_gained": sum(item.get("subscribers_gained") or 0 for item in items),
+        "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
+    }
     return {"items": items, "totals": totals}
 
 
@@ -245,3 +297,66 @@ def list_top_content(start_date: str, end_date: str, limit: int = 10) -> dict:
             }
         )
     return {"items": items}
+
+
+@router.get("/sync/status")
+def get_sync_status() -> dict:
+    """Return the latest sync run status."""
+    with get_connection() as conn:
+        row = conn.execute(
+            (
+                "SELECT id, started_at, finished_at, status, error_message, "
+                "start_date, end_date, deep_sync, pulls "
+                "FROM sync_runs ORDER BY id DESC LIMIT 1"
+            )
+        ).fetchone()
+    return {"run": row_to_dict(row) if row else None}
+
+
+@router.get("/sync/runs")
+def list_sync_runs(limit: int = 20) -> dict:
+    """Return recent sync runs."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            (
+                "SELECT id, started_at, finished_at, status, error_message, "
+                "start_date, end_date, deep_sync, pulls "
+                "FROM sync_runs ORDER BY id DESC LIMIT ?"
+            ),
+            (limit,),
+        ).fetchall()
+    return {"items": [row_to_dict(row) for row in rows]}
+
+
+@router.get("/sync/progress")
+def get_sync_progress_state() -> dict:
+    """Return in-memory sync progress state."""
+    from src.sync import get_sync_progress
+
+    return get_sync_progress()
+
+
+@router.get("/stats/overview")
+def get_overview_stats() -> dict:
+    """Return basic database and channel totals."""
+    with get_connection() as conn:
+        page_count = conn.execute("PRAGMA page_count").fetchone()[0]
+        page_size = conn.execute("PRAGMA page_size").fetchone()[0]
+        db_size_bytes = page_count * page_size
+        total_uploads = conn.execute("SELECT COUNT(*) AS count FROM videos").fetchone()[0]
+        total_views_row = conn.execute("SELECT SUM(views) AS total FROM channel_daily_analytics").fetchone()
+        total_views = total_views_row["total"] if total_views_row and total_views_row["total"] is not None else 0
+        total_comments_row = conn.execute("SELECT COUNT(*) AS count FROM comments").fetchone()
+        total_comments = total_comments_row["count"] if total_comments_row and total_comments_row["count"] is not None else 0
+        earliest_row = conn.execute("SELECT MIN(date) AS earliest FROM daily_analytics").fetchone()
+        latest_row = conn.execute("SELECT MAX(date) AS latest FROM daily_analytics").fetchone()
+        earliest_date = earliest_row["earliest"] if earliest_row else None
+        latest_date = latest_row["latest"] if latest_row else None
+    return {
+        "db_size_bytes": db_size_bytes,
+        "total_uploads": total_uploads,
+        "total_views": total_views,
+        "total_comments": total_comments,
+        "earliest_date": earliest_date,
+        "latest_date": latest_date,
+    }

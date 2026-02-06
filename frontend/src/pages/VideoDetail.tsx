@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom'
-import PageCard from '../components/PageCard'
+import { PageCard } from '../components/layout'
 import './Page.css'
 
 function VideoDetail() {

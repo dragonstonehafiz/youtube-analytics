@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import Dropdown from '../components/Dropdown'
-import MetricChartCard from '../components/MetricChartCard'
-import PageCard from '../components/PageCard'
-import TopContentTable from '../components/TopContentTable'
+import { Dropdown } from '../components/ui'
+import { MetricChartCard, TopContentTable } from '../components/analytics'
+import { PageCard } from '../components/layout'
 import './Page.css'
 
 function Analytics() {
@@ -50,8 +49,17 @@ function Analytics() {
         end: `${year}-12-31`,
       }
     }
+    if (selection === 'full') {
+      if (years.length > 0) {
+        const parsed = years.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value))
+        const minYear = Math.min(...parsed)
+        const maxYear = Math.max(...parsed)
+        return { start: `${minYear}-01-01`, end: `${maxYear}-12-31` }
+      }
+      return { start: format(today), end: format(today) }
+    }
     return { start: format(today), end: format(today) }
-  }, [selection])
+  }, [selection, years])
 
   useEffect(() => {
     async function loadYears() {
@@ -72,13 +80,17 @@ function Analytics() {
   useEffect(() => {
     async function loadSummary() {
       try {
-        const response = await fetch(`http://127.0.0.1:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}`)
+        const response = await fetch(
+          `http://127.0.0.1:8000/analytics/channel-daily?start_date=${range.start}&end_date=${range.end}`
+        )
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
+        const gained = data.totals?.subscribers_gained ?? 0
+        const lost = data.totals?.subscribers_lost ?? 0
         setTotals({
           views: data.totals?.views ?? 0,
           watch_time_minutes: data.totals?.watch_time_minutes ?? 0,
-          subscribers_net: data.totals?.subscribers_net ?? 0,
+          subscribers_net: gained - lost,
           estimated_revenue: data.totals?.estimated_revenue ?? 0,
         })
         const byDay = new Map<string, any>()
@@ -177,6 +189,8 @@ function Analytics() {
           items={[
             ...rangeOptions.map((option) => ({ type: 'option' as const, ...option })),
             { type: 'divider' as const },
+            { type: 'option' as const, label: 'Full data', value: 'full' },
+            { type: 'divider' as const },
             ...years.map((item) => ({ type: 'option' as const, label: item, value: `year:${item}` })),
           ]}
         />
@@ -208,7 +222,6 @@ function Analytics() {
             />
           </PageCard>
         </div>
-        <PageCard title="Charts">Time series charts</PageCard>
       </div>
     </section>
   )

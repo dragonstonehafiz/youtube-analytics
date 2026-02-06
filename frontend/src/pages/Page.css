@@ -39,6 +39,259 @@
   grid-column: 1 / -1;
 }
 
+.sync-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+
+.sync-header-controls {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16px;
+  align-items: center;
+  margin: 0;
+}
+
+.sync-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.sync-control-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 280px;
+}
+
+.page-header .sync-control-col {
+  gap: 0;
+}
+
+.sync-control-action {
+  max-width: 180px;
+}
+
+.sync-control-col .dropdown-field,
+.sync-control-col .multi-select,
+.sync-control-col .date-range,
+.sync-control-col .year-input {
+  width: 100%;
+}
+
+.sync-control-col .date-range {
+  min-width: 260px;
+}
+
+.sync-control-col .multi-select,
+.sync-control-col .dropdown-field {
+  min-width: 220px;
+}
+
+.sync-control-col .year-input {
+  min-width: 140px;
+}
+
+.sync-control-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+.sync-control-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.sync-check input {
+  width: 14px;
+  height: 14px;
+}
+
+.sync-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  font-size: 11px;
+  color: var(--color-muted);
+  cursor: help;
+}
+
+.sync-pull-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.sync-pull-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sync-card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.sync-refresh-button {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
+
+.sync-table {
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  padding: 16px;
+}
+
+.sync-card-header {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 0;
+}
+
+.sync-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.sync-stats-row {
+  margin-top: 12px;
+}
+
+.sync-progress-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sync-status-text {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.sync-stat-label {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-bottom: 6px;
+}
+
+.sync-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.sync-table-header,
+.sync-table-row,
+.sync-table-footer {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1.1fr 1fr 0.6fr 0.7fr 0.6fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.sync-table-header {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.sync-table-row {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  font-size: 13px;
+}
+
+.sync-empty {
+  padding: 18px 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.sync-table-footer {
+  padding-top: 12px;
+  font-weight: 700;
+}
+
+.right {
+  text-align: right;
+}
+
+.sync-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  margin-bottom: 10px;
+}
+
+.sync-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.sync-progress-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.sync-step {
+  text-transform: capitalize;
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .placeholder-graph {
   height: 220px;
   border-radius: 14px;

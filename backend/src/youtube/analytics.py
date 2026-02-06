@@ -92,22 +92,40 @@ def fetch_daily_metrics(
         "startIndex": 1,
     }
 
-    results: list[dict[str, Any]] = []
-    headers: list[str] | None = None
-    while True:
-        response = _execute_with_retry(yt_analytics, request_params)
-        if response is None:
-            break
-        rows = response.get("rows", []) or []
-        if headers is None:
-            headers = [h["name"] for h in response.get("columnHeaders", [])]
-        for row in rows:
-            results.append({headers[i]: row[i] for i in range(len(headers))})
-        if len(rows) < max_results:
-            break
-        request_params["startIndex"] += max_results
-        time.sleep(0.2)
-    return results
+    return _fetch_report_rows(yt_analytics, request_params, max_results)
+
+
+def fetch_channel_daily(start_date: str, end_date: str) -> list[dict[str, Any]]:
+    """Fetch channel-level daily analytics for a date range."""
+    yt_analytics = get_analytics_client()
+    request_params = {
+        "ids": "channel==MINE",
+        "startDate": start_date,
+        "endDate": end_date,
+        "metrics": (
+            "views,estimatedMinutesWatched,estimatedRevenue,averageViewDuration,"
+            "subscribersGained,subscribersLost"
+        ),
+        "dimensions": "day",
+        "maxResults": 200,
+        "startIndex": 1,
+    }
+    return _fetch_report_rows(yt_analytics, request_params, 200)
+
+
+def fetch_traffic_sources(start_date: str, end_date: str) -> list[dict[str, Any]]:
+    """Fetch traffic sources by day for a date range."""
+    yt_analytics = get_analytics_client()
+    request_params = {
+        "ids": "channel==MINE",
+        "startDate": start_date,
+        "endDate": end_date,
+        "metrics": "views,estimatedMinutesWatched",
+        "dimensions": "day,insightTrafficSourceType",
+        "maxResults": 200,
+        "startIndex": 1,
+    }
+    return _fetch_report_rows(yt_analytics, request_params, 200)
 
 
 def _execute_with_retry(service, params: dict, max_attempts: int = 5):
@@ -144,3 +162,23 @@ def _execute_with_retry(service, params: dict, max_attempts: int = 5):
                 time.sleep(sleep_seconds)
                 continue
             raise RuntimeError(f"YouTube Analytics API error: {error}") from error
+
+
+def _fetch_report_rows(service, request_params: dict, max_results: int) -> list[dict[str, Any]]:
+    """Fetch all rows for a report, handling pagination."""
+    results: list[dict[str, Any]] = []
+    headers: list[str] | None = None
+    while True:
+        response = _execute_with_retry(service, request_params)
+        if response is None:
+            break
+        rows = response.get("rows", []) or []
+        if headers is None:
+            headers = [h["name"] for h in response.get("columnHeaders", [])]
+        for row in rows:
+            results.append({headers[i]: row[i] for i in range(len(headers))})
+        if len(rows) < max_results:
+            break
+        request_params["startIndex"] += max_results
+        time.sleep(0.2)
+    return results

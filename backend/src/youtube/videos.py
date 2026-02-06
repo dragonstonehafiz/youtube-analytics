@@ -65,7 +65,7 @@ def fetch_video_details(video_ids: list[str]) -> list[dict]:
     youtube = get_youtube_client()
     # The videos endpoint accepts up to 50 IDs per request.
     response = youtube.videos().list(
-        part="snippet,contentDetails,statistics,status",
+        part="snippet,contentDetails,statistics,status,fileDetails",
         id=",".join(video_ids),
         maxResults=50,
     ).execute()

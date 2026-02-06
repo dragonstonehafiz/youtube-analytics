@@ -1,0 +1,20 @@
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-input {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  font-weight: 600;
+  font-size: 12px;
+  height: 36px;
+}
+
+.date-sep {
+  color: var(--color-muted);
+  font-weight: 600;
+}

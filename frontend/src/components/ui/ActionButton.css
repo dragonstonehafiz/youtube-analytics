@@ -1,0 +1,39 @@
+.action-button {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: #f8fafc;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.action-button-primary {
+  border-color: rgba(16, 185, 129, 0.7);
+  color: #16a34a;
+}
+
+.action-button-soft.action-button-active,
+.action-button-soft:hover {
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.action-button-primary.action-button-active,
+.action-button-primary:hover {
+  border-color: rgba(16, 185, 129, 0.95);
+  color: #15803d;
+}
+
+.action-button-disabled,
+.action-button:disabled {
+  cursor: default;
+  opacity: 0.7;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}

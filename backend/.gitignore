@@ -9,6 +9,7 @@ __pycache__/
 # Directories with private data
 secrets/
 data/
+outputs/
 
 # Distribution / packaging
 .Python

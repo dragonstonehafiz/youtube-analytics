@@ -27,3 +27,48 @@ def init_db() -> None:
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     with get_connection() as conn:
         conn.executescript(schema_sql)
+        _ensure_video_columns(conn)
+        _ensure_channel_daily_columns(conn)
+        _ensure_sync_run_columns(conn)
+
+
+def _ensure_video_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to videos table if missing (idempotent)."""
+    columns = [
+        ("video_width", "INTEGER"),
+        ("video_height", "INTEGER"),
+        ("content_type", "TEXT"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE videos ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to sync_runs table if missing (idempotent)."""
+    columns = [
+        ("start_date", "TEXT"),
+        ("end_date", "TEXT"),
+        ("deep_sync", "INTEGER DEFAULT 0"),
+        ("pulls", "TEXT"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE sync_runs ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to channel_daily_analytics table if missing (idempotent)."""
+    columns = [
+        ("subscribers_gained", "INTEGER"),
+        ("subscribers_lost", "INTEGER"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE channel_daily_analytics ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue

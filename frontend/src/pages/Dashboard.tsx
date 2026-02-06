@@ -1,4 +1,4 @@
-import PageCard from '../components/PageCard'
+import { PageCard } from '../components/layout'
 import './Page.css'
 
 function Dashboard() {
