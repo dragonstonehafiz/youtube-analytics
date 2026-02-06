@@ -18,25 +18,29 @@ class Settings(BaseSettings):
     data_dir: Path = Field(default=BASE_DIR / "data")
     secrets_dir: Path = Field(default=BASE_DIR / "secrets")
     db_path: Path = Field(default=BASE_DIR / "data" / "youtube.db")
-    client_secret_path: Path = Field(
-        default=BASE_DIR / "secrets" / "client_secret.json"
-    )
-    auto_sync_on_startup: bool = True
-    scopes: List[str] = Field(
-        default_factory=lambda: [
-            "https://www.googleapis.com/auth/youtube.readonly",
-            "https://www.googleapis.com/auth/yt-analytics.readonly",
-        ]
+    client_secret_path: Path = Field(default=BASE_DIR / "secrets" / "client_secret.json")
+    scopes: str = Field(
+        default=(
+            "https://www.googleapis.com/auth/youtube.readonly,"
+            "https://www.googleapis.com/auth/yt-analytics.readonly,"
+            "https://www.googleapis.com/auth/yt-analytics-monetary.readonly"
+        )
     )
 
-    @field_validator("scopes", mode="before")
+    @field_validator("data_dir", "secrets_dir", "db_path", "client_secret_path", mode="before")
     @classmethod
-    def parse_scopes(cls, value: object) -> List[str]:
-        if isinstance(value, str):
-            return [s.strip() for s in value.split(",") if s.strip()]
-        if isinstance(value, list):
-            return value
-        return []
+    def resolve_paths(cls, value: object) -> Path:
+        if isinstance(value, Path):
+            path = value
+        else:
+            path = Path(str(value))
+        if path.is_absolute():
+            return path
+        return BASE_DIR / path
+
+    @property
+    def scopes_list(self) -> List[str]:
+        return [s.strip() for s in self.scopes.split(",") if s.strip()]
 
 
 settings = Settings()

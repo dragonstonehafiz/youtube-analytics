@@ -4,22 +4,29 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from routes import router
 from src.database.db import init_db
+from src.sync import sync_all
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Initialize database and run startup sync if enabled."""
     init_db()
-    if settings.auto_sync_on_startup:
-        # TODO: wire sync job once the DB + YouTube API client exist.
-        pass
     yield
 
 
 app = FastAPI(title="YouTube Analytics Backend", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(router)
 
 
