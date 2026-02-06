@@ -138,3 +138,110 @@ def list_analytics_years() -> dict:
         ).fetchall()
     years = [row["year"] for row in rows if row["year"]]
     return {"years": years}
+
+
+@router.get("/analytics/daily/summary")
+def list_daily_summary(start_date: str, end_date: str) -> dict:
+    """Return per-day totals and range KPIs across all videos."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                date AS day,
+                SUM(views) AS views,
+                SUM(watch_time_minutes) AS watch_time_minutes,
+                SUM(estimated_revenue) AS estimated_revenue,
+                SUM(average_view_duration_seconds) AS average_view_duration_seconds,
+                SUM(likes) AS likes,
+                SUM(comments) AS comments,
+                SUM(shares) AS shares,
+                SUM(subscribers_gained) AS subscribers_gained,
+                SUM(subscribers_lost) AS subscribers_lost
+            FROM daily_analytics
+            WHERE date >= ? AND date <= ?
+            GROUP BY date
+            ORDER BY date ASC
+            """,
+            (start_date, end_date),
+        ).fetchall()
+
+    items = [row_to_dict(row) for row in rows]
+    totals = {
+        "views": sum(item.get("views") or 0 for item in items),
+        "watch_time_minutes": sum(item.get("watch_time_minutes") or 0 for item in items),
+        "estimated_revenue": sum(item.get("estimated_revenue") or 0 for item in items),
+        "subscribers_gained": sum(item.get("subscribers_gained") or 0 for item in items),
+        "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
+    }
+    totals["subscribers_net"] = totals["subscribers_gained"] - totals["subscribers_lost"]
+    return {"items": items, "totals": totals}
+
+
+@router.get("/videos/published")
+def list_published_dates(start_date: str, end_date: str) -> dict:
+    """Return published video titles by date within a range."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT date(published_at) AS day, title, published_at, thumbnail_url
+            FROM videos
+            WHERE published_at IS NOT NULL
+              AND date(published_at) >= ?
+              AND date(published_at) <= ?
+            ORDER BY day ASC, published_at ASC
+            """,
+            (start_date, end_date),
+        ).fetchall()
+    grouped: dict[str, list[dict]] = {}
+    for row in rows:
+        day = row["day"]
+        title = row["title"] or "(untitled)"
+        published_at = row["published_at"] or ""
+        thumbnail_url = row["thumbnail_url"] or ""
+        grouped.setdefault(day, []).append({"title": title, "published_at": published_at, "thumbnail_url": thumbnail_url})
+    items = [{"day": day, "items": items, "count": len(items)} for day, items in grouped.items()]
+    return {"items": items}
+
+
+@router.get("/analytics/top-content")
+def list_top_content(start_date: str, end_date: str, limit: int = 10) -> dict:
+    """Return top content in a date range, sorted by views."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                v.id AS video_id,
+                v.title AS title,
+                v.published_at AS published_at,
+                v.thumbnail_url AS thumbnail_url,
+                v.duration_seconds AS duration_seconds,
+                SUM(a.views) AS views,
+                AVG(a.average_view_duration_seconds) AS avg_view_duration_seconds
+            FROM daily_analytics a
+            JOIN videos v ON v.id = a.video_id
+            WHERE a.date >= ? AND a.date <= ?
+            GROUP BY v.id
+            ORDER BY views DESC
+            LIMIT ?
+            """,
+            (start_date, end_date, limit),
+        ).fetchall()
+    items = []
+    for row in rows:
+        duration_seconds = row["duration_seconds"] or 0
+        avg_view_duration_seconds = row["avg_view_duration_seconds"] or 0
+        avg_view_pct = 0.0
+        if duration_seconds:
+            avg_view_pct = (avg_view_duration_seconds / duration_seconds) * 100
+        items.append(
+            {
+                "video_id": row["video_id"],
+                "title": row["title"] or "(untitled)",
+                "published_at": row["published_at"] or "",
+                "thumbnail_url": row["thumbnail_url"] or "",
+                "views": row["views"] or 0,
+                "avg_view_duration_seconds": avg_view_duration_seconds,
+                "avg_view_pct": avg_view_pct,
+            }
+        )
+    return {"items": items}

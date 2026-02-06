@@ -1,0 +1,15 @@
+.page-card {
+  border-radius: 18px;
+  padding: 18px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.page-card-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.page-card-body {
+  min-height: 120px;
+}
