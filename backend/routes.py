@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Query
 
 from config import settings
 from src.database.db import get_connection, row_to_dict
-from src.sync import sync_all, sync_videos
+from src.sync import prune_missing_videos_task, sync_all, sync_videos
 from src.youtube.videos import get_channel_info
 
 router = APIRouter()
@@ -42,6 +42,13 @@ def sync(
     return {"queued": True}
 
 
+@router.post("/sync/prune")
+def prune(background_tasks: BackgroundTasks) -> dict:
+    """Remove videos that no longer exist and their related analytics."""
+    background_tasks.add_task(prune_missing_videos_task)
+    return {"queued": True}
+
+
 @router.get("/me")
 def me() -> dict:
     """Return authenticated channel metadata."""
@@ -68,6 +75,8 @@ def list_videos(
     published_after: str | None = None,
     published_before: str | None = None,
     privacy_status: str | None = None,
+    sort: str | None = None,
+    direction: str | None = None,
 ) -> dict:
     """Return videos with optional filters and pagination."""
     where_clauses = []
@@ -90,15 +99,27 @@ def list_videos(
     if where_clauses:
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
+    sort_map = {
+        "date": "published_at",
+        "views": "view_count",
+        "comments": "comment_count",
+        "likes": "like_count",
+    }
+    sort_column = sort_map.get(sort or "", "published_at")
+    sort_dir = "ASC" if (direction or "").lower() == "asc" else "DESC"
+
     with get_connection() as conn:
         query = f"""
             SELECT * FROM videos
             {where_sql}
-            ORDER BY published_at DESC
+            ORDER BY {sort_column} {sort_dir}
             LIMIT ? OFFSET ?
         """
         rows = conn.execute(query, tuple(params + [limit, offset])).fetchall()
-    return {"items": [row_to_dict(row) for row in rows]}
+        count_query = f"SELECT COUNT(*) AS total FROM videos {where_sql}"
+        total_row = conn.execute(count_query, tuple(params)).fetchone()
+        total = total_row["total"] if total_row and total_row["total"] is not None else 0
+    return {"items": [row_to_dict(row) for row in rows], "total": total}
 
 
 @router.get("/analytics/daily")
@@ -352,6 +373,12 @@ def get_overview_stats() -> dict:
         latest_row = conn.execute("SELECT MAX(date) AS latest FROM daily_analytics").fetchone()
         earliest_date = earliest_row["earliest"] if earliest_row else None
         latest_date = latest_row["latest"] if latest_row else None
+        daily_rows = conn.execute("SELECT COUNT(*) AS count FROM daily_analytics").fetchone()
+        channel_rows = conn.execute("SELECT COUNT(*) AS count FROM channel_daily_analytics").fetchone()
+        traffic_rows = conn.execute("SELECT COUNT(*) AS count FROM traffic_sources_daily").fetchone()
+        daily_analytics_rows = daily_rows["count"] if daily_rows and daily_rows["count"] is not None else 0
+        channel_daily_rows = channel_rows["count"] if channel_rows and channel_rows["count"] is not None else 0
+        traffic_sources_rows = traffic_rows["count"] if traffic_rows and traffic_rows["count"] is not None else 0
     return {
         "db_size_bytes": db_size_bytes,
         "total_uploads": total_uploads,
@@ -359,4 +386,7 @@ def get_overview_stats() -> dict:
         "total_comments": total_comments,
         "earliest_date": earliest_date,
         "latest_date": latest_date,
+        "daily_analytics_rows": daily_analytics_rows,
+        "channel_daily_rows": channel_daily_rows,
+        "traffic_sources_rows": traffic_sources_rows,
     }

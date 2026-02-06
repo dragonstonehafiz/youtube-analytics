@@ -20,6 +20,11 @@
   color: #16a34a;
 }
 
+.action-button-danger {
+  border-color: rgba(239, 68, 68, 0.7);
+  color: #dc2626;
+}
+
 .action-button-soft.action-button-active,
 .action-button-soft:hover {
   border-color: rgba(148, 163, 184, 0.5);
@@ -29,6 +34,12 @@
 .action-button-primary:hover {
   border-color: rgba(16, 185, 129, 0.95);
   color: #15803d;
+}
+
+.action-button-danger.action-button-active,
+.action-button-danger:hover {
+  border-color: rgba(239, 68, 68, 0.95);
+  color: #b91c1c;
 }
 
 .action-button-disabled,

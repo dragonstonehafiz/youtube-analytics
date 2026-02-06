@@ -7,10 +7,19 @@ import {
   ProgressBar,
   YearInput,
 } from '../components/ui'
+import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
 function SyncSettings() {
   const [isSyncing, setIsSyncing] = useState(false)
+  const storedSync = getStored('syncSettings', null as {
+    rangeMode?: string
+    startDate?: string
+    endDate?: string
+    year?: string
+    deepSync?: boolean
+    selectedPulls?: string[]
+  } | null)
   const [runs, setRuns] = useState<
     {
       id: number
@@ -30,14 +39,17 @@ function SyncSettings() {
     total_comments: 0,
     earliest_date: null as string | null,
     latest_date: null as string | null,
+    daily_analytics_rows: 0,
+    channel_daily_rows: 0,
+    traffic_sources_rows: 0,
   })
-  const [deepSync, setDeepSync] = useState(false)
+  const [deepSync, setDeepSync] = useState(storedSync?.deepSync ?? false)
   const [progress, setProgress] = useState<{ is_syncing: boolean; current_step: number; max_steps: number; message: string } | null>(null)
   const today = new Date().toISOString().slice(0, 10)
-  const [startDate, setStartDate] = useState(today)
-  const [endDate, setEndDate] = useState(today)
-  const [rangeMode, setRangeMode] = useState('full')
-  const [year, setYear] = useState('')
+  const [startDate, setStartDate] = useState(storedSync?.startDate ?? today)
+  const [endDate, setEndDate] = useState(storedSync?.endDate ?? today)
+  const [rangeMode, setRangeMode] = useState(storedSync?.rangeMode ?? 'full')
+  const [year, setYear] = useState(storedSync?.year ?? '')
   const pullOptions = [
     { label: 'Videos', value: 'videos' },
     { label: 'Comments', value: 'comments' },
@@ -45,7 +57,9 @@ function SyncSettings() {
     { label: 'Channel daily', value: 'channel_daily' },
     { label: 'Daily analytics', value: 'daily_analytics' },
   ]
-  const [selectedPulls, setSelectedPulls] = useState(pullOptions.map((item) => item.value))
+  const [selectedPulls, setSelectedPulls] = useState(
+    storedSync?.selectedPulls?.length ? storedSync.selectedPulls : pullOptions.map((item) => item.value)
+  )
 
   const loadRuns = async () => {
     try {
@@ -62,6 +76,17 @@ function SyncSettings() {
   }, [])
 
   useEffect(() => {
+    setStored('syncSettings', {
+      rangeMode,
+      startDate,
+      endDate,
+      year,
+      deepSync,
+      selectedPulls,
+    })
+  }, [rangeMode, startDate, endDate, year, deepSync, selectedPulls])
+
+  useEffect(() => {
     async function loadOverview() {
       try {
         const response = await fetch('http://127.0.0.1:8000/stats/overview')
@@ -73,6 +98,9 @@ function SyncSettings() {
           total_comments: data.total_comments ?? 0,
           earliest_date: data.earliest_date ?? null,
           latest_date: data.latest_date ?? null,
+          daily_analytics_rows: data.daily_analytics_rows ?? 0,
+          channel_daily_rows: data.channel_daily_rows ?? 0,
+          traffic_sources_rows: data.traffic_sources_rows ?? 0,
         })
       } catch (error) {
         console.error('Failed to load overview stats', error)
@@ -159,6 +187,21 @@ function SyncSettings() {
     }
   }
 
+  const handlePrune = async () => {
+    if (!confirm('Prune videos that no longer exist? This will remove related analytics.')) {
+      return
+    }
+    setIsSyncing(true)
+    setProgress({ is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting prune…' })
+    try {
+      await fetch('http://127.0.0.1:8000/sync/prune', { method: 'POST' })
+    } catch (error) {
+      console.error('Failed to start prune', error)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
   const formatDuration = (started: string, finished: string | null) => {
     if (!finished) {
       return '—'
@@ -199,6 +242,16 @@ function SyncSettings() {
           <h1>Sync</h1>
         </div>
         <div className="sync-header-controls">
+          <div className="sync-control-col">
+            <ActionButton
+              label="Prune"
+              onClick={handlePrune}
+              title="Remove videos that no longer exist and their analytics"
+              disabled={isSyncing || progress?.is_syncing}
+              variant="danger"
+              className="sync-prune-button"
+            />
+          </div>
           <div className="sync-control-col">
             <Dropdown
               value={rangeMode}
@@ -295,6 +348,20 @@ function SyncSettings() {
               <div>
                 <div className="sync-stat-label">Total views</div>
                 <div className="sync-stat-value">{overview.total_views.toLocaleString()}</div>
+              </div>
+            </div>
+            <div className="sync-stats sync-stats-row">
+              <div>
+                <div className="sync-stat-label">Traffic sources rows</div>
+                <div className="sync-stat-value">{overview.traffic_sources_rows.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="sync-stat-label">Channel daily rows</div>
+                <div className="sync-stat-value">{overview.channel_daily_rows.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="sync-stat-label">Daily analytics rows</div>
+                <div className="sync-stat-value">{overview.daily_analytics_rows.toLocaleString()}</div>
               </div>
             </div>
           </div>

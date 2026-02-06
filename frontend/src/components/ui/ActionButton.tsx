@@ -5,7 +5,7 @@ type ActionButtonProps = {
   onClick?: () => void
   disabled?: boolean
   title?: string
-  variant?: 'primary' | 'soft'
+  variant?: 'primary' | 'soft' | 'danger'
   active?: boolean
   className?: string
   type?: 'button' | 'submit' | 'reset'

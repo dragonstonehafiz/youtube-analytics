@@ -33,6 +33,27 @@ def sync_videos() -> None:
     videos = safe_get_videos()
     upsert_videos(videos)
     _set_progress(1, 1, _format_pull_progress("videos", 1, 1))
+    return None
+
+
+def prune_missing_videos(current_ids: set[str]) -> int:
+    """Remove videos (and dependent rows) not present in the current API response."""
+    if not current_ids:
+        return 0
+    with get_connection() as conn:
+        existing_rows = conn.execute("SELECT id FROM videos").fetchall()
+        existing_ids = {row["id"] for row in existing_rows}
+        stale_ids = sorted(existing_ids - current_ids)
+        if not stale_ids:
+            return 0
+        stale_placeholders = ",".join("?" for _ in stale_ids)
+        conn.execute(
+            f"DELETE FROM daily_analytics WHERE video_id IN ({stale_placeholders})",
+            tuple(stale_ids),
+        )
+        conn.execute(f"DELETE FROM videos WHERE id IN ({stale_placeholders})", tuple(stale_ids))
+        conn.commit()
+    return len(stale_ids)
 
 
 def get_earliest_upload_date() -> str | None:
@@ -109,7 +130,8 @@ def sync_daily_analytics(
         date_range = DateRange(start=start_date, end=date_range.end)
     if end_date:
         date_range = DateRange(start=date_range.start, end=end_date)
-    if date_range.start > date_range.end:
+    date_range = _clamp_date_range_to_today(date_range)
+    if date_range is None:
         return None
 
     latest_by_video = {} if deep_sync else get_latest_analytics_dates()
@@ -125,12 +147,14 @@ def sync_daily_analytics(
     total_rows = 0
 
     for segment_index, segment in enumerate(segments, start=1):
+        total_segments = max(len(segments), 1)
+        current_before = max(segment_index - 1, 0)
         _set_progress(
-            segment_index,
-            max(len(segments), 1),
+            current_before,
+            total_segments,
             _format_daily_progress(
-                segment_index,
-                max(len(segments), 1),
+                current_before,
+                total_segments,
                 f"{segment.start} -> {segment.end}",
             ),
         )
@@ -147,7 +171,16 @@ def sync_daily_analytics(
             if publish_date and publish_date > segment.end:
                 continue
             segment_videos.append(video_id)
-        for video_id in segment_videos:
+        for video_index, video_id in enumerate(segment_videos, start=1):
+            _set_progress(
+                current_before,
+                total_segments,
+                _format_daily_progress(
+                    current_before,
+                    total_segments,
+                    f"{segment.start} -> {segment.end} Video [{video_index}/{len(segment_videos)}]",
+                ),
+            )
             latest = latest_by_video.get(video_id)
             # Resume per video from the day after the latest stored row.
             if latest:
@@ -161,6 +194,15 @@ def sync_daily_analytics(
                 publish_date=publish_map.get(video_id),
             )
             total_rows += upsert_daily_analytics(video_id, rows)
+        _set_progress(
+            segment_index,
+            total_segments,
+            _format_daily_progress(
+                segment_index,
+                total_segments,
+                f"{segment.start} -> {segment.end}",
+            ),
+        )
 
     return None
 
@@ -179,6 +221,9 @@ def sync_channel_daily(
         date_range = DateRange(start=start_date, end=date_range.end)
     if end_date:
         date_range = DateRange(start=date_range.start, end=end_date)
+    date_range = _clamp_date_range_to_today(date_range)
+    if date_range is None:
+        return None
     latest = None if deep_sync else _get_latest_date("channel_daily_analytics")
     if latest:
         next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
@@ -226,6 +271,9 @@ def sync_traffic_sources(
         date_range = DateRange(start=start_date, end=date_range.end)
     if end_date:
         date_range = DateRange(start=date_range.start, end=end_date)
+    date_range = _clamp_date_range_to_today(date_range)
+    if date_range is None:
+        return None
     latest = None if deep_sync else _get_latest_date("traffic_sources_daily")
     if latest:
         next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
@@ -299,7 +347,9 @@ def sync_all(
     selected = {item.lower() for item in pulls} if pulls else None
     try:
         if _should_run(selected, "videos"):
-            sync_videos()
+            videos = safe_get_videos()
+            upsert_videos(videos)
+            _set_progress(1, 1, _format_pull_progress("videos", 1, 1))
         if _should_run(selected, "comments"):
             sync_comments()
         if _should_run(selected, "traffic"):
@@ -321,6 +371,31 @@ def sync_all(
         _finish_sync_run(run_id, "failed", str(exc))
         raise
     return None
+
+
+def prune_missing_videos_task() -> None:
+    """Run a prune-only sync to remove missing videos."""
+    _init_progress(1)
+    started_at = datetime.utcnow().isoformat() + "Z"
+    run_id = _create_sync_run(started_at, None, None, False, ["prune"])
+    try:
+        _set_progress(0, 1, "Pruning missing videos... [0/1]")
+        videos = safe_get_videos()
+        current_ids = {video.get("id") for video in videos if video.get("id")}
+        pruned = prune_missing_videos(current_ids)
+        _logger.info("Pruned %s missing videos", pruned)
+        _set_progress(1, 1, "Pruning missing videos... [1/1]")
+        with _progress_lock:
+            _sync_progress["status"] = "done"
+            _sync_progress["is_syncing"] = False
+        _finish_sync_run(run_id, "success")
+    except Exception as exc:
+        with _progress_lock:
+            _sync_progress["status"] = "failed"
+            _sync_progress["is_syncing"] = False
+            _sync_progress["message"] = "Prune failed"
+        _finish_sync_run(run_id, "failed", str(exc))
+        raise
 
 
 def _should_run(selected: set[str] | None, key: str) -> bool:
@@ -367,6 +442,16 @@ def _format_daily_progress(current: int, total: int, detail: str | None = None) 
     if detail:
         return f"{base} {detail}"
     return base
+
+
+def _clamp_date_range_to_today(date_range: DateRange) -> DateRange | None:
+    """Clamp date range to today; return None if range becomes invalid."""
+    today = date_type.today().isoformat()
+    if date_range.start > today:
+        return None
+    if date_range.end > today:
+        return DateRange(start=date_range.start, end=today)
+    return date_range
 
 
 def get_sync_progress() -> dict:

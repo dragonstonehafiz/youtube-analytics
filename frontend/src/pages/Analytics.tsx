@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Dropdown } from '../components/ui'
+import { DateRangePicker, Dropdown } from '../components/ui'
 import { MetricChartCard, TopContentTable } from '../components/analytics'
 import { PageCard } from '../components/layout'
+import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
 function Analytics() {
@@ -10,8 +11,23 @@ function Analytics() {
     { label: 'Last 7 days', value: 'range:7d' },
     { label: 'Last 28 days', value: 'range:28d' },
     { label: 'Last 365 days', value: 'range:365d' },
+    { label: 'Full data', value: 'full' },
   ]
-  const [selection, setSelection] = useState('range:28d')
+  const storedRange = getStored('analyticsRange', null as {
+    mode?: 'presets' | 'year' | 'custom'
+    presetSelection?: string
+    yearSelection?: string
+    monthSelection?: string
+    customStart?: string
+    customEnd?: string
+  } | null)
+  const [mode, setMode] = useState<'presets' | 'year' | 'custom'>(storedRange?.mode ?? 'presets')
+  const [presetSelection, setPresetSelection] = useState(storedRange?.presetSelection ?? 'range:28d')
+  const [yearSelection, setYearSelection] = useState(storedRange?.yearSelection ?? '')
+  const [monthSelection, setMonthSelection] = useState(storedRange?.monthSelection ?? 'all')
+  const today = new Date().toISOString().slice(0, 10)
+  const [customStart, setCustomStart] = useState(storedRange?.customStart ?? today)
+  const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
   const [series, setSeries] = useState<Record<string, { date: string; value: number }[]>>({})
   const [publishedDates, setPublishedDates] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string }[]>>({})
   const [totals, setTotals] = useState({
@@ -36,30 +52,43 @@ function Analytics() {
     const now = new Date()
     const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
     const format = (value: Date) => value.toISOString().slice(0, 10)
-    if (selection.startsWith('range:')) {
-      const days = parseInt(selection.split(':')[1].replace('d', ''), 10)
-      const start = new Date(today)
-      start.setUTCDate(start.getUTCDate() - (days - 1))
-      return { start: format(start), end: format(today) }
-    }
-    if (selection.startsWith('year:')) {
-      const year = parseInt(selection.split(':')[1], 10)
-      return {
-        start: `${year}-01-01`,
-        end: `${year}-12-31`,
+    if (mode === 'presets') {
+      if (presetSelection.startsWith('range:')) {
+        const days = parseInt(presetSelection.split(':')[1].replace('d', ''), 10)
+        const start = new Date(today)
+        start.setUTCDate(start.getUTCDate() - (days - 1))
+        return { start: format(start), end: format(today) }
+      }
+      if (presetSelection === 'full') {
+        if (years.length > 0) {
+          const parsed = years.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value))
+          const minYear = Math.min(...parsed)
+          const maxYear = Math.max(...parsed)
+          return { start: `${minYear}-01-01`, end: `${maxYear}-12-31` }
+        }
+        return { start: format(today), end: format(today) }
       }
     }
-    if (selection === 'full') {
-      if (years.length > 0) {
-        const parsed = years.map((value) => parseInt(value, 10)).filter((value) => !Number.isNaN(value))
-        const minYear = Math.min(...parsed)
-        const maxYear = Math.max(...parsed)
-        return { start: `${minYear}-01-01`, end: `${maxYear}-12-31` }
+    if (mode === 'year' && yearSelection) {
+      const year = parseInt(yearSelection, 10)
+      if (!Number.isNaN(year)) {
+        if (monthSelection === 'all') {
+          return { start: `${year}-01-01`, end: `${year}-12-31` }
+        }
+        const month = parseInt(monthSelection, 10)
+        if (!Number.isNaN(month)) {
+          const start = new Date(Date.UTC(year, month - 1, 1))
+          const end = new Date(Date.UTC(year, month, 0))
+          return { start: format(start), end: format(end) }
+        }
+        return { start: `${year}-01-01`, end: `${year}-12-31` }
       }
-      return { start: format(today), end: format(today) }
+    }
+    if (mode === 'custom') {
+      return { start: customStart, end: customEnd }
     }
     return { start: format(today), end: format(today) }
-  }, [selection, years])
+  }, [mode, presetSelection, yearSelection, monthSelection, customStart, customEnd, years])
 
   useEffect(() => {
     async function loadYears() {
@@ -68,6 +97,7 @@ function Analytics() {
         const data = await response.json()
         if (Array.isArray(data.years) && data.years.length > 0) {
           setYears(data.years)
+          setYearSelection((prev) => (prev ? prev : data.years[0]))
         }
       } catch (error) {
         console.error('Failed to load years', error)
@@ -76,6 +106,23 @@ function Analytics() {
 
     loadYears()
   }, [])
+
+  useEffect(() => {
+    if (mode === 'year' && !yearSelection && years.length > 0) {
+      setYearSelection(years[0])
+    }
+  }, [mode, yearSelection, years])
+
+  useEffect(() => {
+    setStored('analyticsRange', {
+      mode,
+      presetSelection,
+      yearSelection,
+      monthSelection,
+      customStart,
+      customEnd,
+    })
+  }, [mode, presetSelection, yearSelection, monthSelection, customStart, customEnd])
 
   useEffect(() => {
     async function loadSummary() {
@@ -182,18 +229,66 @@ function Analytics() {
         <div className="header-text">
           <h1>Analytics</h1>
         </div>
-        <Dropdown
-          value={selection}
-          onChange={setSelection}
-          placeholder="Last 28 days"
-          items={[
-            ...rangeOptions.map((option) => ({ type: 'option' as const, ...option })),
-            { type: 'divider' as const },
-            { type: 'option' as const, label: 'Full data', value: 'full' },
-            { type: 'divider' as const },
-            ...years.map((item) => ({ type: 'option' as const, label: item, value: `year:${item}` })),
-          ]}
-        />
+        <div className="analytics-range-controls">
+          <Dropdown
+            value={mode}
+            onChange={(value) => setMode(value as 'presets' | 'year' | 'custom')}
+            placeholder="Presets"
+            items={[
+              { type: 'option' as const, label: 'Presets', value: 'presets' },
+              { type: 'option' as const, label: 'Yearly', value: 'year' },
+              { type: 'option' as const, label: 'Custom range', value: 'custom' },
+            ]}
+          />
+          {mode === 'presets' ? (
+            <Dropdown
+              value={presetSelection}
+              onChange={setPresetSelection}
+              placeholder="Last 28 days"
+              items={rangeOptions.map((option) => ({ type: 'option' as const, ...option }))}
+            />
+          ) : null}
+          {mode === 'year' ? (
+            <>
+              <Dropdown
+                value={yearSelection}
+                onChange={setYearSelection}
+                placeholder="Select year"
+                items={years.map((item) => ({ type: 'option' as const, label: item, value: item }))}
+              />
+              <Dropdown
+                value={monthSelection}
+                onChange={setMonthSelection}
+                placeholder="All months"
+                items={[
+                  { type: 'option' as const, label: 'All months', value: 'all' },
+                  { type: 'option' as const, label: 'January', value: '1' },
+                  { type: 'option' as const, label: 'February', value: '2' },
+                  { type: 'option' as const, label: 'March', value: '3' },
+                  { type: 'option' as const, label: 'April', value: '4' },
+                  { type: 'option' as const, label: 'May', value: '5' },
+                  { type: 'option' as const, label: 'June', value: '6' },
+                  { type: 'option' as const, label: 'July', value: '7' },
+                  { type: 'option' as const, label: 'August', value: '8' },
+                  { type: 'option' as const, label: 'September', value: '9' },
+                  { type: 'option' as const, label: 'October', value: '10' },
+                  { type: 'option' as const, label: 'November', value: '11' },
+                  { type: 'option' as const, label: 'December', value: '12' },
+                ]}
+              />
+            </>
+          ) : null}
+          {mode === 'custom' ? (
+            <DateRangePicker
+              startDate={customStart}
+              endDate={customEnd}
+              onChange={(nextStart, nextEnd) => {
+                setCustomStart(nextStart)
+                setCustomEnd(nextEnd)
+              }}
+            />
+          ) : null}
+        </div>
       </header>
       <div className="page-body">
         <div className="page-row">
