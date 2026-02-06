@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActionButton,
   DateRangePicker,
@@ -32,6 +32,9 @@ function SyncSettings() {
       pulls: string | null
     }[]
   >([])
+  const [runsPage, setRunsPage] = useState(1)
+  const [runsTotal, setRunsTotal] = useState(0)
+  const runsPageSize = 10
   const [overview, setOverview] = useState({
     db_size_bytes: 0,
     total_uploads: 0,
@@ -63,9 +66,13 @@ function SyncSettings() {
 
   const loadRuns = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/sync/runs?limit=10')
+      const offset = (runsPage - 1) * runsPageSize
+      const response = await fetch(
+        `http://127.0.0.1:8000/sync/runs?limit=${runsPageSize}&offset=${offset}`
+      )
       const data = await response.json()
       setRuns(Array.isArray(data.items) ? data.items : [])
+      setRunsTotal(typeof data.total === 'number' ? data.total : 0)
     } catch (error) {
       console.error('Failed to load sync runs', error)
     }
@@ -73,7 +80,7 @@ function SyncSettings() {
 
   useEffect(() => {
     loadRuns()
-  }, [])
+  }, [runsPage])
 
   useEffect(() => {
     setStored('syncSettings', {
@@ -131,6 +138,18 @@ function SyncSettings() {
     }
     return progressState.message || ''
   }
+
+  const runsTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(runsTotal / runsPageSize)),
+    [runsTotal]
+  )
+  const runsPagination = useMemo(() => {
+    if (runsTotalPages <= 3) {
+      return Array.from({ length: runsTotalPages }, (_, idx) => idx + 1)
+    }
+    const start = Math.max(1, Math.min(runsPage - 1, runsTotalPages - 2))
+    return [start, start + 1, start + 2]
+  }, [runsPage, runsTotalPages])
 
   useEffect(() => {
     let timer: number | null = null
@@ -415,6 +434,48 @@ function SyncSettings() {
                 ))}
               </>
             )}
+            {runsTotalPages > 1 ? (
+              <div className="video-pagination">
+                <ActionButton
+                  label="<<"
+                  onClick={() => setRunsPage(1)}
+                  disabled={runsPage <= 1}
+                  variant="soft"
+                  className="video-page"
+                />
+                <ActionButton
+                  label="<"
+                  onClick={() => setRunsPage((prev) => Math.max(1, prev - 1))}
+                  disabled={runsPage <= 1}
+                  variant="soft"
+                  className="video-page"
+                />
+                {runsPagination.map((item) => (
+                  <ActionButton
+                    key={item}
+                    label={String(item)}
+                    onClick={() => setRunsPage(item)}
+                    variant="soft"
+                    active={item === runsPage}
+                    className="video-page"
+                  />
+                ))}
+                <ActionButton
+                  label=">"
+                  onClick={() => setRunsPage((prev) => Math.min(runsTotalPages, prev + 1))}
+                  disabled={runsPage >= runsTotalPages}
+                  variant="soft"
+                  className="video-page"
+                />
+                <ActionButton
+                  label=">>"
+                  onClick={() => setRunsPage(runsTotalPages)}
+                  disabled={runsPage >= runsTotalPages}
+                  variant="soft"
+                  className="video-page"
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

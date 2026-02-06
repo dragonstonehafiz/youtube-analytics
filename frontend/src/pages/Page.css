@@ -434,6 +434,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .video-thumb {
@@ -466,6 +468,7 @@
   position: relative;
   margin-top: 4px;
   height: 30px;
+  width: 100%;
 }
 
 .video-actions {

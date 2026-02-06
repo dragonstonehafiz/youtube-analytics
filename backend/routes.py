@@ -335,18 +335,21 @@ def get_sync_status() -> dict:
 
 
 @router.get("/sync/runs")
-def list_sync_runs(limit: int = 20) -> dict:
-    """Return recent sync runs."""
+def list_sync_runs(limit: int = 10, offset: int = 0) -> dict:
+    """Return recent sync runs with pagination."""
+    safe_limit = max(1, min(limit, 100))
+    safe_offset = max(0, offset)
     with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) AS count FROM sync_runs").fetchone()[0]
         rows = conn.execute(
             (
                 "SELECT id, started_at, finished_at, status, error_message, "
                 "start_date, end_date, deep_sync, pulls "
-                "FROM sync_runs ORDER BY id DESC LIMIT ?"
+                "FROM sync_runs ORDER BY id DESC LIMIT ? OFFSET ?"
             ),
-            (limit,),
+            (safe_limit, safe_offset),
         ).fetchall()
-    return {"items": [row_to_dict(row) for row in rows]}
+    return {"items": [row_to_dict(row) for row in rows], "total": total}
 
 
 @router.get("/sync/progress")
