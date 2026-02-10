@@ -1,0 +1,91 @@
+.dashboard-channel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboard-channel-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.dashboard-channel-label {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.dashboard-channel-subscribers {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.dashboard-channel-delta {
+  font-size: 16px;
+  color: var(--color-muted);
+}
+
+.dashboard-trend-up {
+  color: #16a34a;
+}
+
+.dashboard-trend-down {
+  color: #94a3b8;
+}
+
+.dashboard-channel-divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.25);
+  margin: 8px 0;
+}
+
+.dashboard-channel-summary-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.dashboard-channel-summary-sub {
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.dashboard-channel-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.dashboard-channel-metric-row strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+}
+
+.dashboard-metric-arrow {
+  display: inline-block;
+  width: 0;
+  height: 0;
+}
+
+.dashboard-metric-arrow-up {
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 12px solid #16a34a;
+}
+
+.dashboard-metric-arrow-down {
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 12px solid #94a3b8;
+}
+
+.dashboard-metric-arrow-flat {
+  width: 14px;
+  height: 2px;
+  background: #94a3b8;
+}

@@ -228,7 +228,6 @@ function Comments() {
               <div className="filter-title">Filters</div>
               <div className="filter-grid filter-grid-compact">
                 <div className="filter-field filter-date">
-                  <span>Published range</span>
                   <DateRangePicker
                     startDate={postedAfter}
                     endDate={postedBefore}
@@ -240,7 +239,6 @@ function Comments() {
                 </div>
                 <div className="filter-field">
                   <Dropdown
-                    label="Sort"
                     value={sortBy}
                     onChange={(value) => setSortBy(value as 'published_at' | 'likes' | 'reply_count')}
                     placeholder="Date posted"

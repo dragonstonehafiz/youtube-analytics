@@ -47,6 +47,47 @@
   color: #0f172a;
 }
 
+.metric-value-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metric-trend-icon {
+  width: 12px;
+  height: 12px;
+  line-height: 1;
+  display: inline-block;
+  position: relative;
+}
+
+.metric-trend-up {
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #16a34a;
+  width: 0;
+  height: 0;
+}
+
+.metric-trend-down {
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 10px solid #94a3b8;
+  width: 0;
+  height: 0;
+}
+
+.metric-trend-flat {
+  width: 12px;
+  height: 2px;
+  background: #94a3b8;
+}
+
+.metric-comparison {
+  font-size: 14px;
+  color: #64748b;
+}
+
 .chart-wrap {
   position: relative;
   width: 100%;

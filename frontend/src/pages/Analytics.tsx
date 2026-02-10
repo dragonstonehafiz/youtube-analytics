@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { DateRangePicker, Dropdown } from '../components/ui'
-import { MetricChartCard, TopContentTable } from '../components/analytics'
+import { MetricChartCard, TopContentTable, VideoDetailListCard } from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
@@ -9,6 +10,26 @@ type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 
 type SeriesPoint = { date: string; value: number }
 type BucketMeta = { startDate: string; endDate: string; dayCount: number }
+type MetricKey = 'views' | 'watch_time' | 'subscribers' | 'revenue'
+type TotalsState = {
+  views: number
+  watch_time_minutes: number
+  subscribers_net: number
+  estimated_revenue: number
+}
+type MetricComparison = {
+  direction: 'up' | 'down' | 'flat'
+  percentText: string
+}
+type LatestContentItem = {
+  video_id: string
+  title: string
+  thumbnail_url: string
+  published_at: string
+  views: number
+  avg_view_duration_seconds: number
+  avg_view_pct: number
+}
 
 function buildDayBucketMap(days: string[], granularity: Granularity): Map<string, string> {
   const dayToBucket = new Map<string, string>()
@@ -130,6 +151,7 @@ function aggregatePoints(points: SeriesPoint[], granularity: Granularity): Serie
 }
 
 function Analytics() {
+  const navigate = useNavigate()
   const [years, setYears] = useState<string[]>([])
   const rangeOptions = [
     { label: 'Last 7 days', value: 'range:7d' },
@@ -158,16 +180,20 @@ function Analytics() {
   const [summaryDays, setSummaryDays] = useState<string[]>([])
   const [publishedDates, setPublishedDates] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
   const [publishBucketMeta, setPublishBucketMeta] = useState<Record<string, BucketMeta>>({})
-  const [totals, setTotals] = useState({
+  const [totals, setTotals] = useState<TotalsState>({
     views: 0,
     watch_time_minutes: 0,
     subscribers_net: 0,
     estimated_revenue: 0,
   })
+  const [comparisons, setComparisons] = useState<Partial<Record<MetricKey, MetricComparison>>>({})
+  const [latestLongform, setLatestLongform] = useState<LatestContentItem[]>([])
+  const [latestShorts, setLatestShorts] = useState<LatestContentItem[]>([])
   const [topContent, setTopContent] = useState<
     {
       rank: number
       title: string
+      published_at: string
       upload_date: string
       thumbnail_url: string
       avg_view_duration: string
@@ -218,6 +244,21 @@ function Analytics() {
     return { start: format(today), end: format(today) }
   }, [mode, presetSelection, yearSelection, monthSelection, customStart, customEnd, years])
 
+  const previousRange = useMemo(() => {
+    const start = new Date(`${range.start}T00:00:00Z`)
+    const end = new Date(`${range.end}T00:00:00Z`)
+    const daySpan = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1)
+    const previousEnd = new Date(start)
+    previousEnd.setUTCDate(previousEnd.getUTCDate() - 1)
+    const previousStart = new Date(previousEnd)
+    previousStart.setUTCDate(previousStart.getUTCDate() - (daySpan - 1))
+    return {
+      start: previousStart.toISOString().slice(0, 10),
+      end: previousEnd.toISOString().slice(0, 10),
+      daySpan,
+    }
+  }, [range.start, range.end])
+
   useEffect(() => {
     async function loadYears() {
       try {
@@ -263,27 +304,58 @@ function Analytics() {
   useEffect(() => {
     async function loadSummary() {
       try {
-        const summaryUrl =
+        const buildSummaryUrl = (start: string, end: string) =>
           contentSelection === 'all'
-            ? `http://127.0.0.1:8000/analytics/channel-daily?start_date=${range.start}&end_date=${range.end}`
-            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
-        const response = await fetch(summaryUrl)
-        const data = await response.json()
+            ? `http://127.0.0.1:8000/analytics/channel-daily?start_date=${start}&end_date=${end}`
+            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${start}&end_date=${end}&content_type=${contentSelection}`
+        const [currentResponse, previousResponse] = await Promise.all([
+          fetch(buildSummaryUrl(range.start, range.end)),
+          fetch(buildSummaryUrl(previousRange.start, previousRange.end)),
+        ])
+        const [data, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
         const items = Array.isArray(data.items) ? data.items : []
         const gained = data.totals?.subscribers_gained ?? 0
         const lost = data.totals?.subscribers_lost ?? 0
-        setTotals({
+        const nextTotals: TotalsState = {
           views: data.totals?.views ?? 0,
           watch_time_minutes: data.totals?.watch_time_minutes ?? 0,
           subscribers_net: gained - lost,
           estimated_revenue: data.totals?.estimated_revenue ?? 0,
+        }
+        setTotals(nextTotals)
+        const previousGained = previousData.totals?.subscribers_gained ?? 0
+        const previousLost = previousData.totals?.subscribers_lost ?? 0
+        const previousTotals: TotalsState = {
+          views: previousData.totals?.views ?? 0,
+          watch_time_minutes: previousData.totals?.watch_time_minutes ?? 0,
+          subscribers_net: previousGained - previousLost,
+          estimated_revenue: previousData.totals?.estimated_revenue ?? 0,
+        }
+        const windowLabel = previousRange.daySpan === 1 ? '1 day' : `${previousRange.daySpan} days`
+        const buildComparison = (currentValue: number, previousValue: number): MetricComparison => {
+          const rawDelta = currentValue - previousValue
+          if (rawDelta === 0) {
+            return { direction: 'flat', percentText: `No change vs previous ${windowLabel}` }
+          }
+          const base = previousValue === 0 ? 1 : Math.abs(previousValue)
+          const percent = Math.abs((rawDelta / base) * 100)
+          return {
+            direction: rawDelta > 0 ? 'up' : 'down',
+            percentText: `${percent.toFixed(1)}% ${rawDelta > 0 ? 'more' : 'less'} than previous ${windowLabel}`,
+          }
+        }
+        setComparisons({
+          views: buildComparison(nextTotals.views, previousTotals.views),
+          watch_time: buildComparison(Math.round(nextTotals.watch_time_minutes / 60), Math.round(previousTotals.watch_time_minutes / 60)),
+          subscribers: buildComparison(nextTotals.subscribers_net, previousTotals.subscribers_net),
+          revenue: buildComparison(nextTotals.estimated_revenue, previousTotals.estimated_revenue),
         })
         const byDay = new Map<string, any>()
         items.forEach((item: any) => {
           byDay.set(item.day, item)
         })
         const sortedUniqueDays = Array.from(
-          new Set(
+          new Set<string>(
             items
               .map((item: any) => item.day)
               .filter((day: unknown): day is string => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day))
@@ -327,11 +399,12 @@ function Analytics() {
         })
       } catch (error) {
         console.error('Failed to load analytics summary', error)
+        setComparisons({})
       }
     }
 
     loadSummary()
-  }, [range.start, range.end, contentSelection, granularity])
+  }, [range.start, range.end, contentSelection, granularity, previousRange.start, previousRange.end, previousRange.daySpan])
 
   useEffect(() => {
     async function loadPublished() {
@@ -394,6 +467,7 @@ function Analytics() {
         const formatted = items.map((item: any, index: number) => ({
           rank: index + 1,
           title: item.title,
+          published_at: item.published_at ?? '',
           upload_date: item.published_at ? new Date(item.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '',
           thumbnail_url: item.thumbnail_url ?? '',
           avg_view_duration: formatDuration(item.avg_view_duration_seconds ?? 0),
@@ -408,6 +482,40 @@ function Analytics() {
 
     loadTopContent()
   }, [range.start, range.end, contentSelection])
+
+  useEffect(() => {
+    async function loadLatestContentCards() {
+      try {
+        const [longformResponse, shortResponse] = await Promise.all([
+          fetch(
+            `http://127.0.0.1:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=published_at&direction=desc&privacy_status=public`
+          ),
+          fetch(
+            `http://127.0.0.1:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=published_at&direction=desc&privacy_status=public`
+          ),
+        ])
+        const [longformData, shortData] = await Promise.all([longformResponse.json(), shortResponse.json()])
+        const mapItems = (payload: any): LatestContentItem[] =>
+          (Array.isArray(payload?.items) ? payload.items : []).map((item: any) => ({
+            video_id: String(item.video_id ?? ''),
+            title: String(item.title ?? '(untitled)'),
+            thumbnail_url: String(item.thumbnail_url ?? ''),
+            published_at: String(item.published_at ?? ''),
+            views: Number(item.views ?? 0),
+            avg_view_duration_seconds: Number(item.avg_view_duration_seconds ?? 0),
+            avg_view_pct: Number(item.avg_view_pct ?? 0),
+          }))
+        setLatestLongform(mapItems(longformData))
+        setLatestShorts(mapItems(shortData))
+      } catch (error) {
+        console.error('Failed to load latest content cards', error)
+        setLatestLongform([])
+        setLatestShorts([])
+      }
+    }
+
+    loadLatestContentCards()
+  }, [range.start, range.end])
 
   return (
     <section className="page">
@@ -501,31 +609,59 @@ function Analytics() {
       </header>
       <div className="page-body">
         <div className="page-row">
-          <PageCard>
-            <MetricChartCard
-              metrics={[
-                { key: 'views', label: 'Views', value: totals.views.toLocaleString() },
-                { key: 'watch_time', label: 'Watch time (hours)', value: Math.round(totals.watch_time_minutes / 60).toLocaleString() },
-                { key: 'subscribers', label: 'Subscribers', value: totals.subscribers_net.toLocaleString() },
-                { key: 'revenue', label: 'Estimated revenue', value: `$${Math.round(totals.estimated_revenue).toLocaleString()}` },
-              ]}
-              series={{
-                views: series.views ?? [],
-                watch_time: series.watch_time ?? [],
-                subscribers: series.subscribers ?? [],
-                revenue: series.revenue ?? [],
-              }}
-              publishedDates={publishedDates}
-              publishedBucketMeta={publishBucketMeta}
-            />
-          </PageCard>
-        </div>
-        <div className="page-row">
-          <PageCard>
-            <TopContentTable
-              items={topContent}
-            />
-          </PageCard>
+          <div className="analytics-main-layout">
+            <div className="analytics-main-column">
+              <PageCard>
+                <MetricChartCard
+                  metrics={[
+                    { key: 'views', label: 'Views', value: totals.views.toLocaleString(), comparison: comparisons.views },
+                    {
+                      key: 'watch_time',
+                      label: 'Watch time (hours)',
+                      value: Math.round(totals.watch_time_minutes / 60).toLocaleString(),
+                      comparison: comparisons.watch_time,
+                    },
+                    { key: 'subscribers', label: 'Subscribers', value: totals.subscribers_net.toLocaleString(), comparison: comparisons.subscribers },
+                    {
+                      key: 'revenue',
+                      label: 'Estimated revenue',
+                      value: `$${Math.round(totals.estimated_revenue).toLocaleString()}`,
+                      comparison: comparisons.revenue,
+                    },
+                  ]}
+                  series={{
+                    views: series.views ?? [],
+                    watch_time: series.watch_time ?? [],
+                    subscribers: series.subscribers ?? [],
+                    revenue: series.revenue ?? [],
+                  }}
+                  publishedDates={publishedDates}
+                  publishedBucketMeta={publishBucketMeta}
+                />
+              </PageCard>
+              <PageCard>
+                <TopContentTable items={topContent} />
+              </PageCard>
+            </div>
+            <div className="analytics-side-cards">
+              <PageCard>
+                <VideoDetailListCard
+                  title="Latest longform content"
+                  items={latestLongform}
+                  onOpenVideo={(videoId) => navigate(`/videoDetails/${videoId}`)}
+                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}?tab=comments`)}
+                />
+              </PageCard>
+              <PageCard>
+                <VideoDetailListCard
+                  title="Latest short content"
+                  items={latestShorts}
+                  onOpenVideo={(videoId) => navigate(`/videoDetails/${videoId}`)}
+                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}?tab=comments`)}
+                />
+              </PageCard>
+            </div>
+          </div>
         </div>
       </div>
     </section>

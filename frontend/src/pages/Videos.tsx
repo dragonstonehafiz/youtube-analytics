@@ -133,7 +133,6 @@ function Videos() {
               <div className="filter-title">Filters</div>
               <div className="filter-grid videos-filter-grid">
                 <label className="filter-field">
-                  <span>Search</span>
                   <input
                     type="text"
                     placeholder="Title"
@@ -142,7 +141,6 @@ function Videos() {
                   />
                 </label>
                 <Dropdown
-                  label="Visibility"
                   value={filters.privacy_status}
                   onChange={(value) => updateFilter('privacy_status', value)}
                   placeholder="All"
@@ -154,7 +152,6 @@ function Videos() {
                   ]}
                 />
                 <Dropdown
-                  label="Type"
                   value={filters.format}
                   onChange={(value) => updateFilter('format', value)}
                   placeholder="All Videos"
@@ -165,7 +162,6 @@ function Videos() {
                   ]}
                 />
                 <div className="filter-field filter-date">
-                  <span>Published range</span>
                   <DateRangePicker
                     startDate={filters.published_after}
                     endDate={filters.published_before}

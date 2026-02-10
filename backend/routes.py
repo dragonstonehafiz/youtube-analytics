@@ -473,13 +473,30 @@ def get_video(video_id: str) -> dict:
 
 
 @router.get("/analytics/top-content")
-def list_top_content(start_date: str, end_date: str, limit: int = 10, content_type: str | None = None) -> dict:
-    """Return top content in a date range, sorted by views, optionally filtered by content type."""
+def list_top_content(
+    start_date: str,
+    end_date: str,
+    limit: int = 10,
+    content_type: str | None = None,
+    privacy_status: str | None = None,
+    sort_by: str = Query(default="views"),
+    direction: str = Query(default="desc"),
+) -> dict:
+    """Return content in a date range, sorted by views or publish date, optionally filtered by content type."""
     where_sql = "a.date >= ? AND a.date <= ?"
     params: list[object] = [start_date, end_date]
     if content_type:
         where_sql += " AND v.content_type = ?"
         params.append(content_type)
+    if privacy_status:
+        where_sql += " AND v.privacy_status = ?"
+        params.append(privacy_status)
+    sort_map = {
+        "views": "views",
+        "published_at": "COALESCE(v.published_at, '')",
+    }
+    sort_column = sort_map.get(sort_by, "views")
+    sort_dir = "ASC" if direction.lower() == "asc" else "DESC"
     params.append(limit)
     with get_connection() as conn:
         rows = conn.execute(
@@ -496,7 +513,7 @@ def list_top_content(start_date: str, end_date: str, limit: int = 10, content_ty
             JOIN videos v ON v.id = a.video_id
             WHERE {where_sql}
             GROUP BY v.id
-            ORDER BY views DESC
+            ORDER BY {sort_column} {sort_dir}, views DESC
             LIMIT ?
             """,
             tuple(params),

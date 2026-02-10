@@ -7,6 +7,10 @@ type MetricSummary = {
   key: MetricKey
   label: string
   value: string
+  comparison?: {
+    direction: 'up' | 'down' | 'flat'
+    percentText: string
+  }
 }
 
 type SeriesPoint = {
@@ -251,7 +255,16 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
             onClick={() => setActiveMetric(metric.key)}
           >
             <span className="metric-label">{metric.label}</span>
-            <span className="metric-value">{metric.value}</span>
+            <span className="metric-value-row">
+              <span className="metric-value">{metric.value}</span>
+              {metric.comparison ? (
+                <span
+                  className={`metric-trend-icon metric-trend-${metric.comparison.direction}`}
+                  aria-hidden="true"
+                />
+              ) : null}
+            </span>
+            {metric.comparison ? <span className="metric-comparison">{metric.comparison.percentText}</span> : null}
           </button>
         ))}
       </div>

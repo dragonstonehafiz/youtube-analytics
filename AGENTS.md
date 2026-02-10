@@ -55,8 +55,15 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /analytics/daily/summary` supports optional `content_type` (`video` or `short`) and aggregates from `daily_analytics` joined to `videos`.
 - `frontend/src/pages/Analytics.tsx` includes a content dropdown with `All Videos`, `Longform`, `Shortform`; `All Videos` uses `/analytics/channel-daily`, while `Longform`/`Shortform` use `/analytics/daily/summary?content_type=...` for the same chart component.
 - `frontend/src/pages/Analytics.tsx` includes a granularity dropdown for chart aggregation: `Daily`, `7-days`, `28-days`, `90-days`, `Monthly`, `Yearly`. Aggregation is done in frontend from daily series data.
+- `frontend/src/pages/Analytics.tsx` KPI cards now compare current totals to the immediately previous equal-length date window and show trend indicators (green up/gray down) with text like `X% more/less than previous N days`.
+- `frontend/src/pages/Analytics.tsx` now includes a right-side latest-content rail with two reusable cards (`frontend/src/components/analytics/VideoDetailListCard.tsx`): one for longform (`content_type=video`) and one for shorts (`content_type=short`), each sourced from `GET /analytics/top-content` for the selected date range and sorted by newest publish date first.
+- `frontend/src/components/analytics/VideoDetailListCard.tsx` is the reusable video-detail list card component (title + arbitrary item list + CTA), and supports per-metric typical-range meters (currently views and average view duration) with up/down trend arrows when the active video is outside the card's typical range.
+- `frontend/src/components/analytics/VideoDetailListCard.tsx` supports two CTA buttons: `See video analytics` and optional `See video comments` (wired in Dashboard/Analytics to `/videoDetails/:videoId?tab=comments`).
+- On `frontend/src/pages/Analytics.tsx`, only the two latest-content cards request `privacy_status=public` (public videos only). `Top content this period` remains unfiltered by privacy unless content type filtering is applied.
 - `GET /videos/published` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to upload indicators (All = all uploads, Longform = only longform uploads, Shortform = only short uploads).
 - `GET /analytics/top-content` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to `Top content this period`.
+- `GET /analytics/top-content` also supports optional sorting via `sort_by` (`views` or `published_at`) and `direction` (`asc`/`desc`).
+- `GET /analytics/top-content` also supports optional `privacy_status` filtering (e.g., `public`).
 - Upload indicators on the Analytics chart are rebucketed to match selected granularity (`Daily`, `7-days`, `28-days`, `90-days`, `Monthly`, `Yearly`) using the same day-bucket mapping as the graph.
 - Grouped upload-indicator tooltip headers show bucket start date, end date, and window length (days), plus published count.
 - `frontend/src/components/analytics/TopContentTable.tsx` includes an `Upload date` column for top-content rows, shown as a readable date (e.g., `February 3, 2026`).
@@ -95,6 +102,13 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/Comments.tsx` includes a top `Published range` filter using `DateRangePicker`, wired to `GET /comments` query params `published_after` and `published_before`.
 - `frontend/src/pages/Comments.tsx` also backfills missing reply parents via `GET /comments/{comment_id}` when parent rows are not present in the current paginated dataset.
 - `frontend/src/pages/Comments.tsx` persists filter/sort/pagination settings in local storage key `commentsPageSettings`; default sort is `Date posted`.
+- `frontend/src/pages/Dashboard.tsx` includes two `VideoDetailListCard` instances (`Latest longform content`, `Latest shortform content`) that load the most recent 10 public videos per type via `GET /analytics/top-content` with `sort_by=published_at&direction=desc`.
+- `frontend/src/pages/Dashboard.tsx` includes a `Channel analytics` card showing current subscribers as lifetime net subscribers (`SUM(subscribers_gained - subscribers_lost)`) from `GET /analytics/channel-daily`, plus last-28-day summary metrics (views, watch time hours, estimated revenue) with simple up/down trend indicators vs the previous 28-day window.
+- Dashboard cards are componentized under `frontend/src/components/dashboard/`:
+  - `ChannelAnalyticsCard.tsx`: DB-backed channel summary card (lifetime net subscribers + last-28-day metrics/trends).
+  - `CommentsPreviewCard.tsx`: Recent comments preview card (latest comments list + `View more` to `/comments`).
+- Dashboard rows share a common sizing class (`dashboard-row` in `frontend/src/pages/Page.css`) so channel and latest-content sections follow the same width format instead of per-row width overrides.
+- Dashboard cards use a shared fixed card width pattern via `.dashboard-row > .page-card` (non-stretch, wrapping layout) so sections do not auto-fill row width.
 
 ## Frontend Components
 - `frontend/src/components/ui/ActionButton.tsx`: Standard button styling. Supports `primary` and `soft` variants.
@@ -103,6 +117,8 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/components/ui/MultiSelect.tsx`: Custom multiselect for choosing sync targets.
 - `frontend/src/components/ui/PageSwitcher.tsx`: Reusable pagination control with previous/next buttons and `Page X of Y` label, used in Video Detail comments, Videos list, Sync Runs list, and Comments page.
 - `frontend/src/components/ui/PageSizePicker.tsx`: Reusable pagination-size dropdown (`10`, `25`, `50`, `100`) used in Videos, Sync Runs, Video Detail comments, and Comments page.
+- `frontend/src/components/dashboard/ChannelAnalyticsCard.tsx`: Dashboard card for subscriber/summary analytics.
+- `frontend/src/components/dashboard/CommentsPreviewCard.tsx`: Dashboard card for recent comments preview.
 - `frontend/src/components/ui/YearInput.tsx`: Numeric year input for year-only syncs.
 - `frontend/src/components/ui/ProgressBar.tsx`: Horizontal progress bar with optional step text.
 - `frontend/src/components/layout/PageCard.tsx`: Generic card wrapper for consistent layout blocks.
