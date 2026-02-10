@@ -36,6 +36,10 @@ Use this file to understand where to make changes and which conventions to follo
   - Column 3: Total videos (top), Total comments (bottom).
   - Column 4: Daily analytics rows, Channel daily rows, Traffic source rows.
   - Donut slices show table size and percent on hover; no persistent table list below the chart.
+- `frontend/src/pages/Videos.tsx` includes a separate filter section/card above the videos table section with search, visibility, type (`All videos`, `Longform`, `Shorts`), and published date range inputs. Filters auto-apply on change, are sent to `GET /videos` query params, and are persisted in local storage.
+- `GET /videos` supports `content_type` filtering (`video` for longform, `short` for shorts).
+- Video `content_type` classification in `backend/src/database/videos.py` uses short-video IDs from the `UUSH...`-derived playlist (`backend/src/youtube/videos.py`) instead of stream dimensions/thumbnail heuristics.
+- `sync_videos` (and the videos pull inside `sync_all`) fetches shorts IDs via `get_short_video_ids()` and passes them to `upsert_videos(..., short_video_ids=...)`; if shorts ID retrieval fails, videos sync fails (fail-fast behavior).
 
 ## Frontend Components
 - `frontend/src/components/ui/ActionButton.tsx`: Standard button styling. Supports `primary` and `soft` variants.

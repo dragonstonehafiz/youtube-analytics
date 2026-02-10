@@ -109,6 +109,7 @@ def list_videos(
     published_after: str | None = None,
     published_before: str | None = None,
     privacy_status: str | None = None,
+    content_type: str | None = None,
     sort: str | None = None,
     direction: str | None = None,
 ) -> dict:
@@ -128,6 +129,9 @@ def list_videos(
     if privacy_status:
         where_clauses.append("privacy_status = ?")
         params.append(privacy_status)
+    if content_type:
+        where_clauses.append("content_type = ?")
+        params.append(content_type)
 
     where_sql = ""
     if where_clauses:

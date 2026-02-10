@@ -6,10 +6,11 @@ from src.database.db import get_connection
 from src.youtube.videos import parse_duration_to_seconds
 
 
-def upsert_videos(items: list[dict]) -> int:
+def upsert_videos(items: list[dict], short_video_ids: set[str] | None = None) -> int:
     """Insert or update video rows and return the number of rows processed."""
     if not items:
         return 0
+    short_ids = short_video_ids or set()
 
     now = datetime.now(timezone.utc).isoformat()
     rows = []
@@ -24,7 +25,7 @@ def upsert_videos(items: list[dict]) -> int:
         width = stream.get("widthPixels")
         height = stream.get("heightPixels")
         duration_seconds = parse_duration_to_seconds(content.get("duration"))
-        content_type = _determine_content_type(width, height, duration_seconds)
+        content_type = "short" if item.get("id") in short_ids else "video"
 
         rows.append(
             (
@@ -82,14 +83,3 @@ def upsert_videos(items: list[dict]) -> int:
         conn.executemany(sql, rows)
         conn.commit()
     return len(rows)
-
-
-def _determine_content_type(width: int | None, height: int | None, duration_seconds: int | None) -> str:
-    """Classify videos as short/video/unknown using aspect ratio + duration."""
-    if not width or not height:
-        return "video"
-    if not duration_seconds:
-        return "video"
-    if height > width and duration_seconds <= 60:
-        return "short"
-    return "video"

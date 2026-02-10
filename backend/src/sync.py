@@ -20,6 +20,7 @@ from src.youtube.analytics import (
 )
 from src.youtube.comments import extract_comments
 from src.youtube.videos import safe_get_videos
+from src.youtube.videos import get_short_video_ids
 
 _progress_lock = Lock()
 _sync_progress: dict[str, object] = {}
@@ -31,7 +32,8 @@ def sync_videos() -> None:
     _set_progress(0, 1, _format_pull_progress("videos", 0, 1))
     _logger.info("Starting videos sync")
     videos = safe_get_videos()
-    upsert_videos(videos)
+    short_video_ids = get_short_video_ids()
+    upsert_videos(videos, short_video_ids=short_video_ids)
     _set_progress(1, 1, _format_pull_progress("videos", 1, 1))
     return None
 
@@ -345,9 +347,7 @@ def sync_all(
     selected = {item.lower() for item in pulls} if pulls else None
     try:
         if _should_run(selected, "videos"):
-            videos = safe_get_videos()
-            upsert_videos(videos)
-            _set_progress(1, 1, _format_pull_progress("videos", 1, 1))
+            sync_videos()
         if _should_run(selected, "comments"):
             sync_comments()
         if _should_run(selected, "traffic"):

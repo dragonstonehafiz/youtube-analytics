@@ -37,14 +37,11 @@ def get_uploads_playlist_id() -> str:
     return items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
 
 
-def iter_upload_video_ids(page_size: int = 50) -> Iterable[str]:
-    """Yield all uploaded video IDs for the authenticated channel."""
+def _iter_playlist_video_ids(playlist_id: str, page_size: int = 50) -> Iterable[str]:
+    """Yield video IDs from a specific playlist."""
     youtube = get_youtube_client()
-    playlist_id = get_uploads_playlist_id()
     page_token = None
-
     while True:
-        # Page through playlist items to collect every upload.
         response = youtube.playlistItems().list(
             part="contentDetails",
             playlistId=playlist_id,
@@ -56,6 +53,21 @@ def iter_upload_video_ids(page_size: int = 50) -> Iterable[str]:
         page_token = response.get("nextPageToken")
         if not page_token:
             break
+
+
+def iter_upload_video_ids(page_size: int = 50) -> Iterable[str]:
+    """Yield all uploaded video IDs for the authenticated channel."""
+    playlist_id = get_uploads_playlist_id()
+    yield from _iter_playlist_video_ids(playlist_id, page_size=page_size)
+
+
+def get_short_video_ids() -> set[str]:
+    """Return short-video IDs from the UUSH-derived shorts playlist."""
+    uploads_playlist_id = get_uploads_playlist_id()
+    if not uploads_playlist_id.startswith("UU"):
+        return set()
+    shorts_playlist_id = f"UUSH{uploads_playlist_id[2:]}"
+    return {video_id for video_id in _iter_playlist_video_ids(shorts_playlist_id) if video_id}
 
 
 def fetch_video_details(video_ids: list[str]) -> list[dict]:
@@ -89,6 +101,14 @@ def safe_get_videos() -> list[dict]:
         return get_all_videos()
     except HttpError as exc:
         raise RuntimeError(f"YouTube API error: {exc}") from exc
+
+
+def safe_get_short_video_ids() -> set[str]:
+    """Return short-video IDs from UUSH playlist, or empty set on API failure."""
+    try:
+        return get_short_video_ids()
+    except HttpError:
+        return set()
 
 
 def get_channel_info() -> dict:
