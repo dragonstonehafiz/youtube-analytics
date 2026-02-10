@@ -45,9 +45,11 @@ function SyncSettings() {
     daily_analytics_rows: 0,
     channel_daily_rows: 0,
     traffic_sources_rows: 0,
+    table_storage: [] as { table: string; bytes: number; percent: number }[],
   })
   const [deepSync, setDeepSync] = useState(storedSync?.deepSync ?? false)
   const [progress, setProgress] = useState<{ is_syncing: boolean; current_step: number; max_steps: number; message: string } | null>(null)
+  const [hoveredStorageTable, setHoveredStorageTable] = useState<string | null>(null)
   const today = new Date().toISOString().slice(0, 10)
   const [startDate, setStartDate] = useState(storedSync?.startDate ?? today)
   const [endDate, setEndDate] = useState(storedSync?.endDate ?? today)
@@ -108,6 +110,15 @@ function SyncSettings() {
           daily_analytics_rows: data.daily_analytics_rows ?? 0,
           channel_daily_rows: data.channel_daily_rows ?? 0,
           traffic_sources_rows: data.traffic_sources_rows ?? 0,
+          table_storage: Array.isArray(data.table_storage)
+            ? data.table_storage
+              .map((item: { table?: string; bytes?: number; percent?: number }) => ({
+                table: item.table ?? '',
+                bytes: typeof item.bytes === 'number' ? item.bytes : 0,
+                percent: typeof item.percent === 'number' ? item.percent : 0,
+              }))
+              .filter((item: { table: string }) => item.table.length > 0)
+            : [],
         })
       } catch (error) {
         console.error('Failed to load overview stats', error)
@@ -138,6 +149,56 @@ function SyncSettings() {
     }
     return progressState.message || ''
   }
+  const formatOverviewDate = (value: string | null) => {
+    if (!value) {
+      return '—'
+    }
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+    if (!match) {
+      return value
+    }
+    const yearValue = Number(match[1])
+    const monthValue = Number(match[2])
+    const dayValue = Number(match[3])
+    if (monthValue < 1 || monthValue > 12 || dayValue < 1 || dayValue > 31) {
+      return value
+    }
+    const monthName = new Date(Date.UTC(yearValue, monthValue - 1, dayValue)).toLocaleString(undefined, {
+      month: 'long',
+      timeZone: 'UTC',
+    })
+    return `${dayValue} ${monthName} ${yearValue}`
+  }
+  const formatBytes = (value: number) => {
+    if (value >= 1024 * 1024) {
+      return `${(value / (1024 * 1024)).toFixed(2)} MB`
+    }
+    if (value >= 1024) {
+      return `${(value / 1024).toFixed(2)} KB`
+    }
+    return `${value} B`
+  }
+  const pieSegments = useMemo(() => {
+    const colors = ['#0ea5e9', '#14b8a6', '#f59e0b', '#f97316', '#84cc16', '#22c55e', '#6366f1', '#e11d48']
+    let runningPercent = 0
+    return overview.table_storage
+      .filter((item) => item.percent > 0)
+      .map((item, index) => {
+        const start = runningPercent
+        const end = runningPercent + item.percent
+        runningPercent = end
+        return {
+          ...item,
+          start,
+          end,
+          color: colors[index % colors.length],
+        }
+      })
+  }, [overview.table_storage])
+  const hoveredSegment = useMemo(
+    () => pieSegments.find((segment) => segment.table === hoveredStorageTable) ?? null,
+    [pieSegments, hoveredStorageTable]
+  )
 
   const runsTotalPages = useMemo(
     () => Math.max(1, Math.ceil(runsTotal / runsPageSize)),
@@ -341,46 +402,86 @@ function SyncSettings() {
             <div className="sync-card-header-row">
               <div className="sync-card-header">Database Overview</div>
             </div>
-            <div className="sync-stats">
-              <div>
-                <div className="sync-stat-label">Database size</div>
-                <div className="sync-stat-value">{(overview.db_size_bytes / (1024 * 1024)).toFixed(2)} MB</div>
+            <div className="db-overview-grid">
+              <div className="db-overview-size">
+                <div className="db-overview-pie-wrap">
+                  <div className="db-overview-pie-chart">
+                    <svg className="db-overview-pie" viewBox="0 0 140 140" role="img" aria-label="Table storage distribution">
+                      <circle cx="70" cy="70" r="52" fill="none" stroke="#e2e8f0" strokeWidth="18" />
+                      {pieSegments.map((segment) => {
+                        const circumference = 2 * Math.PI * 52
+                        const segmentLength = (segment.percent / 100) * circumference
+                        const segmentOffset = -((segment.start / 100) * circumference)
+                        return (
+                          <circle
+                            key={segment.table}
+                            cx="70"
+                            cy="70"
+                            r="52"
+                            fill="none"
+                            stroke={segment.color}
+                            strokeWidth="18"
+                            strokeLinecap="butt"
+                            strokeDasharray={`${segmentLength} ${circumference}`}
+                            strokeDashoffset={segmentOffset}
+                            transform="rotate(-90 70 70)"
+                            onMouseEnter={() => setHoveredStorageTable(segment.table)}
+                            onMouseLeave={() => setHoveredStorageTable(null)}
+                          />
+                        )
+                      })}
+                    </svg>
+                    <div className="db-overview-pie-center">
+                      <div className="db-overview-pie-center-label">Total size</div>
+                      <div className="db-overview-pie-center-value">{formatBytes(overview.db_size_bytes)}</div>
+                    </div>
+                  </div>
+                </div>
+                {pieSegments.length === 0 ? (
+                  <div className="sync-storage-empty">No table storage data available.</div>
+                ) : (
+                  <div className="db-overview-hover">
+                    {hoveredSegment ? (
+                      <span>{`${hoveredSegment.table}: ${formatBytes(hoveredSegment.bytes)} (${hoveredSegment.percent.toFixed(2)}%)`}</span>
+                    ) : (
+                      <span>Hover a slice to see table size and percentage</span>
+                    )}
+                  </div>
+                )}
               </div>
-              <div>
-                <div className="sync-stat-label">Earliest data</div>
-                <div className="sync-stat-value">{overview.earliest_date ?? '—'}</div>
+              <div className="db-overview-col">
+                <div className="db-overview-metric">
+                  <div className="sync-stat-label">Earliest data</div>
+                  <div className="sync-stat-value">{formatOverviewDate(overview.earliest_date)}</div>
+                </div>
+                <div className="db-overview-metric">
+                  <div className="sync-stat-label">Latest data</div>
+                  <div className="sync-stat-value">{formatOverviewDate(overview.latest_date)}</div>
+                </div>
               </div>
-              <div>
-                <div className="sync-stat-label">Latest data</div>
-                <div className="sync-stat-value">{overview.latest_date ?? '—'}</div>
+              <div className="db-overview-col">
+                <div className="db-overview-metric">
+                  <div className="sync-stat-label">Total videos</div>
+                  <div className="sync-stat-value">{overview.total_uploads.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-metric">
+                  <div className="sync-stat-label">Total comments</div>
+                  <div className="sync-stat-value">{overview.total_comments.toLocaleString()}</div>
+                </div>
               </div>
-            </div>
-            <div className="sync-stats sync-stats-row">
-              <div>
-                <div className="sync-stat-label">Total comments</div>
-                <div className="sync-stat-value">{overview.total_comments.toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="sync-stat-label">Total uploads</div>
-                <div className="sync-stat-value">{overview.total_uploads.toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="sync-stat-label">Total views</div>
-                <div className="sync-stat-value">{overview.total_views.toLocaleString()}</div>
-              </div>
-            </div>
-            <div className="sync-stats sync-stats-row">
-              <div>
-                <div className="sync-stat-label">Traffic sources rows</div>
-                <div className="sync-stat-value">{overview.traffic_sources_rows.toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="sync-stat-label">Channel daily rows</div>
-                <div className="sync-stat-value">{overview.channel_daily_rows.toLocaleString()}</div>
-              </div>
-              <div>
-                <div className="sync-stat-label">Daily analytics rows</div>
-                <div className="sync-stat-value">{overview.daily_analytics_rows.toLocaleString()}</div>
+              <div className="db-overview-rows">
+                <div className="db-overview-row-metric">
+                  <div className="sync-stat-label">Daily analytics rows</div>
+                  <div className="sync-stat-value">{overview.daily_analytics_rows.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-row-metric">
+                  <div className="sync-stat-label">Channel daily rows</div>
+                  <div className="sync-stat-value">{overview.channel_daily_rows.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-row-metric">
+                  <div className="sync-stat-label">Traffic source rows</div>
+                  <div className="sync-stat-value">{overview.traffic_sources_rows.toLocaleString()}</div>
+                </div>
               </div>
             </div>
           </div>

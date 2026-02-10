@@ -28,6 +28,14 @@ Use this file to understand where to make changes and which conventions to follo
 - Keep API calls in a small client module (e.g., `frontend/src/api.ts`) and type responses.
 - Prefer reusable components over inline UI duplication.
 - Shared color theme lives in `frontend/src/index.css` as CSS variables.
+- On `frontend/src/pages/SyncSettings.tsx`, overview date fields (`Earliest data`, `Latest data`) are displayed as `day month year` (e.g., `7 February 2026`) instead of raw `yyyy-mm-dd`.
+- `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
+- `frontend/src/pages/SyncSettings.tsx` uses a 4-column Database Overview layout:
+  - Column 1: Database size + donut chart (ring only) with total size in the center.
+  - Column 2: Earliest data (top), Latest data (bottom).
+  - Column 3: Total videos (top), Total comments (bottom).
+  - Column 4: Daily analytics rows, Channel daily rows, Traffic source rows.
+  - Donut slices show table size and percent on hover; no persistent table list below the chart.
 
 ## Frontend Components
 - `frontend/src/components/ui/ActionButton.tsx`: Standard button styling. Supports `primary` and `soft` variants.

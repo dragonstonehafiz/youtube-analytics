@@ -145,19 +145,29 @@ def sync_daily_analytics(
     )
     publish_map = build_publish_map()
     total_rows = 0
+    segment_video_sets: list[list[str]] = []
+    total_videos = 0
+    for segment in segments:
+        segment_videos: list[str] = []
+        for video_id in video_ids:
+            publish_date = publish_map.get(video_id)
+            if publish_date and publish_date > segment.end:
+                continue
+            latest = latest_by_video.get(video_id)
+            if latest:
+                next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
+                if next_day > segment.end:
+                    continue
+            segment_videos.append(video_id)
+        segment_video_sets.append(segment_videos)
+        total_videos += len(segment_videos)
+    if total_videos == 0:
+        _set_progress(0, 1, _format_daily_progress(0, 0, "no videos to sync"))
+        return None
+    _set_progress(0, total_videos, _format_daily_progress(0, total_videos, "starting"))
+    processed_videos = 0
 
     for segment_index, segment in enumerate(segments, start=1):
-        total_segments = max(len(segments), 1)
-        current_before = max(segment_index - 1, 0)
-        _set_progress(
-            current_before,
-            total_segments,
-            _format_daily_progress(
-                current_before,
-                total_segments,
-                f"{segment.start} -> {segment.end}",
-            ),
-        )
         _logger.info(
             "Daily analytics segment %s/%s: %s -> %s",
             segment_index,
@@ -165,20 +175,17 @@ def sync_daily_analytics(
             segment.start,
             segment.end,
         )
-        segment_videos = []
-        for video_id in video_ids:
-            publish_date = publish_map.get(video_id)
-            if publish_date and publish_date > segment.end:
-                continue
-            segment_videos.append(video_id)
+        segment_videos = segment_video_sets[segment_index - 1]
+        segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
+            processed_videos += 1
             _set_progress(
-                current_before,
-                total_segments,
+                processed_videos,
+                total_videos,
                 _format_daily_progress(
-                    current_before,
-                    total_segments,
-                    f"{segment.start} -> {segment.end} Video [{video_index}/{len(segment_videos)}]",
+                    processed_videos,
+                    total_videos,
+                    f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
                 ),
             )
             latest = latest_by_video.get(video_id)
@@ -194,15 +201,6 @@ def sync_daily_analytics(
                 publish_date=publish_map.get(video_id),
             )
             total_rows += upsert_daily_analytics(video_id, rows)
-        _set_progress(
-            segment_index,
-            total_segments,
-            _format_daily_progress(
-                segment_index,
-                total_segments,
-                f"{segment.start} -> {segment.end}",
-            ),
-        )
 
     return None
 

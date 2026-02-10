@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi import APIRouter, BackgroundTasks, Query
 
 from config import settings
@@ -8,6 +10,38 @@ from src.sync import prune_missing_videos_task, sync_all, sync_videos
 from src.youtube.videos import get_channel_info
 
 router = APIRouter()
+
+
+def _get_table_storage(conn: sqlite3.Connection, db_size_bytes: int) -> list[dict]:
+    """Return per-table storage usage in bytes and percent of total database size."""
+    table_rows = conn.execute(
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    table_names = [row["name"] for row in table_rows]
+    if not table_names:
+        return []
+    try:
+        object_rows = conn.execute("SELECT name, SUM(pgsize) AS bytes FROM dbstat GROUP BY name").fetchall()
+    except sqlite3.OperationalError:
+        return []
+
+    object_bytes = {row["name"]: int(row["bytes"] or 0) for row in object_rows}
+    index_rows = conn.execute(
+        "SELECT name, tbl_name FROM sqlite_schema WHERE type = 'index' AND tbl_name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    index_to_table = {row["name"]: row["tbl_name"] for row in index_rows if row["name"] and row["tbl_name"]}
+
+    totals = {name: object_bytes.get(name, 0) for name in table_names}
+    for index_name, table_name in index_to_table.items():
+        if table_name in totals:
+            totals[table_name] += object_bytes.get(index_name, 0)
+
+    sorted_totals = sorted(totals.items(), key=lambda item: item[1], reverse=True)
+    output = []
+    for table_name, table_bytes in sorted_totals:
+        percent = round((table_bytes / db_size_bytes) * 100, 2) if db_size_bytes > 0 else 0.0
+        output.append({"table": table_name, "bytes": table_bytes, "percent": percent})
+    return output
 
 
 @router.get("/health")
@@ -382,6 +416,7 @@ def get_overview_stats() -> dict:
         daily_analytics_rows = daily_rows["count"] if daily_rows and daily_rows["count"] is not None else 0
         channel_daily_rows = channel_rows["count"] if channel_rows and channel_rows["count"] is not None else 0
         traffic_sources_rows = traffic_rows["count"] if traffic_rows and traffic_rows["count"] is not None else 0
+        table_storage = _get_table_storage(conn, db_size_bytes)
     return {
         "db_size_bytes": db_size_bytes,
         "total_uploads": total_uploads,
@@ -392,4 +427,5 @@ def get_overview_stats() -> dict:
         "daily_analytics_rows": daily_analytics_rows,
         "channel_daily_rows": channel_daily_rows,
         "traffic_sources_rows": traffic_sources_rows,
+        "table_storage": table_storage,
     }
