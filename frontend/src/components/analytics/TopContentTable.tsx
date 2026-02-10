@@ -1,6 +1,8 @@
 import './TopContentTable.css'
+import { Link } from 'react-router-dom'
 
 type TopContentItem = {
+  video_id: string
   rank: number
   title: string
   published_at: string
@@ -36,7 +38,9 @@ function TopContentTable({ items }: TopContentTableProps) {
                 <div className="thumb" />
               )}
               <div className="meta">
-                <div className="title">{item.title}</div>
+                <Link className="title top-content-link" to={`/videoDetails/${item.video_id}`}>
+                  {item.title}
+                </Link>
               </div>
             </div>
             <div className="right">{item.upload_date}</div>

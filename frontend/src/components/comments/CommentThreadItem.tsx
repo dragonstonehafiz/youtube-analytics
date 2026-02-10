@@ -3,7 +3,7 @@ import './CommentThreadItem.css'
 
 export type CommentRow = {
   id: string
-  parent_id: string | null
+  video_id?: string | null
   author_name: string | null
   author_profile_image_url: string | null
   reply_count?: number | null
@@ -50,15 +50,16 @@ function formatLikeCount(value: number | null): string {
 
 type Props = {
   thread: CommentThread
-  loadingReplies?: boolean
-  repliesError?: string | null
-  onShowMoreReplies?: () => void
-  onHideReplies?: () => void
+  videoId?: string
 }
 
-function CommentThreadItem({ thread, loadingReplies = false, repliesError = null, onShowMoreReplies, onHideReplies }: Props) {
-  const canShowMore = thread.replies.length < thread.repliesTotal
-  const canHide = thread.replies.length > 0
+function buildYouTubeCommentUrl(videoId: string, commentId: string): string {
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&lc=${encodeURIComponent(commentId)}`
+}
+
+function CommentThreadItem({ thread, videoId }: Props) {
+  const resolvedVideoId = videoId || (thread.parent.video_id ?? '')
+  const commentUrl = resolvedVideoId && thread.parent.id ? buildYouTubeCommentUrl(resolvedVideoId, thread.parent.id) : ''
   return (
     <article className="comment-thread-item">
       <div className="comment-thread-row">
@@ -83,47 +84,11 @@ function CommentThreadItem({ thread, loadingReplies = false, repliesError = null
           </div>
         </div>
       </div>
-      {thread.replies.map((reply) => (
-        <article key={reply.id} className="comment-thread-reply">
-          <div className="comment-thread-row">
-            {reply.author_profile_image_url ? (
-              <img
-                className="comment-thread-avatar"
-                src={upscaleYouTubeAvatar(reply.author_profile_image_url)}
-                alt={reply.author_name || 'Profile'}
-              />
-            ) : (
-              <div className="comment-thread-avatar">{getAvatarInitial(reply.author_name)}</div>
-            )}
-            <div className="comment-thread-main">
-              <header className="comment-thread-header">
-                <div className="comment-thread-author">{getAuthorHandle(reply.author_name)}</div>
-                <div className="comment-thread-date">{formatPostedAt(reply.published_at)}</div>
-              </header>
-              <div className="comment-thread-text">{reply.text_display || ''}</div>
-              <div className="comment-thread-meta">
-                <span className="comment-thread-likes">{formatLikeCount(reply.like_count)} likes</span>
-              </div>
-            </div>
-          </div>
-        </article>
-      ))}
-      {repliesError ? <div className="comment-thread-replies-error">{repliesError}</div> : null}
       <div className="comment-thread-actions">
-        {canShowMore ? (
+        {commentUrl ? (
           <ActionButton
-            label={loadingReplies ? 'Loading...' : 'Show more'}
-            onClick={onShowMoreReplies}
-            disabled={loadingReplies}
-            variant="soft"
-            className="comment-thread-action-button"
-          />
-        ) : null}
-        {canHide ? (
-          <ActionButton
-            label="Hide replies"
-            onClick={onHideReplies}
-            disabled={loadingReplies}
+            label="See comments"
+            onClick={() => window.open(commentUrl, '_blank', 'noopener,noreferrer')}
             variant="soft"
             className="comment-thread-action-button"
           />

@@ -171,7 +171,7 @@ def list_comments(
     sort_by: str = Query(default="published_at"),
     direction: str = Query(default="desc"),
 ) -> dict:
-    """Return comments with optional video filter/pagination and parent rows for thread rendering."""
+    """Return comments with optional video filter/pagination."""
     where_clauses = []
     params: list[object] = []
     if video_id:
@@ -208,85 +208,8 @@ def list_comments(
             tuple(params),
         ).fetchone()
     items = [row_to_dict(row) for row in rows]
-    parent_ids: set[str] = set()
-    item_ids = {str(item.get("id")) for item in items if item.get("id")}
-    for item in items:
-        parent_id = item.get("parent_id")
-        if parent_id and str(parent_id) not in item_ids:
-            parent_ids.add(str(parent_id))
-
-    parents: list[dict] = []
-    if parent_ids:
-        placeholders = ", ".join(["?"] * len(parent_ids))
-        with get_connection() as conn:
-            parent_rows = conn.execute(
-                f"""
-                SELECT c.*, v.title AS video_title, v.thumbnail_url AS video_thumbnail_url
-                FROM comments c
-                LEFT JOIN videos v ON v.id = c.video_id
-                WHERE c.id IN ({placeholders})
-                ORDER BY {sort_column} {sort_dir}, c.id DESC
-                """,
-                tuple(parent_ids),
-            ).fetchall()
-        parents = [row_to_dict(row) for row in parent_rows]
-
     total = total_row["total"] if total_row and total_row["total"] is not None else 0
-    return {"items": items, "parents": parents, "total": total}
-
-
-@router.get("/comments/{comment_id}/replies")
-def list_comment_replies(
-    comment_id: str,
-    limit: int = Query(default=100, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
-    sort_by: str = Query(default="published_at"),
-    direction: str = Query(default="desc"),
-) -> dict:
-    """Return replies for one parent comment from local DB with pagination and sorting."""
-    with get_connection() as conn:
-        parent_row = conn.execute("SELECT id, reply_count FROM comments WHERE id = ?", (comment_id,)).fetchone()
-        if parent_row is None:
-            raise HTTPException(status_code=404, detail="Parent comment not found.")
-        sort_map = {
-            "published_at": "c.published_at",
-            "likes": "COALESCE(c.like_count, 0)",
-            "reply_count": "COALESCE(c.reply_count, 0)",
-        }
-        sort_column = sort_map.get(sort_by, "c.published_at")
-        sort_dir = "ASC" if direction.lower() == "asc" else "DESC"
-        rows = conn.execute(
-            f"""
-            SELECT c.*, v.title AS video_title, v.thumbnail_url AS video_thumbnail_url
-            FROM comments c
-            LEFT JOIN videos v ON v.id = c.video_id
-            WHERE c.parent_id = ?
-            ORDER BY {sort_column} {sort_dir}, c.id DESC
-            LIMIT ? OFFSET ?
-            """,
-            (comment_id, limit, offset),
-        ).fetchall()
-    items = [row_to_dict(row) for row in rows]
-    total = int(parent_row["reply_count"] or 0)
     return {"items": items, "total": total}
-
-
-@router.get("/comments/{comment_id}")
-def get_comment(comment_id: str) -> dict:
-    """Return a single comment row by ID."""
-    with get_connection() as conn:
-        row = conn.execute(
-            """
-            SELECT c.*, v.title AS video_title, v.thumbnail_url AS video_thumbnail_url
-            FROM comments c
-            LEFT JOIN videos v ON v.id = c.video_id
-            WHERE c.id = ?
-            """,
-            (comment_id,),
-        ).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Comment not found.")
-    return {"item": row_to_dict(row)}
 
 
 @router.get("/analytics/daily")

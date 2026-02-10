@@ -78,7 +78,6 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 CREATE TABLE IF NOT EXISTS comments (
     id TEXT PRIMARY KEY,
     video_id TEXT NOT NULL,
-    parent_id TEXT,
     reply_count INTEGER,
     author_name TEXT,
     author_channel_id TEXT,

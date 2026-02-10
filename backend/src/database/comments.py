@@ -13,7 +13,6 @@ def upsert_comments(rows: list[dict]) -> int:
             (
                 row.get("id"),
                 row.get("video_id"),
-                row.get("parent_id"),
                 row.get("reply_count"),
                 row.get("author_name"),
                 row.get("author_channel_id"),
@@ -26,14 +25,13 @@ def upsert_comments(rows: list[dict]) -> int:
         )
     sql = """
         INSERT INTO comments (
-            id, video_id, parent_id, reply_count, author_name, author_channel_id,
+            id, video_id, reply_count, author_name, author_channel_id,
             author_profile_image_url, text_display, like_count, published_at, updated_at
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         ON CONFLICT(id) DO UPDATE SET
             video_id=excluded.video_id,
-            parent_id=excluded.parent_id,
             reply_count=excluded.reply_count,
             author_name=excluded.author_name,
             author_channel_id=excluded.author_channel_id,

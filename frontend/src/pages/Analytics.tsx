@@ -191,6 +191,7 @@ function Analytics() {
   const [latestShorts, setLatestShorts] = useState<LatestContentItem[]>([])
   const [topContent, setTopContent] = useState<
     {
+      video_id: string
       rank: number
       title: string
       published_at: string
@@ -465,6 +466,7 @@ function Analytics() {
           return `${mins}:${secs.toString().padStart(2, '0')}`
         }
         const formatted = items.map((item: any, index: number) => ({
+          video_id: String(item.video_id ?? ''),
           rank: index + 1,
           title: item.title,
           published_at: item.published_at ?? '',

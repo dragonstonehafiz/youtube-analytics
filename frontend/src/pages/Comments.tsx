@@ -30,8 +30,6 @@ function Comments() {
   const [pageSize, setPageSize] = useState(storedSettings?.pageSize ?? 10)
   const [sortBy, setSortBy] = useState<'published_at' | 'likes' | 'reply_count'>(storedSettings?.sortBy ?? 'published_at')
   const [rows, setRows] = useState<CommentApiRow[]>([])
-  const [fetchedMissingParents, setFetchedMissingParents] = useState<Record<string, CommentRow>>({})
-  const [missingParentFetchTried, setMissingParentFetchTried] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(storedSettings?.page ?? 1)
@@ -88,102 +86,11 @@ function Comments() {
       page,
     })
   }, [pageSize, sortBy, postedAfter, postedBefore, page])
-  useEffect(() => {
-    setFetchedMissingParents({})
-    setMissingParentFetchTried({})
-  }, [page, postedAfter, postedBefore, sortBy, pageSize])
-  const missingParentIds = useMemo(() => {
-    const inPageIds = new Set(rows.map((row) => row.id))
-    return Array.from(
-      new Set(
-        rows
-          .map((row) => row.parent_id)
-          .filter((parentId): parentId is string => Boolean(parentId))
-          .filter((parentId) => !inPageIds.has(parentId))
-          .filter((parentId) => !fetchedMissingParents[parentId])
-          .filter((parentId) => !missingParentFetchTried[parentId])
-      )
-    )
-  }, [rows, fetchedMissingParents, missingParentFetchTried])
-  useEffect(() => {
-    if (missingParentIds.length === 0) {
-      return
-    }
-    let cancelled = false
-    async function loadMissingParents() {
-      for (const parentId of missingParentIds) {
-        try {
-          const response = await fetch(`http://127.0.0.1:8000/comments/${parentId}`)
-          if (!response.ok) {
-            if (!cancelled) {
-              setMissingParentFetchTried((prev) => ({ ...prev, [parentId]: true }))
-            }
-            continue
-          }
-          const data = await response.json()
-          if (!cancelled && data.item) {
-            setFetchedMissingParents((prev) => ({ ...prev, [parentId]: data.item as CommentRow }))
-            setMissingParentFetchTried((prev) => ({ ...prev, [parentId]: true }))
-          }
-        } catch (error) {
-          if (!cancelled) {
-            console.error('Failed to load missing parent comment', error)
-            setMissingParentFetchTried((prev) => ({ ...prev, [parentId]: true }))
-          }
-        }
-      }
-    }
-    loadMissingParents()
-    return () => {
-      cancelled = true
-    }
-  }, [missingParentIds])
-
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
 
   const groups = useMemo(() => {
-    const byVideoRows = new Map<string, CommentApiRow[]>()
     const getTime = (value: string | null) => (value ? new Date(value).getTime() : 0)
-    const buildThreads = (videoRows: CommentApiRow[]): CommentThread[] => {
-      const byId = new Map<string, CommentApiRow>()
-      videoRows.forEach((row) => byId.set(row.id, row))
-      const threadByParentId = new Map<string, { parent: CommentRow; replies: CommentRow[] }>()
-      videoRows.forEach((row) => {
-        if (!row.parent_id) {
-          threadByParentId.set(row.id, { parent: row, replies: [] })
-        }
-      })
-      videoRows.forEach((row) => {
-        if (!row.parent_id) {
-          return
-        }
-        const parentId = row.parent_id
-        const parent = byId.get(parentId) ?? fetchedMissingParents[parentId] ?? {
-          id: parentId,
-          parent_id: null,
-          author_name: 'Unknown author',
-          author_profile_image_url: null,
-          text_display: '(Parent comment unavailable)',
-          like_count: null,
-          published_at: null,
-          reply_count: null,
-        }
-        const existing = threadByParentId.get(parentId)
-        if (existing) {
-          existing.replies.push(row)
-        } else {
-          threadByParentId.set(parentId, { parent, replies: [row] })
-        }
-      })
-      return Array.from(threadByParentId.values())
-        .map((thread) => ({
-          parent: thread.parent,
-          replies: thread.replies.sort((a, b) => getTime(b.published_at) - getTime(a.published_at)),
-          repliesTotal: thread.parent.reply_count ?? thread.replies.length,
-        }))
-        .sort((a, b) => getTime(b.parent.published_at) - getTime(a.parent.published_at))
-    }
-
+    const byVideoRows = new Map<string, CommentApiRow[]>()
     rows.forEach((row) => {
       if (!row.video_id) {
         return
@@ -195,7 +102,6 @@ function Comments() {
         byVideoRows.set(row.video_id, [row])
       }
     })
-
     const byVideo = new Map<string, CommentGroup>()
     rows.forEach((row) => {
       const videoId = row.video_id || ''
@@ -210,11 +116,17 @@ function Comments() {
         videoId,
         videoTitle: row.video_title && row.video_title.trim() ? row.video_title : '(untitled video)',
         videoThumbnailUrl: row.video_thumbnail_url && row.video_thumbnail_url.trim() ? row.video_thumbnail_url : null,
-        comments: buildThreads(videoRows),
+        comments: videoRows
+          .map((parent) => ({
+            parent,
+            replies: [],
+            repliesTotal: parent.reply_count ?? 0,
+          }))
+          .sort((a, b) => getTime(b.parent.published_at) - getTime(a.parent.published_at)),
       })
     })
     return Array.from(byVideo.values())
-  }, [rows, fetchedMissingParents])
+  }, [rows])
 
   return (
     <section className="page">
@@ -292,7 +204,7 @@ function Comments() {
                     </header>
                     <div className="comments-group-items">
                       {group.comments.map((thread) => (
-                        <CommentThreadItem key={thread.parent.id} thread={thread} />
+                        <CommentThreadItem key={thread.parent.id} thread={thread} videoId={group.videoId} />
                       ))}
                     </div>
                   </section>

@@ -3,7 +3,7 @@ import { useSearchParams, useParams } from 'react-router-dom'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
 import { MetricChartCard } from '../components/analytics'
 import { PageCard } from '../components/layout'
-import { CommentThreadItem, type CommentRow, type CommentThread } from '../components/comments'
+import { CommentThreadItem, type CommentRow } from '../components/comments'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
@@ -33,12 +33,6 @@ type VideoDailyRow = {
 type SeriesPoint = { date: string; value: number }
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type CommentSort = 'published_at' | 'likes' | 'reply_count'
-type RepliesBucket = {
-  items: CommentRow[]
-  total: number
-  loading: boolean
-  error: string | null
-}
 
 function formatDuration(seconds: number | null): string {
   if (!seconds || seconds < 0) {
@@ -88,10 +82,6 @@ function VideoDetail() {
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentsError, setCommentsError] = useState<string | null>(null)
   const [comments, setComments] = useState<CommentRow[]>([])
-  const [commentParents, setCommentParents] = useState<CommentRow[]>([])
-  const [fetchedMissingParents, setFetchedMissingParents] = useState<Record<string, CommentRow>>({})
-  const [missingParentFetchTried, setMissingParentFetchTried] = useState<Record<string, boolean>>({})
-  const [repliesByParent, setRepliesByParent] = useState<Record<string, RepliesBucket>>({})
   const [commentsTotal, setCommentsTotal] = useState(0)
   const [commentsPage, setCommentsPage] = useState(1)
   const [commentsPageSize, setCommentsPageSize] = useState(10)
@@ -143,106 +133,16 @@ function VideoDetail() {
       if (commentsSort === 'reply_count') {
         return parseReplyCount(b.reply_count) - parseReplyCount(a.reply_count)
       }
-      return parseTime(b.published_at) - parseTime(a.published_at)
+        return parseTime(b.published_at) - parseTime(a.published_at)
     }
-    const inPageById = new Map<string, CommentRow>()
-    const inPageOrder = new Map<string, number>()
-    comments.forEach((comment) => {
-      inPageById.set(comment.id, comment)
-      inPageOrder.set(comment.id, inPageOrder.size)
-    })
-    const fetchedParentById = new Map<string, CommentRow>()
-    commentParents.forEach((comment) => {
-      fetchedParentById.set(comment.id, comment)
-    })
-    Object.entries(fetchedMissingParents).forEach(([id, comment]) => {
-      fetchedParentById.set(id, comment)
-    })
-    const threadByParentId = new Map<string, { parent: CommentRow; replies: CommentRow[] }>()
-
-    comments.forEach((comment) => {
-      if (!comment.parent_id) {
-        threadByParentId.set(comment.id, { parent: comment, replies: [] })
-      }
-    })
-
-    comments.forEach((comment) => {
-      if (!comment.parent_id) {
-        return
-      }
-      const parentId = comment.parent_id
-      const parentComment = inPageById.get(parentId) ?? fetchedParentById.get(parentId) ?? {
-        id: parentId,
-        parent_id: null,
-        author_name: 'Unknown author',
-        author_profile_image_url: null,
-        text_display: '(Parent comment unavailable)',
-        like_count: null,
-        published_at: null,
-        reply_count: null,
-      }
-      const existing = threadByParentId.get(parentId)
-      if (existing) {
-        existing.replies.push(comment)
-      } else {
-        threadByParentId.set(parentId, { parent: parentComment, replies: [comment] })
-      }
-    })
-
-    for (const [parentId, bucket] of Object.entries(repliesByParent)) {
-      if (!bucket.items.length) {
-        continue
-      }
-      const existing = threadByParentId.get(parentId)
-      if (!existing) {
-        continue
-      }
-      const seen = new Set(existing.replies.map((reply) => reply.id))
-      bucket.items.forEach((reply) => {
-        if (!seen.has(reply.id)) {
-          existing.replies.push(reply)
-          seen.add(reply.id)
-        }
-      })
-    }
-
-    return Array.from(threadByParentId.entries())
-      .map(([parentId, value]) => {
-        const bucket = repliesByParent[parentId]
-        const replies = [...value.replies].sort(compareComments)
-        const repliesTotal = value.parent.reply_count ?? bucket?.total ?? replies.length
-        return { parent: value.parent, replies, repliesTotal } as CommentThread
-      })
-      .sort((a, b) => {
-        const aIndex = inPageOrder.get(a.parent.id)
-        const bIndex = inPageOrder.get(b.parent.id)
-        if (aIndex !== undefined && bIndex !== undefined) {
-          return aIndex - bIndex
-        }
-        if (aIndex !== undefined) {
-          return -1
-        }
-        if (bIndex !== undefined) {
-          return 1
-        }
-        return compareComments(a.parent, b.parent)
-      })
-  }, [comments, commentParents, fetchedMissingParents, repliesByParent, commentsSort])
-  const missingParentIds = useMemo(() => {
-    const inPageIds = new Set(comments.map((comment) => comment.id))
-    const hydratedIds = new Set(commentParents.map((comment) => comment.id))
-    return Array.from(
-      new Set(
-        comments
-          .map((comment) => comment.parent_id)
-          .filter((parentId): parentId is string => Boolean(parentId))
-          .filter((parentId) => !inPageIds.has(parentId))
-          .filter((parentId) => !hydratedIds.has(parentId))
-          .filter((parentId) => !fetchedMissingParents[parentId])
-          .filter((parentId) => !missingParentFetchTried[parentId])
-      )
-    )
-  }, [comments, commentParents, fetchedMissingParents, missingParentFetchTried])
+    return comments
+      .sort(compareComments)
+      .map((comment) => ({
+        parent: comment,
+        replies: [],
+        repliesTotal: comment.reply_count ?? 0,
+      }))
+  }, [comments, commentsSort])
   const range = useMemo(() => {
     const now = new Date()
     const utcToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
@@ -455,7 +355,6 @@ function VideoDetail() {
         }
         const data = await response.json()
         setComments(Array.isArray(data.items) ? (data.items as CommentRow[]) : [])
-        setCommentParents(Array.isArray(data.parents) ? (data.parents as CommentRow[]) : [])
         setCommentsTotal(typeof data.total === 'number' ? data.total : 0)
       } catch (err) {
         setCommentsError(err instanceof Error ? err.message : 'Failed to load comments.')
@@ -474,112 +373,6 @@ function VideoDetail() {
   useEffect(() => {
     setCommentsPage(1)
   }, [commentsPageSize])
-
-  useEffect(() => {
-    setRepliesByParent({})
-  }, [videoId, commentsPage, commentsSort])
-  useEffect(() => {
-    setFetchedMissingParents({})
-    setMissingParentFetchTried({})
-  }, [videoId, commentsPage, commentsSort])
-  useEffect(() => {
-    if (activeTab !== 'comments' || missingParentIds.length === 0) {
-      return
-    }
-    let cancelled = false
-    async function loadMissingParents() {
-      for (const parentId of missingParentIds) {
-        try {
-          const response = await fetch(`http://127.0.0.1:8000/comments/${parentId}`)
-          if (!response.ok) {
-            if (!cancelled) {
-              setMissingParentFetchTried((prev) => ({ ...prev, [parentId]: true }))
-            }
-            continue
-          }
-          const data = await response.json()
-          if (!cancelled && data.item) {
-            setFetchedMissingParents((prev) => ({ ...prev, [parentId]: data.item as CommentRow }))
-            setMissingParentFetchTried((prev) => ({ ...prev, [parentId]: true }))
-          }
-        } catch (error) {
-          if (!cancelled) {
-            console.error('Failed to load missing parent comment', error)
-            setMissingParentFetchTried((prev) => ({ ...prev, [parentId]: true }))
-          }
-        }
-      }
-    }
-    loadMissingParents()
-    return () => {
-      cancelled = true
-    }
-  }, [activeTab, missingParentIds])
-
-  async function handleShowMoreReplies(parentId: string, currentVisible: number, totalReplies: number) {
-    const bucket = repliesByParent[parentId]
-    const existingCount = currentVisible
-    const knownTotal = Math.max(totalReplies, bucket?.total ?? 0)
-    if (bucket?.loading || existingCount >= knownTotal) {
-      return
-    }
-    setRepliesByParent((prev) => ({
-      ...prev,
-      [parentId]: {
-        items: prev[parentId]?.items ?? [],
-        total: prev[parentId]?.total ?? 0,
-        loading: true,
-        error: null,
-      },
-    }))
-    try {
-      const repliesSortBy = commentsSort === 'reply_count' ? 'published_at' : commentsSort
-      const response = await fetch(
-        `http://127.0.0.1:8000/comments/${parentId}/replies?limit=5&offset=${existingCount}&sort_by=${repliesSortBy}`
-      )
-      if (!response.ok) {
-        throw new Error(`Failed to load replies (${response.status})`)
-      }
-      const data = await response.json()
-      const newItems = Array.isArray(data.items) ? (data.items as CommentRow[]) : []
-      setRepliesByParent((prev) => ({
-        ...prev,
-        [parentId]: {
-          items: [...(prev[parentId]?.items ?? []), ...newItems],
-          total: typeof data.total === 'number' ? data.total : prev[parentId]?.total ?? 0,
-          loading: false,
-          error: null,
-        },
-      }))
-    } catch (err) {
-      setRepliesByParent((prev) => ({
-        ...prev,
-        [parentId]: {
-          ...prev[parentId],
-          loading: false,
-          error: err instanceof Error ? err.message : 'Failed to load replies.',
-        },
-      }))
-    }
-  }
-
-  function handleHideReplies(parentId: string) {
-    setRepliesByParent((prev) => {
-      const bucket = prev[parentId]
-      if (!bucket) {
-        return prev
-      }
-      return {
-        ...prev,
-        [parentId]: {
-          ...bucket,
-          items: [],
-          loading: false,
-          error: null,
-        },
-      }
-    })
-  }
 
   return (
     <section className="page">
@@ -760,10 +553,7 @@ function VideoDetail() {
                       <CommentThreadItem
                         key={thread.parent.id}
                         thread={thread}
-                        loadingReplies={repliesByParent[thread.parent.id]?.loading ?? false}
-                        repliesError={repliesByParent[thread.parent.id]?.error ?? null}
-                        onShowMoreReplies={() => handleShowMoreReplies(thread.parent.id, thread.replies.length, thread.repliesTotal)}
-                        onHideReplies={() => handleHideReplies(thread.parent.id)}
+                        videoId={videoId}
                       />
                     ))
                   )}

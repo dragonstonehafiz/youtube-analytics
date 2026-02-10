@@ -29,6 +29,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Keep API calls in a small client module (e.g., `frontend/src/api.ts`) and type responses.
 - Prefer reusable components over inline UI duplication.
 - Shared color theme lives in `frontend/src/index.css` as CSS variables.
+- App sidebar (`frontend/src/App.css`) is sticky on desktop (`position: sticky; top: 0; height: 100vh`) so it follows vertical scroll; mobile uses normal flow.
 - On `frontend/src/pages/SyncSettings.tsx`, overview date fields (`Earliest data`, `Latest data`) are displayed as `day month year` (e.g., `7 February 2026`) instead of raw `yyyy-mm-dd`.
 - `frontend/src/pages/SyncSettings.tsx` period selector includes `From Latest Date`, which sets `start_date` to overview `latest_date` and `end_date` to today when triggering sync.
 - `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
@@ -75,32 +76,26 @@ Use this file to understand where to make changes and which conventions to follo
 - Video detail `Analytics` tab reuses `frontend/src/components/analytics/MetricChartCard.tsx` and is populated from existing `GET /analytics/daily?video_id=...` data (no extra backend route).
 - Video detail `Analytics` tab includes range/granularity controls (no content-type selector): `Daily/7-days/28-days/90-days/Monthly/Yearly` + `Presets/Yearly/Custom range`.
 - Video detail analytics control state is shared across all video detail pages via storage keys `videoDetailGranularity` and `videoDetailRange`.
-- `GET /comments` supports optional `video_id` filtering, pagination (`limit`, `offset`), and sorting via `sort_by` (`published_at`, `likes`, or `reply_count`) plus `direction` (`asc`/`desc`), returning `{ items, parents, total }`.
-- `GET /comments/{comment_id}/replies` returns replies for one parent comment from local DB with pagination/sorting (`limit`, `offset`, `sort_by`, `direction`) and `{ items, total }`.
-- `GET /comments/{comment_id}` returns one comment row by ID (with `video_title` and `video_thumbnail_url` join fields), or `404` when missing.
-- `GET /comments` returns paginated comment rows (parents + replies) with optional `video_id` filter, sorting, `parents` hydration for missing parent rows, and persisted `reply_count` from the comments table (no per-request reply-count subquery).
-- `backend/src/youtube/comments.py` sync stores flattened comments from `commentThreads.list` + paginated `comments.list(parentId=...)` so top-level comments and all replies are persisted; top-level rows persist `reply_count` from `snippet.totalReplyCount`, and reply rows store `reply_count=0`.
-- `GET /comments` also returns `parents` for missing in-page parent comments so frontend can reconstruct reply threads across paginated pages.
-- Video detail `Comments` tab loads comments from `GET /comments?video_id=...`, renders paginated threaded comments (parent + replies), and if a reply's parent is off-page it shows the parent from `parents` as a synthetic thread root.
-- Video detail `Comments` tab backfills missing parents by calling `GET /comments/{comment_id}` when a reply parent is absent from both the current page `items` and hydrated `parents`.
+- `GET /comments` supports optional `video_id` filtering, pagination (`limit`, `offset`), and sorting via `sort_by` (`published_at`, `likes`, or `reply_count`) plus `direction` (`asc`/`desc`), returning `{ items, total }`.
+- `GET /comments` returns paginated comment rows with optional `video_id` filter, sorting, and persisted `reply_count` from the comments table.
+- `backend/src/youtube/comments.py` sync stores top-level comments only from `commentThreads.list` (no per-parent reply pagination during sync); top-level rows persist `reply_count` from `snippet.totalReplyCount`.
+- Video detail `Comments` tab loads comments from `GET /comments?video_id=...` and renders returned comments as a flat list (no inline child-reply rendering).
 - Video detail comments UI uses a non-interactive, YouTube Studio-like list style (avatar + handle/date + text + reply count only), without action controls (reply/like/dislike/love).
 - Comments data now stores and returns `author_profile_image_url` from YouTube; `frontend/src/pages/VideoDetail.tsx` uses it for real avatar images with initials fallback.
 - Comments schema now includes `reply_count` on each row; sync writes top-level rows with `totalReplyCount`.
-- `frontend/src/components/comments/CommentThreadItem.tsx` is the reusable threaded comment item UI (parent + replies) used by video detail and reusable across pages.
+- `frontend/src/components/comments/CommentThreadItem.tsx` is the reusable comment item UI used by Video detail and Comments pages.
 - `frontend/src/components/comments/CommentThreadItem.tsx` upscales YouTube avatar URLs (e.g., `s28` -> `s88`) before rendering profile images.
 - `frontend/src/components/comments/CommentThreadItem.tsx` shows likes beneath each comment text and always shows parent-child count as `Replies: N`.
-- Comment thread actions (`Show more`, `Hide replies`) use the shared `ActionButton` component (styled compactly for thread rows).
+- `frontend/src/components/comments/CommentThreadItem.tsx` includes a `See comments` action button that opens the exact YouTube comment URL (`watch?v=<video_id>&lc=<comment_id>`).
 - `frontend/src/pages/VideoDetail.tsx` comments tab includes a sort dropdown with `Date posted`, `Likes`, and `Reply count`, and persists selection via `videoDetailCommentsSort`.
-- `frontend/src/pages/VideoDetail.tsx` comments tab uses `reply_count` from `/comments` for thread counts; replies stay collapsed by default and `Show more` loads 5 additional replies from `GET /comments/{comment_id}/replies`.
-- Reply totals are authoritative from stored parent `reply_count` (not derived from currently loaded reply items).
-- Video detail comment threads include both `Show more` (load next 5 replies) and `Hide replies` (collapse loaded replies) controls per parent thread.
+- `frontend/src/pages/VideoDetail.tsx` comments tab uses `reply_count` from `/comments` to display total replies per top-level comment while keeping replies off-page (YouTube deep-link button handles drill-down).
+- Reply totals are authoritative from stored parent `reply_count`.
 - Video detail comments pagination uses `frontend/src/components/ui/PageSwitcher.tsx`.
 - Videos and Sync Runs pagination also use `frontend/src/components/ui/PageSwitcher.tsx` instead of page-specific inline button groups.
 - Videos, Sync Runs, Video Detail comments, and Comments page include a per-page dropdown in the pagination footer (bottom-right) with options `10`, `25`, `50`, `100`, defaulting to `10`.
-- `frontend/src/pages/Comments.tsx` is a dedicated comments page that loads paginated comments via `GET /comments`, groups the current page by `video_id`, and renders each group with `CommentThreadItem` entries.
+- `frontend/src/pages/Comments.tsx` is a dedicated comments page that loads paginated comments via `GET /comments`, groups by `video_id`, and renders `CommentThreadItem` entries (no inline child-reply rendering).
 - `GET /comments` includes `video_title` and `video_thumbnail_url` (joined from `videos`) so grouped comments can show a readable video header with thumbnail without extra requests.
 - `frontend/src/pages/Comments.tsx` includes a top `Published range` filter using `DateRangePicker`, wired to `GET /comments` query params `published_after` and `published_before`.
-- `frontend/src/pages/Comments.tsx` also backfills missing reply parents via `GET /comments/{comment_id}` when parent rows are not present in the current paginated dataset.
 - `frontend/src/pages/Comments.tsx` persists filter/sort/pagination settings in local storage key `commentsPageSettings`; default sort is `Date posted`.
 - `frontend/src/pages/Dashboard.tsx` includes two `VideoDetailListCard` instances (`Latest longform content`, `Latest shortform content`) that load the most recent 10 public videos per type via `GET /analytics/top-content` with `sort_by=published_at&direction=desc`.
 - `frontend/src/pages/Dashboard.tsx` includes a `Channel analytics` card showing current subscribers as lifetime net subscribers (`SUM(subscribers_gained - subscribers_lost)`) from `GET /analytics/channel-daily`, plus last-28-day summary metrics (views, watch time hours, estimated revenue) with simple up/down trend indicators vs the previous 28-day window.
