@@ -4,6 +4,7 @@ type TopContentItem = {
   rank: number
   title: string
   published_at: string
+  upload_date: string
   thumbnail_url: string
   avg_view_duration: string
   avg_view_pct: string
@@ -21,6 +22,7 @@ function TopContentTable({ items }: TopContentTableProps) {
       <div className="top-content-table">
         <div className="top-content-header">
           <span>Content</span>
+          <span className="right">Upload date</span>
           <span className="right">Average view duration</span>
           <span className="right">Views</span>
         </div>
@@ -35,9 +37,9 @@ function TopContentTable({ items }: TopContentTableProps) {
               )}
               <div className="meta">
                 <div className="title">{item.title}</div>
-                <div className="date">{item.published_at}</div>
               </div>
             </div>
+            <div className="right">{item.upload_date}</div>
             <div className="right">{item.avg_view_duration} ({item.avg_view_pct})</div>
             <div className="right">{item.views}</div>
           </div>

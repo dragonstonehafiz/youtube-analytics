@@ -66,6 +66,7 @@
 
 .publish-tooltip {
   transform: translate(-50%, 0);
+  width: 260px;
   max-width: 260px;
   max-height: 160px;
   overflow-y: auto;
@@ -125,6 +126,16 @@
 .publish-group.active .publish-icon {
   fill: #0ea5e9;
   stroke: #0ea5e9;
+}
+
+.publish-icon-short {
+  fill: #ea580c;
+  stroke: #ea580c;
+}
+
+.publish-group.active .publish-icon-short {
+  fill: #f97316;
+  stroke: #f97316;
 }
 
 .publish-play {

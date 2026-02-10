@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton } from '../components/ui'
+import { ActionButton, DateRangePicker, Dropdown } from '../components/ui'
 import { PageCard } from '../components/layout'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
@@ -144,42 +144,40 @@ function Videos() {
                     onChange={(event) => updateFilter('q', event.target.value)}
                   />
                 </label>
-                <label className="video-filter-field">
-                  <span>Visibility</span>
-                  <select
-                    value={filters.privacy_status}
-                    onChange={(event) => updateFilter('privacy_status', event.target.value)}
-                  >
-                    <option value="">All</option>
-                    <option value="public">Public</option>
-                    <option value="unlisted">Unlisted</option>
-                    <option value="private">Private</option>
-                  </select>
-                </label>
-                <label className="video-filter-field">
-                  <span>Type</span>
-                  <select value={filters.format} onChange={(event) => updateFilter('format', event.target.value)}>
-                    <option value="">All videos</option>
-                    <option value="video">Longform</option>
-                    <option value="short">Shorts</option>
-                  </select>
-                </label>
-                <label className="video-filter-field">
-                  <span>Published after</span>
-                  <input
-                    type="date"
-                    value={filters.published_after}
-                    onChange={(event) => updateFilter('published_after', event.target.value)}
+                <Dropdown
+                  label="Visibility"
+                  value={filters.privacy_status}
+                  onChange={(value) => updateFilter('privacy_status', value)}
+                  placeholder="All"
+                  items={[
+                    { type: 'option' as const, label: 'All', value: '' },
+                    { type: 'option' as const, label: 'Public', value: 'public' },
+                    { type: 'option' as const, label: 'Unlisted', value: 'unlisted' },
+                    { type: 'option' as const, label: 'Private', value: 'private' },
+                  ]}
+                />
+                <Dropdown
+                  label="Type"
+                  value={filters.format}
+                  onChange={(value) => updateFilter('format', value)}
+                  placeholder="All Videos"
+                  items={[
+                    { type: 'option' as const, label: 'All Videos', value: '' },
+                    { type: 'option' as const, label: 'Longform', value: 'video' },
+                    { type: 'option' as const, label: 'Shortform', value: 'short' },
+                  ]}
+                />
+                <div className="video-filter-field video-filter-date">
+                  <span>Published range</span>
+                  <DateRangePicker
+                    startDate={filters.published_after}
+                    endDate={filters.published_before}
+                    onChange={(startDate, endDate) => {
+                      setFilters((prev) => ({ ...prev, published_after: startDate, published_before: endDate }))
+                      setPage(1)
+                    }}
                   />
-                </label>
-                <label className="video-filter-field">
-                  <span>Published before</span>
-                  <input
-                    type="date"
-                    value={filters.published_before}
-                    onChange={(event) => updateFilter('published_before', event.target.value)}
-                  />
-                </label>
+                </div>
                 <div className="video-filter-actions">
                   <ActionButton label="Reset" onClick={resetFilters} variant="soft" className="video-filter-action" />
                 </div>
@@ -194,14 +192,13 @@ function Videos() {
               <div className="video-table-header">
                 <span>Video</span>
                 <span>Visibility</span>
-                <span>Restrictions</span>
                 <button
                   type="button"
                   className={sortKey === 'date' ? 'video-sort-button active' : 'video-sort-button'}
                   onClick={() => toggleSort('date')}
                 >
                   Date
-                  {sortKey === 'date' ? <span className="video-sort">{sortDir === 'asc' ? '^' : 'v'}</span> : null}
+                  {sortKey === 'date' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   type="button"
@@ -209,7 +206,7 @@ function Videos() {
                   onClick={() => toggleSort('views')}
                 >
                   Views
-                  {sortKey === 'views' ? <span className="video-sort">{sortDir === 'asc' ? '^' : 'v'}</span> : null}
+                  {sortKey === 'views' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   type="button"
@@ -217,7 +214,7 @@ function Videos() {
                   onClick={() => toggleSort('comments')}
                 >
                   Comments
-                  {sortKey === 'comments' ? <span className="video-sort">{sortDir === 'asc' ? '^' : 'v'}</span> : null}
+                  {sortKey === 'comments' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   type="button"
@@ -225,7 +222,7 @@ function Videos() {
                   onClick={() => toggleSort('likes')}
                 >
                   Likes
-                  {sortKey === 'likes' ? <span className="video-sort">{sortDir === 'asc' ? '^' : 'v'}</span> : null}
+                  {sortKey === 'likes' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
               </div>
               {rows.length === 0 ? (
@@ -265,12 +262,11 @@ function Videos() {
                           </div>
                         </div>
                       </div>
-                    </div>
-                    <span className="video-muted">{video.privacy_status ?? '-'}</span>
-                    <span className="video-muted">-</span>
-                    <span>{video.published_at ? new Date(video.published_at).toLocaleDateString() : '-'}</span>
-                    <span className="right">{(video.view_count ?? 0).toLocaleString()}</span>
-                    <span className="right">{(video.comment_count ?? 0).toLocaleString()}</span>
+                  </div>
+                  <span className="video-muted">{video.privacy_status ?? '-'}</span>
+                  <span>{video.published_at ? new Date(video.published_at).toLocaleDateString() : '-'}</span>
+                  <span className="right">{(video.view_count ?? 0).toLocaleString()}</span>
+                  <span className="right">{(video.comment_count ?? 0).toLocaleString()}</span>
                     <span className="right">{(video.like_count ?? 0).toLocaleString()}</span>
                   </div>
                 ))

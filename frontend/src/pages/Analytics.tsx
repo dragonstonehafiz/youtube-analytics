@@ -5,6 +5,130 @@ import { PageCard } from '../components/layout'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
+type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
+
+type SeriesPoint = { date: string; value: number }
+type BucketMeta = { startDate: string; endDate: string; dayCount: number }
+
+function buildDayBucketMap(days: string[], granularity: Granularity): Map<string, string> {
+  const dayToBucket = new Map<string, string>()
+  if (granularity === 'daily') {
+    days.forEach((day) => dayToBucket.set(day, day))
+    return dayToBucket
+  }
+  if (granularity === 'monthly') {
+    days.forEach((day) => dayToBucket.set(day, day.slice(0, 7)))
+    return dayToBucket
+  }
+  if (granularity === 'yearly') {
+    days.forEach((day) => dayToBucket.set(day, `${day.slice(0, 4)}-01-01`))
+    return dayToBucket
+  }
+
+  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
+  for (let index = 0; index < days.length; index += windowSize) {
+    const bucket = days.slice(index, index + windowSize)
+    if (bucket.length === 0) {
+      continue
+    }
+    const bucketKey = bucket[bucket.length - 1]
+    bucket.forEach((day) => dayToBucket.set(day, bucketKey))
+  }
+  return dayToBucket
+}
+
+function buildBucketMeta(days: string[], granularity: Granularity): Record<string, BucketMeta> {
+  const meta: Record<string, BucketMeta> = {}
+  if (days.length === 0) {
+    return meta
+  }
+  if (granularity === 'daily') {
+    days.forEach((day) => {
+      meta[day] = { startDate: day, endDate: day, dayCount: 1 }
+    })
+    return meta
+  }
+  if (granularity === 'monthly') {
+    const groups = new Map<string, { startDate: string; endDate: string; dayCount: number }>()
+    days.forEach((day) => {
+      const key = day.slice(0, 7)
+      const existing = groups.get(key)
+      if (!existing) {
+        groups.set(key, { startDate: day, endDate: day, dayCount: 1 })
+      } else {
+        existing.endDate = day
+        existing.dayCount += 1
+      }
+    })
+    groups.forEach((value, key) => {
+      meta[key] = value
+    })
+    return meta
+  }
+  if (granularity === 'yearly') {
+    const groups = new Map<string, { startDate: string; endDate: string; dayCount: number }>()
+    days.forEach((day) => {
+      const key = `${day.slice(0, 4)}-01-01`
+      const existing = groups.get(key)
+      if (!existing) {
+        groups.set(key, { startDate: day, endDate: day, dayCount: 1 })
+      } else {
+        existing.endDate = day
+        existing.dayCount += 1
+      }
+    })
+    groups.forEach((value, key) => {
+      meta[key] = value
+    })
+    return meta
+  }
+  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
+  for (let index = 0; index < days.length; index += windowSize) {
+    const bucket = days.slice(index, index + windowSize)
+    if (bucket.length === 0) {
+      continue
+    }
+    const key = bucket[bucket.length - 1]
+    meta[key] = { startDate: bucket[0], endDate: bucket[bucket.length - 1], dayCount: bucket.length }
+  }
+  return meta
+}
+
+function aggregatePoints(points: SeriesPoint[], granularity: Granularity): SeriesPoint[] {
+  if (granularity === 'daily' || points.length === 0) {
+    return points
+  }
+
+  if (granularity === 'monthly' || granularity === 'yearly') {
+    const grouped = new Map<string, { value: number; lastDate: string }>()
+    points.forEach((point) => {
+      const key = granularity === 'monthly' ? point.date.slice(0, 7) : point.date.slice(0, 4)
+      const existing = grouped.get(key)
+      if (existing) {
+        existing.value += point.value
+        existing.lastDate = point.date
+      } else {
+        grouped.set(key, { value: point.value, lastDate: point.date })
+      }
+    })
+    return Array.from(grouped.entries()).map(([key, group]) => ({
+      date: granularity === 'monthly' ? key : `${key}-01-01`,
+      value: group.value,
+    }))
+  }
+
+  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
+  const aggregated: SeriesPoint[] = []
+  for (let index = 0; index < points.length; index += windowSize) {
+    const bucket = points.slice(index, index + windowSize)
+    aggregated.push({
+      date: bucket[bucket.length - 1].date,
+      value: bucket.reduce((sum, item) => sum + item.value, 0),
+    })
+  }
+  return aggregated
+}
+
 function Analytics() {
   const [years, setYears] = useState<string[]>([])
   const rangeOptions = [
@@ -25,11 +149,15 @@ function Analytics() {
   const [presetSelection, setPresetSelection] = useState(storedRange?.presetSelection ?? 'range:28d')
   const [yearSelection, setYearSelection] = useState(storedRange?.yearSelection ?? '')
   const [monthSelection, setMonthSelection] = useState(storedRange?.monthSelection ?? 'all')
+  const [contentSelection, setContentSelection] = useState(getStored('analyticsContentSelection', 'all'))
+  const [granularity, setGranularity] = useState<Granularity>(getStored('analyticsGranularity', 'daily'))
   const today = new Date().toISOString().slice(0, 10)
   const [customStart, setCustomStart] = useState(storedRange?.customStart ?? today)
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
-  const [series, setSeries] = useState<Record<string, { date: string; value: number }[]>>({})
-  const [publishedDates, setPublishedDates] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string }[]>>({})
+  const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
+  const [summaryDays, setSummaryDays] = useState<string[]>([])
+  const [publishedDates, setPublishedDates] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
+  const [publishBucketMeta, setPublishBucketMeta] = useState<Record<string, BucketMeta>>({})
   const [totals, setTotals] = useState({
     views: 0,
     watch_time_minutes: 0,
@@ -40,7 +168,7 @@ function Analytics() {
     {
       rank: number
       title: string
-      published_at: string
+      upload_date: string
       thumbnail_url: string
       avg_view_duration: string
       avg_view_pct: string
@@ -125,11 +253,21 @@ function Analytics() {
   }, [mode, presetSelection, yearSelection, monthSelection, customStart, customEnd])
 
   useEffect(() => {
+    setStored('analyticsContentSelection', contentSelection)
+  }, [contentSelection])
+
+  useEffect(() => {
+    setStored('analyticsGranularity', granularity)
+  }, [granularity])
+
+  useEffect(() => {
     async function loadSummary() {
       try {
-        const response = await fetch(
-          `http://127.0.0.1:8000/analytics/channel-daily?start_date=${range.start}&end_date=${range.end}`
-        )
+        const summaryUrl =
+          contentSelection === 'all'
+            ? `http://127.0.0.1:8000/analytics/channel-daily?start_date=${range.start}&end_date=${range.end}`
+            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
+        const response = await fetch(summaryUrl)
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
         const gained = data.totals?.subscribers_gained ?? 0
@@ -144,24 +282,48 @@ function Analytics() {
         items.forEach((item: any) => {
           byDay.set(item.day, item)
         })
+        const sortedUniqueDays = Array.from(
+          new Set(
+            items
+              .map((item: any) => item.day)
+              .filter((day: unknown): day is string => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day))
+          )
+        ).sort((a, b) => a.localeCompare(b))
+        if (sortedUniqueDays.length === 0) {
+          setSummaryDays([])
+          setPublishBucketMeta({})
+          setSeries({
+            views: [],
+            watch_time: [],
+            subscribers: [],
+            revenue: [],
+          })
+          return
+        }
         const days: string[] = []
-        const cursor = new Date(`${range.start}T00:00:00Z`)
-        const end = new Date(`${range.end}T00:00:00Z`)
+        const cursor = new Date(`${sortedUniqueDays[0]}T00:00:00Z`)
+        const end = new Date(`${sortedUniqueDays[sortedUniqueDays.length - 1]}T00:00:00Z`)
         while (cursor <= end) {
           days.push(cursor.toISOString().slice(0, 10))
           cursor.setUTCDate(cursor.getUTCDate() + 1)
         }
+        setSummaryDays(days)
+        setPublishBucketMeta(buildBucketMeta(days, granularity))
+        const dailyViews = days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 }))
+        const dailyWatchTime = days.map((day) => ({
+          date: day,
+          value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60),
+        }))
+        const dailySubscribers = days.map((day) => ({
+          date: day,
+          value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0),
+        }))
+        const dailyRevenue = days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 }))
         setSeries({
-          views: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })),
-          watch_time: days.map((day) => ({
-            date: day,
-            value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60),
-          })),
-          subscribers: days.map((day) => ({
-            date: day,
-            value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0),
-          })),
-          revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
+          views: aggregatePoints(dailyViews, granularity),
+          watch_time: aggregatePoints(dailyWatchTime, granularity),
+          subscribers: aggregatePoints(dailySubscribers, granularity),
+          revenue: aggregatePoints(dailyRevenue, granularity),
         })
       } catch (error) {
         console.error('Failed to load analytics summary', error)
@@ -169,34 +331,58 @@ function Analytics() {
     }
 
     loadSummary()
-  }, [range.start, range.end])
+  }, [range.start, range.end, contentSelection, granularity])
 
   useEffect(() => {
     async function loadPublished() {
       try {
-        const response = await fetch(`http://127.0.0.1:8000/videos/published?start_date=${range.start}&end_date=${range.end}`)
+        const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
+        const response = await fetch(
+          `http://127.0.0.1:8000/videos/published?start_date=${range.start}&end_date=${range.end}${contentParam}`
+        )
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
-        const map: Record<string, { title: string; published_at: string; thumbnail_url: string }[]> = {}
+        const map: Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]> = {}
         items.forEach((item: any) => {
           if (item.day) {
             map[item.day] = Array.isArray(item.items) ? item.items : []
           }
         })
-        setPublishedDates(map)
+        if (granularity === 'daily') {
+          setPublishedDates(map)
+          return
+        }
+        if (summaryDays.length === 0) {
+          setPublishedDates({})
+          return
+        }
+        const dayToBucket = buildDayBucketMap(summaryDays, granularity)
+        const rebucketed: Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]> = {}
+        Object.entries(map).forEach(([day, dayItems]) => {
+          const bucket = dayToBucket.get(day)
+          if (!bucket) {
+            return
+          }
+          if (!rebucketed[bucket]) {
+            rebucketed[bucket] = []
+          }
+          rebucketed[bucket].push(...dayItems)
+        })
+        setPublishedDates(rebucketed)
       } catch (error) {
         console.error('Failed to load published dates', error)
       }
     }
 
     loadPublished()
-  }, [range.start, range.end])
+  }, [range.start, range.end, contentSelection, granularity, summaryDays])
 
   useEffect(() => {
     async function loadTopContent() {
       try {
+        const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
         const response = await fetch(
-          `http://127.0.0.1:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10`
+          `http://127.0.0.1:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10${contentParam}`
         )
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
@@ -208,7 +394,7 @@ function Analytics() {
         const formatted = items.map((item: any, index: number) => ({
           rank: index + 1,
           title: item.title,
-          published_at: item.published_at ? new Date(item.published_at).toLocaleDateString() : '',
+          upload_date: item.published_at ? new Date(item.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '',
           thumbnail_url: item.thumbnail_url ?? '',
           avg_view_duration: formatDuration(item.avg_view_duration_seconds ?? 0),
           avg_view_pct: `${(item.avg_view_pct ?? 0).toFixed(1)}%`,
@@ -221,7 +407,7 @@ function Analytics() {
     }
 
     loadTopContent()
-  }, [range.start, range.end])
+  }, [range.start, range.end, contentSelection])
 
   return (
     <section className="page">
@@ -230,6 +416,29 @@ function Analytics() {
           <h1>Analytics</h1>
         </div>
         <div className="analytics-range-controls">
+          <Dropdown
+            value={granularity}
+            onChange={(value) => setGranularity(value as Granularity)}
+            placeholder="Daily"
+            items={[
+              { type: 'option' as const, label: 'Daily', value: 'daily' },
+              { type: 'option' as const, label: '7-days', value: '7d' },
+              { type: 'option' as const, label: '28-days', value: '28d' },
+              { type: 'option' as const, label: '90-days', value: '90d' },
+              { type: 'option' as const, label: 'Monthly', value: 'monthly' },
+              { type: 'option' as const, label: 'Yearly', value: 'yearly' },
+            ]}
+          />
+          <Dropdown
+            value={contentSelection}
+            onChange={setContentSelection}
+            placeholder="All videos"
+            items={[
+              { type: 'option' as const, label: 'All Videos', value: 'all' },
+              { type: 'option' as const, label: 'Longform', value: 'video' },
+              { type: 'option' as const, label: 'Shortform', value: 'short' },
+            ]}
+          />
           <Dropdown
             value={mode}
             onChange={(value) => setMode(value as 'presets' | 'year' | 'custom')}
@@ -307,6 +516,7 @@ function Analytics() {
                 revenue: series.revenue ?? [],
               }}
               publishedDates={publishedDates}
+              publishedBucketMeta={publishBucketMeta}
             />
           </PageCard>
         </div>

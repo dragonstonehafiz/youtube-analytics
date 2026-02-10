@@ -14,18 +14,40 @@ type SeriesPoint = {
   value: number
 }
 
-type PublishedItem = { title: string; published_at: string; thumbnail_url: string }
+type PublishedItem = { title: string; published_at: string; thumbnail_url: string; content_type: string }
+type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 
 type MetricChartCardProps = {
   metrics: MetricSummary[]
   series: Record<MetricKey, SeriesPoint[]>
   publishedDates?: Record<string, PublishedItem[]>
+  publishedBucketMeta?: Record<string, BucketMeta>
 }
 
-function MetricChartCard({ metrics, series, publishedDates = {} }: MetricChartCardProps) {
+type MarkerType = 'video' | 'short'
+
+type ClusteredMarker = {
+  x: number
+  key: string
+  items: PublishedItem[]
+  markerType: MarkerType
+  startDate: string
+  endDate: string
+  dayCount: number
+}
+
+function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucketMeta = {} }: MetricChartCardProps) {
   const [activeMetric, setActiveMetric] = useState<MetricKey>('views')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
-  const [hoverPublish, setHoverPublish] = useState<{ x: number; y: number; items: PublishedItem[]; key: string } | null>(null)
+  const [hoverPublish, setHoverPublish] = useState<{
+    x: number
+    y: number
+    items: PublishedItem[]
+    key: string
+    startDate: string
+    endDate: string
+    dayCount: number
+  } | null>(null)
   const [hoverLocked, setHoverLocked] = useState(false)
   const hoverTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -110,28 +132,96 @@ function MetricChartCard({ metrics, series, publishedDates = {} }: MetricChartCa
       index,
       date: point.date,
       items: publishedDates[point.date] ?? [],
+      meta: publishedBucketMeta[point.date] ?? { startDate: point.date, endDate: point.date, dayCount: 1 },
     }))
     .filter((item) => item.items.length > 0)
 
-  const clusteredPublish = useMemo(() => {
+  const clusteredPublish = useMemo<ClusteredMarker[]>(() => {
     if (innerWidth <= 0) {
       return []
     }
     const bucketCount = 24
     const bucketWidth = innerWidth / bucketCount
-    const buckets = new Map<number, { x: number; key: string; items: PublishedItem[] }>()
+    const mixedMarkerOffset = Math.min(14, Math.max(9, Math.floor(bucketWidth * 0.28)))
+    const buckets = new Map<
+      number,
+      { x: number; key: string; videoItems: PublishedItem[]; shortItems: PublishedItem[]; startDate: string; endDate: string; dayCount: number }
+    >()
     publishPoints.forEach((item) => {
       const x = xScale(item.index)
       const bucket = Math.min(bucketCount - 1, Math.max(0, Math.floor((x - padding.left) / bucketWidth)))
       const existing = buckets.get(bucket)
       if (!existing) {
-        buckets.set(bucket, { x: padding.left + bucket * bucketWidth + bucketWidth / 2, key: item.date, items: [...item.items] })
+        buckets.set(bucket, {
+          x: padding.left + bucket * bucketWidth + bucketWidth / 2,
+          key: item.date,
+          videoItems: [],
+          shortItems: [],
+          startDate: item.meta.startDate,
+          endDate: item.meta.endDate,
+          dayCount: item.meta.dayCount,
+        })
       } else {
         existing.key = `${existing.key}|${item.date}`
-        existing.items.push(...item.items)
+        if (item.meta.startDate < existing.startDate) {
+          existing.startDate = item.meta.startDate
+        }
+        if (item.meta.endDate > existing.endDate) {
+          existing.endDate = item.meta.endDate
+        }
+        existing.dayCount += item.meta.dayCount
+      }
+      const target = buckets.get(bucket)
+      if (!target) {
+        return
+      }
+      item.items.forEach((published) => {
+        if ((published.content_type || '').toLowerCase() === 'short') {
+          target.shortItems.push(published)
+        } else {
+          target.videoItems.push(published)
+        }
+      })
+    })
+    const markers: ClusteredMarker[] = []
+    buckets.forEach((bucket) => {
+      const hasVideo = bucket.videoItems.length > 0
+      const hasShort = bucket.shortItems.length > 0
+      if (!hasVideo && !hasShort) {
+        return
+      }
+      if (hasVideo && hasShort) {
+        markers.push({
+          x: bucket.x - mixedMarkerOffset,
+          key: `${bucket.key}|short`,
+          items: bucket.shortItems,
+          markerType: 'short',
+          startDate: bucket.startDate,
+          endDate: bucket.endDate,
+          dayCount: bucket.dayCount,
+        })
+        markers.push({
+          x: bucket.x + mixedMarkerOffset,
+          key: `${bucket.key}|video`,
+          items: bucket.videoItems,
+          markerType: 'video',
+          startDate: bucket.startDate,
+          endDate: bucket.endDate,
+          dayCount: bucket.dayCount,
+        })
+      } else {
+        markers.push({
+          x: bucket.x,
+          key: `${bucket.key}|${hasShort ? 'short' : 'video'}`,
+          items: hasShort ? bucket.shortItems : bucket.videoItems,
+          markerType: hasShort ? 'short' : 'video',
+          startDate: bucket.startDate,
+          endDate: bucket.endDate,
+          dayCount: bucket.dayCount,
+        })
       }
     })
-    return Array.from(buckets.values()).sort((a, b) => a.x - b.x)
+    return markers.sort((a, b) => a.x - b.x)
   }, [publishPoints, innerWidth, padding.left])
 
   const handlePointerMove = (event: React.MouseEvent<SVGSVGElement>) => {
@@ -226,49 +316,60 @@ function MetricChartCard({ metrics, series, publishedDates = {} }: MetricChartCa
               </text>
             )
           })}
-          {clusteredPublish.map((item, index) => (
-            <g
-              key={`publish-${index}`}
-              className={hoverPublish?.key === item.key ? 'publish-group active' : 'publish-group'}
-              onMouseEnter={() =>
-                setHoverPublish({
-                  x: item.x,
-                  y: chartHeight - 12,
-                  items: item.items,
-                  key: item.key,
-                })
-              }
-              onMouseLeave={() => {
-                if (hoverTimeoutRef.current) {
-                  window.clearTimeout(hoverTimeoutRef.current)
+          {clusteredPublish.map((item, index) => {
+            const markerY = chartHeight - 12
+            return (
+              <g
+                key={`publish-${index}`}
+                className={hoverPublish?.key === item.key ? 'publish-group active' : 'publish-group'}
+                onMouseEnter={() =>
+                  setHoverPublish({
+                    x: item.x,
+                    y: chartHeight - 12,
+                    items: item.items,
+                    key: item.key,
+                    startDate: item.startDate,
+                    endDate: item.endDate,
+                    dayCount: item.dayCount,
+                  })
                 }
-                hoverTimeoutRef.current = window.setTimeout(() => {
-                  if (!hoverLocked) {
-                    setHoverPublish(null)
+                onMouseLeave={() => {
+                  if (hoverTimeoutRef.current) {
+                    window.clearTimeout(hoverTimeoutRef.current)
                   }
-                }, 150)
-              }}
-            >
-              <circle cx={item.x} cy={chartHeight - 12} r={11} className="publish-hit" />
-              <circle cx={item.x} cy={chartHeight - 12} r={9} className="publish-icon" />
-              {item.items.length > 1 ? (
-                <text
-                  x={item.x}
-                  y={chartHeight - 8}
-                  textAnchor="middle"
-                  fontSize="10"
-                  className="publish-count"
-                >
-                  {item.items.length}
-                </text>
-              ) : (
-                <polygon
-                  className="publish-play"
-                  points={`${item.x - 4},${chartHeight - 16} ${item.x - 4},${chartHeight - 6} ${item.x + 5},${chartHeight - 11}`}
+                  hoverTimeoutRef.current = window.setTimeout(() => {
+                    if (!hoverLocked) {
+                      setHoverPublish(null)
+                    }
+                  }, 150)
+                }}
+              >
+                <circle cx={item.x} cy={chartHeight - 12} r={9} className="publish-hit" />
+                <circle
+                  cx={item.x}
+                  cy={chartHeight - 12}
+                  r={8}
+                  className={`publish-icon ${item.markerType === 'short' ? 'publish-icon-short' : ''}`}
                 />
-              )}
-            </g>
-          ))}
+                {item.items.length > 1 ? (
+                  <text
+                    x={item.x}
+                    y={chartHeight - 8}
+                    textAnchor="middle"
+                    fontSize="10"
+                    className="publish-count"
+                  >
+                    {item.items.length}
+                  </text>
+                ) : (
+                  <polygon
+                    className="publish-play"
+                    points={`${item.x - 2.8},${markerY - 4.2} ${item.x - 2.8},${markerY + 4.2} ${item.x + 3.8},${markerY}`}
+                  />
+                )}
+              </g>
+            )
+          })}
         </svg>
         {activePoint && activeX !== null && activeY !== null ? (
           <div
@@ -297,7 +398,13 @@ function MetricChartCard({ metrics, series, publishedDates = {} }: MetricChartCa
               hoverTimeoutRef.current = window.setTimeout(() => setHoverPublish(null), 150)
             }}
           >
-            <div className="tooltip-date">{hoverPublish.items.length} video published</div>
+            <div className="tooltip-date">{hoverPublish.startDate} to {hoverPublish.endDate}</div>
+            <div className="tooltip-date">
+              {hoverPublish.dayCount} {hoverPublish.dayCount === 1 ? 'day' : 'days'}
+            </div>
+            <div className="tooltip-date">
+              {hoverPublish.items.length} {hoverPublish.items.length === 1 ? 'video' : 'videos'} published
+            </div>
             <ul>
               {hoverPublish.items.map((item, index) => (
                 <li key={`${item.title}-${index}`} className="publish-item">

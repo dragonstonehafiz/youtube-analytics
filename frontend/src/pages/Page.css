@@ -509,7 +509,7 @@
 
 .video-filters-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1.3fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr) auto;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(320px, 1.2fr) auto;
   gap: 10px;
   align-items: end;
 }
@@ -536,6 +536,38 @@
   background: #ffffff;
   color: var(--color-ink);
   font-size: 13px;
+}
+
+.video-filters-grid .dropdown-field,
+.video-filters-grid .date-range {
+  width: 100%;
+}
+
+.video-filters-grid .dropdown-trigger {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.video-filter-date .date-range {
+  gap: 6px;
+}
+
+.video-filter-date .date-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .video-filter-actions {
@@ -568,7 +600,7 @@
 .video-table-header,
 .video-table-row {
   display: grid;
-  grid-template-columns: 3.2fr 0.9fr 0.9fr 0.8fr 0.7fr 0.7fr 0.7fr;
+  grid-template-columns: 3.2fr 0.9fr 0.8fr 0.7fr 0.7fr 0.7fr;
   gap: 12px;
   align-items: center;
 }

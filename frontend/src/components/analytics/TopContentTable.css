@@ -18,7 +18,7 @@
 
 .top-content-header {
   display: grid;
-  grid-template-columns: 1fr 180px 120px;
+  grid-template-columns: 1fr 180px 200px 120px;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -28,7 +28,7 @@
 
 .top-content-row {
   display: grid;
-  grid-template-columns: 1fr 180px 120px;
+  grid-template-columns: 1fr 180px 200px 120px;
   align-items: center;
   gap: 12px;
   padding: 12px 8px;
@@ -72,7 +72,8 @@
 }
 
 .right {
-  text-align: right;
+  text-align: center;
+  justify-self: center;
 }
 
 @media (max-width: 900px) {
@@ -83,6 +84,7 @@
   }
 
   .right {
-    text-align: left;
+    text-align: center;
+    justify-self: stretch;
   }
 }

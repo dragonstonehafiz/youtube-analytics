@@ -219,28 +219,34 @@ def list_analytics_years() -> dict:
 
 
 @router.get("/analytics/daily/summary")
-def list_daily_summary(start_date: str, end_date: str) -> dict:
-    """Return per-day totals and range KPIs across all videos."""
+def list_daily_summary(start_date: str, end_date: str, content_type: str | None = None) -> dict:
+    """Return per-day totals and range KPIs, optionally filtered by video content type."""
+    where_sql = "a.date >= ? AND a.date <= ?"
+    params: list[object] = [start_date, end_date]
+    if content_type:
+        where_sql += " AND v.content_type = ?"
+        params.append(content_type)
     with get_connection() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT
-                date AS day,
-                SUM(views) AS views,
-                SUM(watch_time_minutes) AS watch_time_minutes,
-                SUM(estimated_revenue) AS estimated_revenue,
-                SUM(average_view_duration_seconds) AS average_view_duration_seconds,
-                SUM(likes) AS likes,
-                SUM(comments) AS comments,
-                SUM(shares) AS shares,
-                SUM(subscribers_gained) AS subscribers_gained,
-                SUM(subscribers_lost) AS subscribers_lost
-            FROM daily_analytics
-            WHERE date >= ? AND date <= ?
-            GROUP BY date
-            ORDER BY date ASC
+                a.date AS day,
+                SUM(a.views) AS views,
+                SUM(a.watch_time_minutes) AS watch_time_minutes,
+                SUM(a.estimated_revenue) AS estimated_revenue,
+                SUM(a.average_view_duration_seconds) AS average_view_duration_seconds,
+                SUM(a.likes) AS likes,
+                SUM(a.comments) AS comments,
+                SUM(a.shares) AS shares,
+                SUM(a.subscribers_gained) AS subscribers_gained,
+                SUM(a.subscribers_lost) AS subscribers_lost
+            FROM daily_analytics a
+            JOIN videos v ON v.id = a.video_id
+            WHERE {where_sql}
+            GROUP BY a.date
+            ORDER BY a.date ASC
             """,
-            (start_date, end_date),
+            tuple(params),
         ).fetchall()
 
     items = [row_to_dict(row) for row in rows]
@@ -256,7 +262,10 @@ def list_daily_summary(start_date: str, end_date: str) -> dict:
 
 
 @router.get("/analytics/channel-daily")
-def list_channel_daily(start_date: str, end_date: str) -> dict:
+def list_channel_daily(
+    start_date: str,
+    end_date: str,
+) -> dict:
     """Return channel-level daily analytics rows for a range."""
     with get_connection() as conn:
         rows = conn.execute(
@@ -289,19 +298,26 @@ def list_channel_daily(start_date: str, end_date: str) -> dict:
 
 
 @router.get("/videos/published")
-def list_published_dates(start_date: str, end_date: str) -> dict:
-    """Return published video titles by date within a range."""
-    with get_connection() as conn:
-        rows = conn.execute(
-            """
-            SELECT date(published_at) AS day, title, published_at, thumbnail_url
-            FROM videos
+def list_published_dates(start_date: str, end_date: str, content_type: str | None = None) -> dict:
+    """Return published video titles by date within a range, optionally filtered by content type."""
+    where_sql = """
             WHERE published_at IS NOT NULL
               AND date(published_at) >= ?
               AND date(published_at) <= ?
+    """
+    params: list[object] = [start_date, end_date]
+    if content_type:
+        where_sql += " AND content_type = ?"
+        params.append(content_type)
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT date(published_at) AS day, title, published_at, thumbnail_url, content_type
+            FROM videos
+            {where_sql}
             ORDER BY day ASC, published_at ASC
             """,
-            (start_date, end_date),
+            tuple(params),
         ).fetchall()
     grouped: dict[str, list[dict]] = {}
     for row in rows:
@@ -309,17 +325,26 @@ def list_published_dates(start_date: str, end_date: str) -> dict:
         title = row["title"] or "(untitled)"
         published_at = row["published_at"] or ""
         thumbnail_url = row["thumbnail_url"] or ""
-        grouped.setdefault(day, []).append({"title": title, "published_at": published_at, "thumbnail_url": thumbnail_url})
+        content_type = row["content_type"] or ""
+        grouped.setdefault(day, []).append(
+            {"title": title, "published_at": published_at, "thumbnail_url": thumbnail_url, "content_type": content_type}
+        )
     items = [{"day": day, "items": items, "count": len(items)} for day, items in grouped.items()]
     return {"items": items}
 
 
 @router.get("/analytics/top-content")
-def list_top_content(start_date: str, end_date: str, limit: int = 10) -> dict:
-    """Return top content in a date range, sorted by views."""
+def list_top_content(start_date: str, end_date: str, limit: int = 10, content_type: str | None = None) -> dict:
+    """Return top content in a date range, sorted by views, optionally filtered by content type."""
+    where_sql = "a.date >= ? AND a.date <= ?"
+    params: list[object] = [start_date, end_date]
+    if content_type:
+        where_sql += " AND v.content_type = ?"
+        params.append(content_type)
+    params.append(limit)
     with get_connection() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT
                 v.id AS video_id,
                 v.title AS title,
@@ -330,12 +355,12 @@ def list_top_content(start_date: str, end_date: str, limit: int = 10) -> dict:
                 AVG(a.average_view_duration_seconds) AS avg_view_duration_seconds
             FROM daily_analytics a
             JOIN videos v ON v.id = a.video_id
-            WHERE a.date >= ? AND a.date <= ?
+            WHERE {where_sql}
             GROUP BY v.id
             ORDER BY views DESC
             LIMIT ?
             """,
-            (start_date, end_date, limit),
+            tuple(params),
         ).fetchall()
     items = []
     for row in rows:

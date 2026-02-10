@@ -245,6 +245,10 @@ function SyncSettings() {
         params.set('start_date', `${year}-01-01`)
         params.set('end_date', `${year}-12-31`)
       }
+      if (rangeMode === 'latest' && overview.latest_date) {
+        params.set('start_date', overview.latest_date)
+        params.set('end_date', today)
+      }
       if (rangeMode === 'custom') {
         if (startDate) {
           params.set('start_date', startDate)
@@ -339,6 +343,7 @@ function SyncSettings() {
               placeholder="Full data"
               items={[
                 { type: 'option' as const, label: 'Full data', value: 'full' },
+                { type: 'option' as const, label: 'From Latest Date', value: 'latest' },
                 { type: 'option' as const, label: 'Year', value: 'year' },
                 { type: 'option' as const, label: 'Custom range', value: 'custom' },
               ]}
