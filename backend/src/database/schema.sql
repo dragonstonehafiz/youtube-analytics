@@ -21,6 +21,40 @@ CREATE TABLE IF NOT EXISTS videos (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS playlists (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    description TEXT,
+    published_at TEXT,
+    channel_id TEXT,
+    channel_title TEXT,
+    privacy_status TEXT,
+    item_count INTEGER,
+    thumbnail_url TEXT,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS playlist_items (
+    id TEXT PRIMARY KEY,
+    playlist_id TEXT NOT NULL,
+    video_id TEXT,
+    position INTEGER,
+    title TEXT,
+    description TEXT,
+    published_at TEXT,
+    video_published_at TEXT,
+    channel_id TEXT,
+    channel_title TEXT,
+    privacy_status TEXT,
+    thumbnail_url TEXT,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist ON playlist_items(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_items_video ON playlist_items(video_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_items_position ON playlist_items(playlist_id, position);
+
 CREATE TABLE IF NOT EXISTS daily_analytics (
     video_id TEXT NOT NULL,
     date TEXT NOT NULL,

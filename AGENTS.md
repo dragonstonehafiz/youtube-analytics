@@ -14,7 +14,11 @@ Use this file to understand where to make changes and which conventions to follo
 - Config is `.env`-driven via `backend/config.py`.
 - SQLite DB file path is `backend/data/youtube.db` (from `DB_PATH=data/youtube.db` in `backend/.env`).
 - Database schema and helpers live in `backend/src/database/`.
+- Playlist persistence uses `playlists` and `playlist_items` tables in `backend/src/database/schema.sql`.
 - YouTube API helpers live in `backend/src/youtube/`.
+- Playlist API pull helpers live in `backend/src/youtube/playlists.py` (`playlists.list` + `playlistItems.list` pagination).
+- `sync_all` includes a playlists sync stage (`pulls` key: `playlists`) immediately after `comments`; playlist sync progress is tracked per playlist (not per playlist item).
+- `playlist_items.video_id` is stored as a raw YouTube ID without a foreign key to `videos.id`, so playlist sync does not depend on `videos` table coverage.
 - Sync orchestration lives in `backend/src/sync.py`.
 - Logs should use `backend/utils/logger.py` and write to `backend/outputs/`.
 - Add comments when API behavior or non-obvious logic needs explanation (YouTube API params, pagination, resume logic).
@@ -32,6 +36,9 @@ Use this file to understand where to make changes and which conventions to follo
 - App sidebar (`frontend/src/App.css`) is sticky on desktop (`position: sticky; top: 0; height: 100vh`) so it follows vertical scroll; mobile uses normal flow.
 - On `frontend/src/pages/SyncSettings.tsx`, overview date fields (`Earliest data`, `Latest data`) are displayed as `day month year` (e.g., `7 February 2026`) instead of raw `yyyy-mm-dd`.
 - `frontend/src/pages/SyncSettings.tsx` period selector includes `From Latest Date`, which sets `start_date` to overview `latest_date` and `end_date` to today when triggering sync.
+- `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlists` (`pull=playlists`) in addition to videos/comments/analytics pulls.
+- `GET /stats/overview` includes `total_playlists`, and `frontend/src/pages/SyncSettings.tsx` Database Overview metric stack shows `Total videos`, `Total playlists`, and `Total comments` in that order.
+- In `frontend/src/pages/Page.css`, Sync Database Overview metric cards use stretch/flex distribution (no fixed card heights) so each metric column fills available height and its cards split that height evenly.
 - `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
 - `GET /stats/overview` `table_storage.percent` is normalized against tracked table bytes only (tables + their indexes), so donut slices sum to 100% of table storage rather than total SQLite file size.
 - `frontend/src/pages/SyncSettings.tsx` uses a 4-column Database Overview layout:

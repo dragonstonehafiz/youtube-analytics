@@ -510,6 +510,7 @@ def get_overview_stats() -> dict:
         page_size = conn.execute("PRAGMA page_size").fetchone()[0]
         db_size_bytes = page_count * page_size
         total_uploads = conn.execute("SELECT COUNT(*) AS count FROM videos").fetchone()[0]
+        total_playlists = conn.execute("SELECT COUNT(*) AS count FROM playlists").fetchone()[0]
         total_views_row = conn.execute("SELECT SUM(views) AS total FROM channel_daily_analytics").fetchone()
         total_views = total_views_row["total"] if total_views_row and total_views_row["total"] is not None else 0
         total_comments_row = conn.execute("SELECT COUNT(*) AS count FROM comments").fetchone()
@@ -528,6 +529,7 @@ def get_overview_stats() -> dict:
     return {
         "db_size_bytes": db_size_bytes,
         "total_uploads": total_uploads,
+        "total_playlists": total_playlists,
         "total_views": total_views,
         "total_comments": total_comments,
         "earliest_date": earliest_date,

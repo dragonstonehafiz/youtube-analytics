@@ -242,7 +242,7 @@
 .db-overview-grid {
   display: grid;
   grid-template-columns: minmax(280px, 1.2fr) minmax(200px, 0.9fr) minmax(200px, 0.9fr) minmax(220px, 0.9fr);
-  align-items: center;
+  align-items: stretch;
   gap: 16px;
   margin-top: 10px;
 }
@@ -317,39 +317,39 @@
 .db-overview-col {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 12px;
+  height: 100%;
 }
 
 .db-overview-metric {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
   justify-content: center;
   align-items: center;
   border-radius: 10px;
   background: rgba(148, 163, 184, 0.08);
   padding: 14px;
   text-align: center;
-  min-height: 132px;
 }
 
 .db-overview-rows {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 12px;
+  height: 100%;
 }
 
 .db-overview-row-metric {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
   justify-content: center;
   align-items: center;
   border-radius: 10px;
   background: rgba(148, 163, 184, 0.08);
   padding: 14px;
   text-align: center;
-  min-height: 82px;
 }
 
 .db-overview-metric .sync-stat-label,

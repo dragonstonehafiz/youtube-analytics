@@ -40,6 +40,7 @@ function SyncSettings() {
   const [overview, setOverview] = useState({
     db_size_bytes: 0,
     total_uploads: 0,
+    total_playlists: 0,
     total_views: 0,
     total_comments: 0,
     earliest_date: null as string | null,
@@ -60,6 +61,7 @@ function SyncSettings() {
   const pullOptions = [
     { label: 'Videos', value: 'videos' },
     { label: 'Comments', value: 'comments' },
+    { label: 'Playlists', value: 'playlists' },
     { label: 'Traffic sources', value: 'traffic' },
     { label: 'Channel daily', value: 'channel_daily' },
     { label: 'Daily analytics', value: 'daily_analytics' },
@@ -109,6 +111,7 @@ function SyncSettings() {
         setOverview({
           db_size_bytes: data.db_size_bytes ?? 0,
           total_uploads: data.total_uploads ?? 0,
+          total_playlists: data.total_playlists ?? 0,
           total_views: data.total_views ?? 0,
           total_comments: data.total_comments ?? 0,
           earliest_date: data.earliest_date ?? null,
@@ -467,6 +470,10 @@ function SyncSettings() {
                 <div className="db-overview-metric">
                   <div className="sync-stat-label">Total videos</div>
                   <div className="sync-stat-value">{overview.total_uploads.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-metric">
+                  <div className="sync-stat-label">Total playlists</div>
+                  <div className="sync-stat-value">{overview.total_playlists.toLocaleString()}</div>
                 </div>
                 <div className="db-overview-metric">
                   <div className="sync-stat-label">Total comments</div>

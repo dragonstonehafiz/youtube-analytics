@@ -31,6 +31,7 @@ def init_db() -> None:
         _ensure_channel_daily_columns(conn)
         _ensure_sync_run_columns(conn)
         _ensure_comment_columns(conn)
+        _ensure_playlist_items_schema(conn)
 
 
 def _ensure_video_columns(conn: sqlite3.Connection) -> None:
@@ -86,3 +87,60 @@ def _ensure_comment_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE comments ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
+
+
+def _ensure_playlist_items_schema(conn: sqlite3.Connection) -> None:
+    """Ensure playlist_items has only playlist FK and keeps raw video IDs."""
+    table_row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'playlist_items'"
+    ).fetchone()
+    if not table_row:
+        return
+    fk_rows = conn.execute("PRAGMA foreign_key_list('playlist_items')").fetchall()
+    has_video_fk = any(str(row["table"]) == "videos" for row in fk_rows)
+    if not has_video_fk:
+        return
+    conn.execute("PRAGMA foreign_keys = OFF;")
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS playlist_items_new (
+                id TEXT PRIMARY KEY,
+                playlist_id TEXT NOT NULL,
+                video_id TEXT,
+                position INTEGER,
+                title TEXT,
+                description TEXT,
+                published_at TEXT,
+                video_published_at TEXT,
+                channel_id TEXT,
+                channel_title TEXT,
+                privacy_status TEXT,
+                thumbnail_url TEXT,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO playlist_items_new (
+                id, playlist_id, video_id, position, title, description,
+                published_at, video_published_at, channel_id, channel_title,
+                privacy_status, thumbnail_url, updated_at
+            )
+            SELECT
+                id, playlist_id, video_id, position, title, description,
+                published_at, video_published_at, channel_id, channel_title,
+                privacy_status, thumbnail_url, updated_at
+            FROM playlist_items
+            """
+        )
+        conn.execute("DROP TABLE playlist_items")
+        conn.execute("ALTER TABLE playlist_items_new RENAME TO playlist_items")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist ON playlist_items(playlist_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_playlist_items_video ON playlist_items(video_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_playlist_items_position ON playlist_items(playlist_id, position)")
+        conn.commit()
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON;")

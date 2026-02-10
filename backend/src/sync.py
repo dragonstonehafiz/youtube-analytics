@@ -8,6 +8,7 @@ from src.database.analytics import upsert_daily_analytics
 from src.database.channel_daily import upsert_channel_daily
 from src.database.comments import upsert_comments
 from src.database.db import get_connection
+from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
 from src.database.traffic_sources import upsert_traffic_sources
 from src.database.videos import upsert_videos
 from src.youtube.analytics import (
@@ -19,6 +20,7 @@ from src.youtube.analytics import (
     fetch_traffic_sources,
 )
 from src.youtube.comments import extract_comments
+from src.youtube.playlists import get_all_playlist_items, get_all_playlists
 from src.youtube.videos import safe_get_videos
 from src.youtube.videos import get_short_video_ids
 
@@ -334,6 +336,22 @@ def sync_comments() -> None:
         total += upsert_comments(rows)
 
 
+def sync_playlists() -> None:
+    """Sync playlists and playlist items, tracking progress per playlist."""
+    _logger.info("Starting playlists sync")
+    playlists = [playlist for playlist in get_all_playlists() if playlist.get("id")]
+    upsert_playlists(playlists)
+    delete_playlists_not_in([str(playlist["id"]) for playlist in playlists if playlist.get("id")])
+    total_playlists = max(len(playlists), 1)
+    _set_progress(0, total_playlists, _format_playlist_progress(0, total_playlists))
+    for index, playlist in enumerate(playlists, start=1):
+        playlist_id = str(playlist["id"])
+        playlist_title = str(playlist.get("snippet", {}).get("title") or playlist_id)
+        rows = get_all_playlist_items(playlist_id=playlist_id)
+        replace_playlist_items(playlist_id, rows)
+        _set_progress(index, total_playlists, _format_playlist_progress(index, total_playlists, playlist_title))
+
+
 def sync_all(
     start_date: str | None = None,
     end_date: str | None = None,
@@ -350,6 +368,8 @@ def sync_all(
             sync_videos()
         if _should_run(selected, "comments"):
             sync_comments()
+        if _should_run(selected, "playlists"):
+            sync_playlists()
         if _should_run(selected, "traffic"):
             sync_traffic_sources(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
         if _should_run(selected, "channel_daily"):
@@ -432,6 +452,14 @@ def _set_progress(current: int, total: int, message: str) -> None:
 def _format_pull_progress(label: str, current: int, total: int) -> str:
     """Format a generic pull progress label."""
     return f"Pulling {label}... [{current}/{total}]"
+
+
+def _format_playlist_progress(current: int, total: int, title: str | None = None) -> str:
+    """Format playlist sync progress with optional playlist title detail."""
+    base = f"Pulling playlists... [{current}/{total}]"
+    if title:
+        return f"{base} {title}"
+    return base
 
 
 def _format_daily_progress(current: int, total: int, detail: str | None = None) -> str:
