@@ -4,6 +4,8 @@ import {
   DateRangePicker,
   Dropdown,
   MultiSelect,
+  PageSizePicker,
+  PageSwitcher,
   ProgressBar,
   YearInput,
 } from '../components/ui'
@@ -34,7 +36,7 @@ function SyncSettings() {
   >([])
   const [runsPage, setRunsPage] = useState(1)
   const [runsTotal, setRunsTotal] = useState(0)
-  const runsPageSize = 10
+  const [runsPageSize, setRunsPageSize] = useState(10)
   const [overview, setOverview] = useState({
     db_size_bytes: 0,
     total_uploads: 0,
@@ -82,7 +84,11 @@ function SyncSettings() {
 
   useEffect(() => {
     loadRuns()
-  }, [runsPage])
+  }, [runsPage, runsPageSize])
+
+  useEffect(() => {
+    setRunsPage(1)
+  }, [runsPageSize])
 
   useEffect(() => {
     setStored('syncSettings', {
@@ -202,15 +208,8 @@ function SyncSettings() {
 
   const runsTotalPages = useMemo(
     () => Math.max(1, Math.ceil(runsTotal / runsPageSize)),
-    [runsTotal]
+    [runsTotal, runsPageSize]
   )
-  const runsPagination = useMemo(() => {
-    if (runsTotalPages <= 3) {
-      return Array.from({ length: runsTotalPages }, (_, idx) => idx + 1)
-    }
-    const start = Math.max(1, Math.min(runsPage - 1, runsTotalPages - 2))
-    return [start, start + 1, start + 2]
-  }, [runsPage, runsTotalPages])
 
   useEffect(() => {
     let timer: number | null = null
@@ -540,46 +539,14 @@ function SyncSettings() {
                 ))}
               </>
             )}
-            {runsTotalPages > 1 ? (
-              <div className="video-pagination">
-                <ActionButton
-                  label="<<"
-                  onClick={() => setRunsPage(1)}
-                  disabled={runsPage <= 1}
-                  variant="soft"
-                  className="video-page"
-                />
-                <ActionButton
-                  label="<"
-                  onClick={() => setRunsPage((prev) => Math.max(1, prev - 1))}
-                  disabled={runsPage <= 1}
-                  variant="soft"
-                  className="video-page"
-                />
-                {runsPagination.map((item) => (
-                  <ActionButton
-                    key={item}
-                    label={String(item)}
-                    onClick={() => setRunsPage(item)}
-                    variant="soft"
-                    active={item === runsPage}
-                    className="video-page"
-                  />
-                ))}
-                <ActionButton
-                  label=">"
-                  onClick={() => setRunsPage((prev) => Math.min(runsTotalPages, prev + 1))}
-                  disabled={runsPage >= runsTotalPages}
-                  variant="soft"
-                  className="video-page"
-                />
-                <ActionButton
-                  label=">>"
-                  onClick={() => setRunsPage(runsTotalPages)}
-                  disabled={runsPage >= runsTotalPages}
-                  variant="soft"
-                  className="video-page"
-                />
+            {runs.length > 0 ? (
+              <div className="pagination-footer">
+                <div className="pagination-main">
+                  <PageSwitcher currentPage={runsPage} totalPages={runsTotalPages} onPageChange={setRunsPage} />
+                </div>
+                <div className="pagination-size">
+                  <PageSizePicker value={runsPageSize} onChange={setRunsPageSize} />
+                </div>
               </div>
             ) : null}
           </div>

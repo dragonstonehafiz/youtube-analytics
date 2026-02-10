@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from config import settings
 from src.database.db import get_connection, row_to_dict
@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 def _get_table_storage(conn: sqlite3.Connection, db_size_bytes: int) -> list[dict]:
-    """Return per-table storage usage in bytes and percent of total database size."""
+    """Return per-table storage usage in bytes with percent normalized to tracked tables only."""
     table_rows = conn.execute(
         "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
     ).fetchall()
@@ -37,9 +37,10 @@ def _get_table_storage(conn: sqlite3.Connection, db_size_bytes: int) -> list[dic
             totals[table_name] += object_bytes.get(index_name, 0)
 
     sorted_totals = sorted(totals.items(), key=lambda item: item[1], reverse=True)
+    tracked_total_bytes = sum(table_bytes for _, table_bytes in sorted_totals)
     output = []
     for table_name, table_bytes in sorted_totals:
-        percent = round((table_bytes / db_size_bytes) * 100, 2) if db_size_bytes > 0 else 0.0
+        percent = round((table_bytes / tracked_total_bytes) * 100, 2) if tracked_total_bytes > 0 else 0.0
         output.append({"table": table_name, "bytes": table_bytes, "percent": percent})
     return output
 
@@ -158,6 +159,134 @@ def list_videos(
         total_row = conn.execute(count_query, tuple(params)).fetchone()
         total = total_row["total"] if total_row and total_row["total"] is not None else 0
     return {"items": [row_to_dict(row) for row in rows], "total": total}
+
+
+@router.get("/comments")
+def list_comments(
+    video_id: str | None = None,
+    published_after: str | None = None,
+    published_before: str | None = None,
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    sort_by: str = Query(default="published_at"),
+    direction: str = Query(default="desc"),
+) -> dict:
+    """Return comments with optional video filter/pagination and parent rows for thread rendering."""
+    where_clauses = []
+    params: list[object] = []
+    if video_id:
+        where_clauses.append("c.video_id = ?")
+        params.append(video_id)
+    if published_after:
+        where_clauses.append("date(c.published_at) >= ?")
+        params.append(published_after)
+    if published_before:
+        where_clauses.append("date(c.published_at) <= ?")
+        params.append(published_before)
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    sort_map = {
+        "published_at": "c.published_at",
+        "likes": "COALESCE(c.like_count, 0)",
+        "reply_count": "COALESCE(c.reply_count, 0)",
+    }
+    sort_column = sort_map.get(sort_by, "published_at")
+    sort_dir = "ASC" if direction.lower() == "asc" else "DESC"
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT c.*, v.title AS video_title, v.thumbnail_url AS video_thumbnail_url
+            FROM comments c
+            LEFT JOIN videos v ON v.id = c.video_id
+            {where_sql}
+            ORDER BY {sort_column} {sort_dir}, c.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            tuple(params + [limit, offset]),
+        ).fetchall()
+        total_row = conn.execute(
+            f"SELECT COUNT(*) AS total FROM comments c {where_sql}",
+            tuple(params),
+        ).fetchone()
+    items = [row_to_dict(row) for row in rows]
+    parent_ids: set[str] = set()
+    item_ids = {str(item.get("id")) for item in items if item.get("id")}
+    for item in items:
+        parent_id = item.get("parent_id")
+        if parent_id and str(parent_id) not in item_ids:
+            parent_ids.add(str(parent_id))
+
+    parents: list[dict] = []
+    if parent_ids:
+        placeholders = ", ".join(["?"] * len(parent_ids))
+        with get_connection() as conn:
+            parent_rows = conn.execute(
+                f"""
+                SELECT c.*, v.title AS video_title, v.thumbnail_url AS video_thumbnail_url
+                FROM comments c
+                LEFT JOIN videos v ON v.id = c.video_id
+                WHERE c.id IN ({placeholders})
+                ORDER BY {sort_column} {sort_dir}, c.id DESC
+                """,
+                tuple(parent_ids),
+            ).fetchall()
+        parents = [row_to_dict(row) for row in parent_rows]
+
+    total = total_row["total"] if total_row and total_row["total"] is not None else 0
+    return {"items": items, "parents": parents, "total": total}
+
+
+@router.get("/comments/{comment_id}/replies")
+def list_comment_replies(
+    comment_id: str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    sort_by: str = Query(default="published_at"),
+    direction: str = Query(default="desc"),
+) -> dict:
+    """Return replies for one parent comment from local DB with pagination and sorting."""
+    with get_connection() as conn:
+        parent_row = conn.execute("SELECT id, reply_count FROM comments WHERE id = ?", (comment_id,)).fetchone()
+        if parent_row is None:
+            raise HTTPException(status_code=404, detail="Parent comment not found.")
+        sort_map = {
+            "published_at": "c.published_at",
+            "likes": "COALESCE(c.like_count, 0)",
+            "reply_count": "COALESCE(c.reply_count, 0)",
+        }
+        sort_column = sort_map.get(sort_by, "c.published_at")
+        sort_dir = "ASC" if direction.lower() == "asc" else "DESC"
+        rows = conn.execute(
+            f"""
+            SELECT c.*, v.title AS video_title, v.thumbnail_url AS video_thumbnail_url
+            FROM comments c
+            LEFT JOIN videos v ON v.id = c.video_id
+            WHERE c.parent_id = ?
+            ORDER BY {sort_column} {sort_dir}, c.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (comment_id, limit, offset),
+        ).fetchall()
+    items = [row_to_dict(row) for row in rows]
+    total = int(parent_row["reply_count"] or 0)
+    return {"items": items, "total": total}
+
+
+@router.get("/comments/{comment_id}")
+def get_comment(comment_id: str) -> dict:
+    """Return a single comment row by ID."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT c.*, v.title AS video_title, v.thumbnail_url AS video_thumbnail_url
+            FROM comments c
+            LEFT JOIN videos v ON v.id = c.video_id
+            WHERE c.id = ?
+            """,
+            (comment_id,),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Comment not found.")
+    return {"item": row_to_dict(row)}
 
 
 @router.get("/analytics/daily")
@@ -331,6 +460,16 @@ def list_published_dates(start_date: str, end_date: str, content_type: str | Non
         )
     items = [{"day": day, "items": items, "count": len(items)} for day, items in grouped.items()]
     return {"items": items}
+
+
+@router.get("/videos/{video_id}")
+def get_video(video_id: str) -> dict:
+    """Return one video row by ID."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    return {"item": row_to_dict(row)}
 
 
 @router.get("/analytics/top-content")

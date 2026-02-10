@@ -11,9 +11,10 @@ type DropdownProps = {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  menuPlacement?: 'bottom' | 'top'
 }
 
-function Dropdown({ label, items, value, onChange, placeholder = 'Select' }: DropdownProps) {
+function Dropdown({ label, items, value, onChange, placeholder = 'Select', menuPlacement = 'bottom' }: DropdownProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -42,7 +43,7 @@ function Dropdown({ label, items, value, onChange, placeholder = 'Select' }: Dro
         <span className="dropdown-caret">▾</span>
       </button>
       {open && (
-        <div className="dropdown-menu">
+        <div className={menuPlacement === 'top' ? 'dropdown-menu top' : 'dropdown-menu'}>
           {items.map((item, index) => {
             if (item.type === 'divider') {
               return <div key={`divider-${index}`} className="dropdown-divider" />

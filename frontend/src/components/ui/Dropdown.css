@@ -49,6 +49,11 @@
   z-index: 20;
 }
 
+.dropdown-menu.top {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
 .dropdown-item {
   border: none;
   background: transparent;

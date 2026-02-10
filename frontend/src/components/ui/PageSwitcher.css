@@ -1,0 +1,22 @@
+.page-switcher {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.page-switcher-button {
+  height: 32px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: #ffffff;
+  font-size: 12px;
+  box-shadow: none;
+}
+
+.page-switcher-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}

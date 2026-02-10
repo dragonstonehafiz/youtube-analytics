@@ -30,6 +30,7 @@ def init_db() -> None:
         _ensure_video_columns(conn)
         _ensure_channel_daily_columns(conn)
         _ensure_sync_run_columns(conn)
+        _ensure_comment_columns(conn)
 
 
 def _ensure_video_columns(conn: sqlite3.Connection) -> None:
@@ -70,5 +71,18 @@ def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
     for name, col_type in columns:
         try:
             conn.execute(f"ALTER TABLE channel_daily_analytics ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_comment_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to comments table if missing (idempotent)."""
+    columns = [
+        ("author_profile_image_url", "TEXT"),
+        ("reply_count", "INTEGER"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE comments ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, DateRangePicker, Dropdown } from '../components/ui'
+import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
 import { PageCard } from '../components/layout'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
@@ -27,7 +27,7 @@ type VideoFilters = {
 }
 
 function Videos() {
-  const pageSize = 25
+  const [pageSize, setPageSize] = useState(10)
   const storedSort = getStored('videosSort', null as {
     sortKey?: 'date' | 'views' | 'comments' | 'likes'
     sortDir?: 'asc' | 'desc'
@@ -49,15 +49,8 @@ function Videos() {
   const [filters, setFilters] = useState<VideoFilters>(initialFilters)
   const navigate = useNavigate()
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total])
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
   const sortedRows = useMemo(() => rows, [rows])
-  const pagination = useMemo(() => {
-    if (totalPages <= 3) {
-      return Array.from({ length: totalPages }, (_, idx) => idx + 1)
-    }
-    const start = Math.max(1, Math.min(page - 1, totalPages - 2))
-    return [start, start + 1, start + 2]
-  }, [page, totalPages])
 
   useEffect(() => {
     async function loadVideos() {
@@ -94,7 +87,11 @@ function Videos() {
     }
 
     loadVideos()
-  }, [page, sortKey, sortDir, filters])
+  }, [page, pageSize, sortKey, sortDir, filters])
+
+  useEffect(() => {
+    setPage(1)
+  }, [pageSize])
 
   useEffect(() => {
     setStored('videosSort', { sortKey, sortDir })
@@ -132,10 +129,10 @@ function Videos() {
       <div className="page-body">
         <div className="page-row">
           <PageCard>
-            <div className="video-filters">
-              <div className="video-filters-title">Filters</div>
-              <div className="video-filters-grid">
-                <label className="video-filter-field">
+            <div className="filter-section">
+              <div className="filter-title">Filters</div>
+              <div className="filter-grid videos-filter-grid">
+                <label className="filter-field">
                   <span>Search</span>
                   <input
                     type="text"
@@ -167,7 +164,7 @@ function Videos() {
                     { type: 'option' as const, label: 'Shortform', value: 'short' },
                   ]}
                 />
-                <div className="video-filter-field video-filter-date">
+                <div className="filter-field filter-date">
                   <span>Published range</span>
                   <DateRangePicker
                     startDate={filters.published_after}
@@ -178,8 +175,8 @@ function Videos() {
                     }}
                   />
                 </div>
-                <div className="video-filter-actions">
-                  <ActionButton label="Reset" onClick={resetFilters} variant="soft" className="video-filter-action" />
+                <div className="filter-actions">
+                  <ActionButton label="Reset" onClick={resetFilters} variant="soft" className="filter-action" />
                 </div>
               </div>
             </div>
@@ -249,13 +246,13 @@ function Videos() {
                             />
                             <ActionButton
                               label="Analytics"
-                              onClick={() => navigate(`/videos/${video.id}?tab=analytics`)}
+                              onClick={() => navigate(`/videoDetails/${video.id}?tab=analytics`)}
                               variant="soft"
                               className="video-action"
                             />
                             <ActionButton
                               label="Comments"
-                              onClick={() => navigate(`/videos/${video.id}?tab=comments`)}
+                              onClick={() => navigate(`/videoDetails/${video.id}?tab=comments`)}
                               variant="soft"
                               className="video-action"
                             />
@@ -273,33 +270,13 @@ function Videos() {
               )}
             </div>
 
-            <div className="video-pagination">
-              <ActionButton label="<<" onClick={() => setPage(1)} disabled={page <= 1} variant="soft" className="video-page" />
-              <ActionButton
-                label="<"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1}
-                variant="soft"
-                className="video-page"
-              />
-              {pagination.map((item) => (
-                <ActionButton
-                  key={item}
-                  label={String(item)}
-                  onClick={() => setPage(item)}
-                  variant="soft"
-                  active={item === page}
-                  className="video-page"
-                />
-              ))}
-              <ActionButton
-                label=">"
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={page >= totalPages}
-                variant="soft"
-                className="video-page"
-              />
-              <ActionButton label=">>" onClick={() => setPage(totalPages)} disabled={page >= totalPages} variant="soft" className="video-page" />
+            <div className="pagination-footer">
+              <div className="pagination-main">
+                <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+              </div>
+              <div className="pagination-size">
+                <PageSizePicker value={pageSize} onChange={setPageSize} />
+              </div>
             </div>
           </PageCard>
         </div>
