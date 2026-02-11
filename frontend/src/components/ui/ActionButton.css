@@ -42,6 +42,12 @@
   color: #b91c1c;
 }
 
+.action-button-no-border,
+.action-button-no-border:hover,
+.action-button-no-border.action-button-active {
+  border-color: transparent;
+}
+
 .action-button-disabled,
 .action-button:disabled {
   cursor: default;

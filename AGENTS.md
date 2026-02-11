@@ -15,13 +15,20 @@ Use this file to understand where to make changes and which conventions to follo
 - SQLite DB file path is `backend/data/youtube.db` (from `DB_PATH=data/youtube.db` in `backend/.env`).
 - Database schema and helpers live in `backend/src/database/`.
 - Playlist persistence uses `playlists` and `playlist_items` tables in `backend/src/database/schema.sql`.
+- Playlist analytics persistence uses `playlist_daily_analytics` in `backend/src/database/schema.sql` (daily `playlist_views` by `playlist_id` + `date`).
+- `playlist_daily_analytics` stores playlist daily metrics: `playlist_views`, `playlist_estimated_minutes_watched`, `playlist_average_view_duration_seconds`, `playlist_starts`, `views_per_playlist_start`, and `average_time_in_playlist_seconds`.
 - YouTube API helpers live in `backend/src/youtube/`.
 - Playlist API pull helpers live in `backend/src/youtube/playlists.py` (`playlists.list` + `playlistItems.list` pagination).
 - `sync_all` includes a playlists sync stage (`pulls` key: `playlists`) immediately after `comments`; playlist sync progress is tracked per playlist (not per playlist item).
+- `sync_all` includes a separate playlist analytics sync stage (`pulls` key: `playlist_analytics` / label `Playlist Analytics`) that stores daily playlist views in `playlist_daily_analytics`.
+- `sync_all` stage order is: `videos` -> `comments` -> `playlists` -> `traffic` -> `channel_analytics` -> `playlist_analytics` -> `video_analytics`.
 - `playlist_items.video_id` is stored as a raw YouTube ID without a foreign key to `videos.id`, so playlist sync does not depend on `videos` table coverage.
-- `GET /playlists` returns paginated playlist rows with optional `q`, `privacy_status`, `sort`, and `direction`, and includes computed `last_item_added_at` (`MAX(playlist_items.published_at)`).
+- `GET /playlists` returns paginated playlist rows with optional `q`, `privacy_status`, `sort`, and `direction`, and includes computed fields: `last_item_added_at` (`MAX(playlist_items.published_at)`), `total_playlist_views` (`SUM(playlist_daily_analytics.playlist_views)`), and `total_content_views` (`SUM(videos.view_count)` across playlist items).
 - `GET /playlists/{playlist_id}` returns a single playlist row.
 - `GET /playlists/{playlist_id}/items` returns paginated playlist items with optional `q`, `sort_by`, and `direction`.
+- `GET /analytics/playlist-daily` returns per-day playlist-view totals (`playlist_daily_analytics`) for one playlist and date range.
+- `GET /playlists/{playlist_id}/published` returns playlist video publish markers grouped by day for a date range (title, published_at, thumbnail_url, content_type).
+- `GET /analytics/playlist-video-daily` returns per-day summed video analytics for videos in one playlist (aggregated from `daily_analytics` via `playlist_items`).
 - Sync orchestration lives in `backend/src/sync.py`.
 - Logs should use `backend/utils/logger.py` and write to `backend/outputs/`.
 - Add comments when API behavior or non-obvious logic needs explanation (YouTube API params, pagination, resume logic).
@@ -35,6 +42,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Use `npm run dev` or `npm run start` for local dev.
 - Keep API calls in a small client module (e.g., `frontend/src/api.ts`) and type responses.
 - Prefer reusable components over inline UI duplication.
+- Whenever possible, reuse existing UI components (especially from `frontend/src/components/ui/`) instead of introducing custom one-off controls.
 - Shared color theme lives in `frontend/src/index.css` as CSS variables.
 - All user-visible dates use `day month year` format (e.g., `22 February 2026`) via `frontend/src/utils/date.ts` `formatDisplayDate(...)`; avoid time-of-day display unless explicitly required.
 - In list/table UIs, if an item has a corresponding internal app detail page, navigation should be attached to that item's title text.
@@ -43,6 +51,10 @@ Use this file to understand where to make changes and which conventions to follo
 - On `frontend/src/pages/SyncSettings.tsx`, overview date fields (`Earliest data`, `Latest data`) are displayed as `day month year` (e.g., `7 February 2026`) instead of raw `yyyy-mm-dd`.
 - `frontend/src/pages/SyncSettings.tsx` period selector includes `From Latest Date`, which sets `start_date` to overview `latest_date` and `end_date` to today when triggering sync.
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlists` (`pull=playlists`) in addition to videos/comments/analytics pulls.
+- `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlist Analytics` (`pull=playlist_analytics`) as its own pull option.
+- `frontend/src/pages/SyncSettings.tsx` uses analytics pull keys `channel_analytics` and `video_analytics` (labels: `Channel analytics`, `Video analytics`); backend accepts legacy aliases `channel_daily` and `daily_analytics`.
+- `frontend/src/pages/SyncSettings.tsx` treats unknown/legacy pull keys in saved settings as invalid on the client: sync is blocked and a visible error is shown; no `/sync` request is sent until selection is corrected.
+- `frontend/src/pages/SyncSettings.tsx` Database Overview metric cards include an info icon per metric (total videos/playlists/comments + channel/video/playlist analytics rows + traffic source rows); each tooltip uses `API Used:` with bullet lines and shows the API family for that metric.
 - `GET /stats/overview` includes `total_playlists`, and `frontend/src/pages/SyncSettings.tsx` Database Overview metric stack shows `Total videos`, `Total playlists`, and `Total comments` in that order.
 - In `frontend/src/pages/Page.css`, Sync Database Overview metric cards use stretch/flex distribution (no fixed card heights) so each metric column fills available height and its cards split that height evenly.
 - `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
@@ -51,14 +63,20 @@ Use this file to understand where to make changes and which conventions to follo
   - Column 1: Database size + donut chart (ring only) with total size in the center.
   - Column 2: Earliest data (top), Latest data (bottom).
   - Column 3: Total videos (top), Total playlists (middle), Total comments (bottom).
-  - Column 4: Daily analytics rows, Channel daily rows, Traffic source rows.
+  - Column 4: Channel analytics rows, Video analytics rows, Playlist analytics rows, Traffic source rows.
   - Donut slices show table size and percent on hover; no persistent table list below the chart.
+- `GET /stats/overview` includes `playlist_analytics_rows` (`COUNT(*)` from `playlist_daily_analytics`) for Sync Database Overview.
 - `frontend` includes playlist routes/pages:
   - `frontend` route `/playlists` -> `frontend/src/pages/Playlists.tsx` (playlist list with filters/sort/pagination; no actions column, title click opens details; recency column shows `last_item_added_at`).
   - `frontend` route `/playlistDetails/:playlistId` -> `frontend/src/pages/PlaylistDetail.tsx` (playlist metadata + paginated item list).
+- `frontend/src/pages/Playlists.tsx` table columns include `Playlist views` (sum from `playlist_daily_analytics`) and `Content views` (sum of current `videos.view_count` for items in playlist).
 - `frontend/src/pages/Playlists.tsx` description text is single-line truncated (`ellipsis`) so playlist list rows keep consistent height.
 - `frontend/src/pages/PlaylistDetail.tsx` uses extracted playlist-item components under `frontend/src/components/playlists/`, includes a dedicated `Position` column, and supports sortable headers for `Position`, `Added`, and `Views`; rows include `Views`, `Comments`, and `Likes` columns, and use the same hover pattern as videos (description hides and action buttons show). The items view has no search input.
 - `frontend/src/pages/PlaylistDetail.tsx` does not show section headers for metadata/items cards (both cards render without title bars).
+- `frontend/src/pages/PlaylistDetail.tsx` includes a `MetricChartCard` section above playlist items with controls matching analytics/video detail pattern; content selector options are `Playlist Views` (`/analytics/playlist-daily`) and `Video Views` (`/analytics/playlist-video-daily`), with previous-period comparison text on KPI chips (always for views, and for watch time/subscribers/revenue in `Video Views` mode).
+- On `frontend/src/pages/PlaylistDetail.tsx`, analytics controls are rendered above the chart card and aligned to the right.
+- In `Playlist Views` mode on `frontend/src/pages/PlaylistDetail.tsx`, KPI chips show playlist metrics from `playlist_daily_analytics`: `Views`, `Watch time (hours)` (from `playlist_estimated_minutes_watched`), `Avg view duration` (from `playlist_average_view_duration_seconds`), and `Avg time in playlist` (from `average_time_in_playlist_seconds`).
+- Playlist Detail metric chart includes video publish markers (same marker behavior as Analytics chart) sourced from `GET /playlists/{playlist_id}/published`, rebucketed to selected granularity.
 - Sync runs table (`frontend/src/pages/SyncSettings.tsx` + `frontend/src/pages/Page.css`) uses fixed-width grid tracks with ellipsis truncation per cell so row height stays consistent regardless of content length.
 - `frontend/src/pages/Videos.tsx` includes a separate filter section/card above the videos table section with search, visibility, type (`All videos`, `Longform`, `Shorts`), and published date range inputs. Filters auto-apply on change, are sent to `GET /videos` query params, and are persisted in local storage.
 - Videos and Comments pages share the same filter layout class pattern in `frontend/src/pages/Page.css` using `filter-*` class names (`filter-section`, `filter-title`, `filter-grid`, `filter-field`, `filter-date`, `filter-actions`, `filter-action`).
@@ -70,7 +88,8 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /videos/{video_id}` returns a single video row for video detail metadata.
 - Video `content_type` classification in `backend/src/database/videos.py` uses short-video IDs from the `UUSH...`-derived playlist (`backend/src/youtube/videos.py`) instead of stream dimensions/thumbnail heuristics.
 - `sync_videos` (and the videos pull inside `sync_all`) fetches shorts IDs via `get_short_video_ids()` and passes them to `upsert_videos(..., short_video_ids=...)`; if shorts ID retrieval fails, videos sync fails (fail-fast behavior).
-- `sync_channel_daily` writes a single combined channel-daily series to `channel_daily_analytics` (one row per day).
+- `sync_channel_analytics` writes a single combined channel-daily series to `channel_daily_analytics` (one row per day).
+- `sync_video_analytics` writes per-video daily series to `daily_analytics` (one row per `video_id` + day).
 - `GET /analytics/channel-daily` returns the single combined channel-daily series.
 - `frontend/src/pages/Analytics.tsx` chart range is trimmed to the first/last day that has channel-daily data within the selected range, while still rendering zero-value gaps for missing days inside that trimmed span.
 - `GET /analytics/daily/summary` supports optional `content_type` (`video` or `short`) and aggregates from `daily_analytics` joined to `videos`.
@@ -79,7 +98,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/Analytics.tsx` KPI cards now compare current totals to the immediately previous equal-length date window and show trend indicators (green up/gray down) with text like `X% more/less than previous N days`.
 - `frontend/src/pages/Analytics.tsx` now includes a right-side latest-content rail with two reusable cards (`frontend/src/components/analytics/VideoDetailListCard.tsx`): one for longform (`content_type=video`) and one for shorts (`content_type=short`), each sourced from `GET /analytics/top-content` for the selected date range and sorted by newest publish date first.
 - `frontend/src/components/analytics/VideoDetailListCard.tsx` is the reusable video-detail list card component (title + arbitrary item list + CTA), and supports per-metric typical-range meters (currently views and average view duration) with up/down trend arrows when the active video is outside the card's typical range.
-- `frontend/src/components/analytics/VideoDetailListCard.tsx` supports two CTA buttons: `See video analytics` and optional `See video comments` (wired in Dashboard/Analytics to `/videoDetails/:videoId?tab=comments`).
+- `frontend/src/components/analytics/VideoDetailListCard.tsx` supports two CTA buttons: `See video analytics` and optional `See video comments` (both navigate to `/videoDetails/:videoId`).
 - On `frontend/src/pages/Analytics.tsx`, only the two latest-content cards request `privacy_status=public` (public videos only). `Top content this period` remains unfiltered by privacy unless content type filtering is applied.
 - `GET /videos/published` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to upload indicators (All = all uploads, Longform = only longform uploads, Shortform = only short uploads).
 - `GET /analytics/top-content` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to `Top content this period`.
@@ -92,6 +111,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Upload-marker tooltips in `frontend/src/components/analytics/MetricChartCard.css` use a fixed width (`260px`) so tooltip width stays consistent regardless of title length.
 - `frontend/src/pages/VideoDetail.tsx` renders a metadata card above the Analytics/Comments tab selector and includes video thumbnail + key metadata fields.
 - `frontend/src/pages/VideoDetail.tsx` metadata and analytics/comments cards render without section title headers (no `Video Metadata` / `Analytics` card titles).
+- `frontend/src/pages/VideoDetail.tsx` and `frontend/src/pages/PlaylistDetail.tsx` main headers include an `ActionButton` back control labeled `<` positioned to the left of the title that navigates to the previous page (`navigate(-1)`).
 - Video detail description preserves line breaks and uses a fixed-height scrollable area when content overflows.
 - In video detail metadata card, stats (`Visibility`, `Published`, `Duration`, `Views`, `Likes`, `Comments`) are rendered as a separate row below thumbnail/title/description.
 - Video detail `Analytics` tab reuses `frontend/src/components/analytics/MetricChartCard.tsx` and is populated from existing `GET /analytics/daily?video_id=...` data (no extra backend route).
@@ -113,7 +133,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Reply totals are authoritative from stored parent `reply_count`.
 - Video detail comments pagination uses `frontend/src/components/ui/PageSwitcher.tsx`.
 - Videos and Sync Runs pagination also use `frontend/src/components/ui/PageSwitcher.tsx` instead of page-specific inline button groups.
-- Videos, Sync Runs, Video Detail comments, and Comments page include a per-page dropdown in the pagination footer (bottom-right) with options `10`, `25`, `50`, `100`, defaulting to `10`.
+- Videos, Playlists, Playlist Detail items, Sync Runs, Video Detail comments, and Comments include a per-page dropdown in the pagination footer (bottom-right) with options `10`, `25`, `50`, `100`; the selected size is shared globally via local storage so changing it on any page applies across all pages.
 - `frontend/src/pages/Comments.tsx` is a dedicated comments page that loads paginated comments via `GET /comments`, groups by `video_id`, and renders `CommentThreadItem` entries (no inline child-reply rendering).
 - `GET /comments` includes `video_title` and `video_thumbnail_url` (joined from `videos`) so grouped comments can show a readable video header with thumbnail without extra requests.
 - `frontend/src/pages/Comments.tsx` includes a top `Published range` filter using `DateRangePicker`, wired to `GET /comments` query params `published_after` and `published_before`.
@@ -128,6 +148,7 @@ Use this file to understand where to make changes and which conventions to follo
 
 ## Frontend Components
 - `frontend/src/components/ui/ActionButton.tsx`: Standard button styling. Supports `primary` and `soft` variants.
+- `frontend/src/components/ui/ActionButton.tsx` supports optional `bordered={false}` for borderless actions (used by detail-page header back controls).
 - `frontend/src/components/ui/DateRangePicker.tsx`: Two-date input with a visual separator for custom ranges.
 - `frontend/src/components/ui/Dropdown.tsx`: Custom dropdown used for range selectors.
 - `frontend/src/components/ui/MultiSelect.tsx`: Custom multiselect for choosing sync targets.
@@ -142,7 +163,8 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/components/analytics/TopContentTable.tsx`: Top content table for analytics summaries.
 - `frontend/src/components/videos/VideoListTable.tsx`: Reusable videos table (headers, sort controls, empty state).
 - `frontend/src/components/videos/VideoListRow.tsx`: Reusable videos table row (thumbnail/title/description + action buttons + metrics cells).
-- `frontend/src/components/videos/VideoListRow.tsx` videos row keeps only the `Open in YouTube` action button; clicking the title opens `/videoDetails/:videoId?tab=analytics`.
+- `frontend/src/components/videos/VideoListRow.tsx` videos row keeps only the `Open in YouTube` action button; clicking the title opens `/videoDetails/:videoId`.
+- `frontend/src/pages/VideoDetail.tsx` tab selection (`Analytics`/`Comments`) is local UI state only (not URL query params), and each navigation to a video detail page defaults to `Analytics`.
 - `frontend/src/components/playlists/PlaylistItemsTable.tsx`: Reusable playlist-items table (headers with sortable `Position`, `Added`, and `Views`).
 - `frontend/src/components/playlists/PlaylistItemRow.tsx`: Reusable playlist-item row mirroring video-row layout with added position cell.
 - Component barrels live in:

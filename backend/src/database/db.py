@@ -31,6 +31,7 @@ def init_db() -> None:
         _ensure_channel_daily_columns(conn)
         _ensure_sync_run_columns(conn)
         _ensure_comment_columns(conn)
+        _ensure_playlist_daily_columns(conn)
         _ensure_playlist_items_schema(conn)
 
 
@@ -85,6 +86,22 @@ def _ensure_comment_columns(conn: sqlite3.Connection) -> None:
     for name, col_type in columns:
         try:
             conn.execute(f"ALTER TABLE comments ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_playlist_daily_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to playlist_daily_analytics table if missing (idempotent)."""
+    columns = [
+        ("playlist_estimated_minutes_watched", "REAL"),
+        ("playlist_average_view_duration_seconds", "REAL"),
+        ("playlist_starts", "INTEGER"),
+        ("views_per_playlist_start", "REAL"),
+        ("average_time_in_playlist_seconds", "REAL"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE playlist_daily_analytics ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
 

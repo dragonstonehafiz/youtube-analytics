@@ -184,6 +184,8 @@ def list_playlists(
         "title": "p.title",
         "published_at": "p.published_at",
         "item_count": "p.item_count",
+        "total_playlist_views": "total_playlist_views",
+        "total_content_views": "total_content_views",
         "last_item_added_at": "last_item_added_at",
         "updated_at": "p.updated_at",
     }
@@ -198,7 +200,18 @@ def list_playlists(
                     SELECT MAX(pi.published_at)
                     FROM playlist_items pi
                     WHERE pi.playlist_id = p.id
-                ) AS last_item_added_at
+                ) AS last_item_added_at,
+                (
+                    SELECT COALESCE(SUM(pda.playlist_views), 0)
+                    FROM playlist_daily_analytics pda
+                    WHERE pda.playlist_id = p.id
+                ) AS total_playlist_views,
+                (
+                    SELECT COALESCE(SUM(COALESCE(v.view_count, 0)), 0)
+                    FROM playlist_items pi
+                    LEFT JOIN videos v ON v.id = pi.video_id
+                    WHERE pi.playlist_id = p.id
+                ) AS total_content_views
             FROM playlists p
             {where_sql}
             ORDER BY {sort_column} {sort_dir}
@@ -277,6 +290,103 @@ def list_playlist_items(
         ).fetchone()
     total = total_row["total"] if total_row and total_row["total"] is not None else 0
     return {"items": [row_to_dict(row) for row in rows], "total": total}
+
+
+@router.get("/analytics/playlist-daily")
+def list_playlist_daily(playlist_id: str, start_date: str, end_date: str) -> dict:
+    """Return daily playlist-view analytics rows for one playlist and date range."""
+    with get_connection() as conn:
+        exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Playlist not found.")
+        rows = conn.execute(
+            """
+            SELECT
+                date AS day,
+                SUM(COALESCE(playlist_views, 0)) AS views,
+                SUM(COALESCE(playlist_estimated_minutes_watched, 0)) AS watch_time_minutes,
+                AVG(COALESCE(playlist_average_view_duration_seconds, 0)) AS average_view_duration_seconds,
+                SUM(COALESCE(playlist_starts, 0)) AS playlist_starts,
+                AVG(COALESCE(views_per_playlist_start, 0)) AS views_per_playlist_start,
+                AVG(COALESCE(average_time_in_playlist_seconds, 0)) AS average_time_in_playlist_seconds
+            FROM playlist_daily_analytics
+            WHERE playlist_id = ? AND date >= ? AND date <= ?
+            GROUP BY date
+            ORDER BY date ASC
+            """,
+            (playlist_id, start_date, end_date),
+        ).fetchall()
+    items = []
+    for row in rows:
+        item = row_to_dict(row)
+        item["estimated_revenue"] = 0
+        item["subscribers_gained"] = 0
+        item["subscribers_lost"] = 0
+        items.append(item)
+    totals = {
+        "views": sum(item.get("views") or 0 for item in items),
+        "watch_time_minutes": sum(item.get("watch_time_minutes") or 0 for item in items),
+        "estimated_revenue": 0,
+        "subscribers_gained": 0,
+        "subscribers_lost": 0,
+        "average_view_duration_seconds": (
+            sum(item.get("average_view_duration_seconds") or 0 for item in items) / len(items)
+            if items
+            else 0
+        ),
+        "playlist_starts": sum(item.get("playlist_starts") or 0 for item in items),
+        "views_per_playlist_start": (
+            sum(item.get("views_per_playlist_start") or 0 for item in items) / len(items)
+            if items
+            else 0
+        ),
+        "average_time_in_playlist_seconds": (
+            sum(item.get("average_time_in_playlist_seconds") or 0 for item in items) / len(items)
+            if items
+            else 0
+        ),
+    }
+    return {"items": items, "totals": totals}
+
+
+@router.get("/analytics/playlist-video-daily")
+def list_playlist_video_daily(playlist_id: str, start_date: str, end_date: str) -> dict:
+    """Return daily video analytics summed across videos that are in a playlist."""
+    with get_connection() as conn:
+        exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Playlist not found.")
+        rows = conn.execute(
+            """
+            WITH playlist_videos AS (
+                SELECT DISTINCT video_id
+                FROM playlist_items
+                WHERE playlist_id = ? AND video_id IS NOT NULL
+            )
+            SELECT
+                a.date AS day,
+                SUM(COALESCE(a.views, 0)) AS views,
+                SUM(COALESCE(a.watch_time_minutes, 0)) AS watch_time_minutes,
+                SUM(COALESCE(a.estimated_revenue, 0)) AS estimated_revenue,
+                SUM(COALESCE(a.subscribers_gained, 0)) AS subscribers_gained,
+                SUM(COALESCE(a.subscribers_lost, 0)) AS subscribers_lost
+            FROM daily_analytics a
+            JOIN playlist_videos pv ON pv.video_id = a.video_id
+            WHERE a.date >= ? AND a.date <= ?
+            GROUP BY a.date
+            ORDER BY a.date ASC
+            """,
+            (playlist_id, start_date, end_date),
+        ).fetchall()
+    items = [row_to_dict(row) for row in rows]
+    totals = {
+        "views": sum(item.get("views") or 0 for item in items),
+        "watch_time_minutes": sum(item.get("watch_time_minutes") or 0 for item in items),
+        "estimated_revenue": sum(item.get("estimated_revenue") or 0 for item in items),
+        "subscribers_gained": sum(item.get("subscribers_gained") or 0 for item in items),
+        "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
+    }
+    return {"items": items, "totals": totals}
 
 
 @router.get("/comments")
@@ -503,6 +613,48 @@ def list_published_dates(start_date: str, end_date: str, content_type: str | Non
     return {"items": items}
 
 
+@router.get("/playlists/{playlist_id}/published")
+def list_playlist_published_dates(playlist_id: str, start_date: str, end_date: str) -> dict:
+    """Return published video titles by date for one playlist within a range."""
+    with get_connection() as conn:
+        exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Playlist not found.")
+        rows = conn.execute(
+            """
+            SELECT
+                date(COALESCE(v.published_at, pi.video_published_at)) AS day,
+                COALESCE(v.title, pi.title, '(untitled)') AS title,
+                COALESCE(v.published_at, pi.video_published_at, '') AS published_at,
+                COALESCE(v.thumbnail_url, pi.thumbnail_url, '') AS thumbnail_url,
+                COALESCE(v.content_type, '') AS content_type
+            FROM playlist_items pi
+            LEFT JOIN videos v ON v.id = pi.video_id
+            WHERE pi.playlist_id = ?
+              AND COALESCE(v.published_at, pi.video_published_at) IS NOT NULL
+              AND date(COALESCE(v.published_at, pi.video_published_at)) >= ?
+              AND date(COALESCE(v.published_at, pi.video_published_at)) <= ?
+            ORDER BY day ASC, published_at ASC
+            """,
+            (playlist_id, start_date, end_date),
+        ).fetchall()
+    grouped: dict[str, list[dict]] = {}
+    for row in rows:
+        day = row["day"]
+        if not day:
+            continue
+        grouped.setdefault(day, []).append(
+            {
+                "title": row["title"] or "(untitled)",
+                "published_at": row["published_at"] or "",
+                "thumbnail_url": row["thumbnail_url"] or "",
+                "content_type": row["content_type"] or "",
+            }
+        )
+    items = [{"day": day, "items": bucket, "count": len(bucket)} for day, bucket in grouped.items()]
+    return {"items": items}
+
+
 @router.get("/videos/{video_id}")
 def get_video(video_id: str) -> dict:
     """Return one video row by ID."""
@@ -640,9 +792,15 @@ def get_overview_stats() -> dict:
         daily_rows = conn.execute("SELECT COUNT(*) AS count FROM daily_analytics").fetchone()
         channel_rows = conn.execute("SELECT COUNT(*) AS count FROM channel_daily_analytics").fetchone()
         traffic_rows = conn.execute("SELECT COUNT(*) AS count FROM traffic_sources_daily").fetchone()
+        playlist_analytics_rows = conn.execute("SELECT COUNT(*) AS count FROM playlist_daily_analytics").fetchone()
         daily_analytics_rows = daily_rows["count"] if daily_rows and daily_rows["count"] is not None else 0
         channel_daily_rows = channel_rows["count"] if channel_rows and channel_rows["count"] is not None else 0
         traffic_sources_rows = traffic_rows["count"] if traffic_rows and traffic_rows["count"] is not None else 0
+        total_playlist_analytics_rows = (
+            playlist_analytics_rows["count"]
+            if playlist_analytics_rows and playlist_analytics_rows["count"] is not None
+            else 0
+        )
         table_storage = _get_table_storage(conn, db_size_bytes)
     return {
         "db_size_bytes": db_size_bytes,
@@ -655,5 +813,6 @@ def get_overview_stats() -> dict:
         "daily_analytics_rows": daily_analytics_rows,
         "channel_daily_rows": channel_daily_rows,
         "traffic_sources_rows": traffic_sources_rows,
+        "playlist_analytics_rows": total_playlist_analytics_rows,
         "table_storage": table_storage,
     }

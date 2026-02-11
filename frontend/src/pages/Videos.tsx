@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
 import { PageCard } from '../components/layout'
 import { VideoListTable, type VideoRow, type VideoSortKey } from '../components/videos'
-import { getStored, setStored } from '../utils/storage'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
 import './Page.css'
 
 type VideoFilters = {
@@ -14,7 +14,7 @@ type VideoFilters = {
 }
 
 function Videos() {
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(() => getSharedPageSize(10))
   const storedSort = getStored('videosSort', null as {
     sortKey?: 'date' | 'views' | 'comments' | 'likes'
     sortDir?: 'asc' | 'desc'
@@ -76,6 +76,10 @@ function Videos() {
 
   useEffect(() => {
     setPage(1)
+  }, [pageSize])
+
+  useEffect(() => {
+    setSharedPageSize(pageSize)
   }, [pageSize])
 
   useEffect(() => {

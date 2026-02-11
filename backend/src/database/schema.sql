@@ -74,6 +74,22 @@ CREATE TABLE IF NOT EXISTS daily_analytics (
 CREATE INDEX IF NOT EXISTS idx_daily_analytics_date ON daily_analytics(date);
 CREATE INDEX IF NOT EXISTS idx_daily_analytics_video ON daily_analytics(video_id);
 
+CREATE TABLE IF NOT EXISTS playlist_daily_analytics (
+    playlist_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    playlist_views INTEGER,
+    playlist_estimated_minutes_watched REAL,
+    playlist_average_view_duration_seconds REAL,
+    playlist_starts INTEGER,
+    views_per_playlist_start REAL,
+    average_time_in_playlist_seconds REAL,
+    PRIMARY KEY (playlist_id, date),
+    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_playlist_daily_date ON playlist_daily_analytics(date);
+CREATE INDEX IF NOT EXISTS idx_playlist_daily_playlist ON playlist_daily_analytics(playlist_id);
+
 CREATE TABLE IF NOT EXISTS channel_daily_analytics (
     date TEXT PRIMARY KEY,
     views INTEGER,

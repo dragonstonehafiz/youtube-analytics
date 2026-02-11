@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
 import { PageCard } from '../components/layout'
 import { formatDisplayDate } from '../utils/date'
-import { getStored, setStored } from '../utils/storage'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
 import './Page.css'
 
 type PlaylistRow = {
@@ -16,6 +16,8 @@ type PlaylistRow = {
   thumbnail_url: string | null
   updated_at: string | null
   last_item_added_at: string | null
+  total_playlist_views: number | null
+  total_content_views: number | null
 }
 
 type PlaylistFilters = {
@@ -24,16 +26,18 @@ type PlaylistFilters = {
 }
 
 function Playlists() {
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = useState(() => getSharedPageSize(10))
   const storedSort = getStored('playlistsSort', null as {
-    sortKey?: 'title' | 'item_count' | 'last_item_added_at'
+    sortKey?: 'title' | 'item_count' | 'total_playlist_views' | 'total_content_views' | 'last_item_added_at'
     sortDir?: 'asc' | 'desc'
   } | null)
   const storedFilters = getStored('playlistsFilters', null as Partial<PlaylistFilters> | null)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [rows, setRows] = useState<PlaylistRow[]>([])
-  const [sortKey, setSortKey] = useState<'title' | 'item_count' | 'last_item_added_at'>(storedSort?.sortKey ?? 'last_item_added_at')
+  const [sortKey, setSortKey] = useState<'title' | 'item_count' | 'total_playlist_views' | 'total_content_views' | 'last_item_added_at'>(
+    storedSort?.sortKey ?? 'last_item_added_at'
+  )
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(storedSort?.sortDir ?? 'desc')
   const [filters, setFilters] = useState<PlaylistFilters>({
     q: storedFilters?.q ?? '',
@@ -75,6 +79,10 @@ function Playlists() {
   }, [pageSize])
 
   useEffect(() => {
+    setSharedPageSize(pageSize)
+  }, [pageSize])
+
+  useEffect(() => {
     setStored('playlistsSort', { sortKey, sortDir })
   }, [sortKey, sortDir])
 
@@ -82,7 +90,7 @@ function Playlists() {
     setStored('playlistsFilters', filters)
   }, [filters])
 
-  const toggleSort = (key: 'title' | 'item_count' | 'last_item_added_at') => {
+  const toggleSort = (key: 'title' | 'item_count' | 'total_playlist_views' | 'total_content_views' | 'last_item_added_at') => {
     if (sortKey === key) {
       setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'))
       return
@@ -159,6 +167,22 @@ function Playlists() {
                 </button>
                 <button
                   type="button"
+                  className={sortKey === 'total_playlist_views' ? 'video-sort-button active right' : 'video-sort-button right'}
+                  onClick={() => toggleSort('total_playlist_views')}
+                >
+                  Playlist views
+                  {sortKey === 'total_playlist_views' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+                <button
+                  type="button"
+                  className={sortKey === 'total_content_views' ? 'video-sort-button active right' : 'video-sort-button right'}
+                  onClick={() => toggleSort('total_content_views')}
+                >
+                  Content views
+                  {sortKey === 'total_content_views' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+                <button
+                  type="button"
                   className={sortKey === 'last_item_added_at' ? 'video-sort-button active' : 'video-sort-button'}
                   onClick={() => toggleSort('last_item_added_at')}
                 >
@@ -190,6 +214,8 @@ function Playlists() {
                     </div>
                     <span className="video-muted">{playlist.privacy_status ?? '-'}</span>
                     <span className="right">{(playlist.item_count ?? 0).toLocaleString()}</span>
+                    <span className="right">{(playlist.total_playlist_views ?? 0).toLocaleString()}</span>
+                    <span className="right">{(playlist.total_content_views ?? 0).toLocaleString()}</span>
                     <span>{formatDisplayDate(playlist.last_item_added_at)}</span>
                   </div>
                 ))

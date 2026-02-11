@@ -652,7 +652,7 @@ function Analytics() {
                   title="Latest longform content"
                   items={latestLongform}
                   onOpenVideo={(videoId) => navigate(`/videoDetails/${videoId}`)}
-                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}?tab=comments`)}
+                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}`)}
                 />
               </PageCard>
               <PageCard>
@@ -660,7 +660,7 @@ function Analytics() {
                   title="Latest short content"
                   items={latestShorts}
                   onOpenVideo={(videoId) => navigate(`/videoDetails/${videoId}`)}
-                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}?tab=comments`)}
+                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}`)}
                 />
               </PageCard>
             </div>

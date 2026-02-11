@@ -19,14 +19,8 @@ function MultiSelect({ items, selected, onChange, placeholder = 'Select' }: Mult
     if (selected.length === 0) {
       return placeholder
     }
-    if (selected.length === items.length) {
-      return 'All Selected'
-    }
-    const selectedLabels = items
-      .filter((entry) => selected.includes(entry.value))
-      .map((entry) => entry.label)
-    return selectedLabels.join(', ') || placeholder
-  }, [items, selected, placeholder])
+    return `${selected.length} selected`
+  }, [selected, placeholder])
 
   const toggleValue = (value: string) => {
     onChange(

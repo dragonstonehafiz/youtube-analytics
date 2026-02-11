@@ -10,7 +10,7 @@ import {
   YearInput,
 } from '../components/ui'
 import { formatDisplayDate } from '../utils/date'
-import { getStored, setStored } from '../utils/storage'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
 import './Page.css'
 
 function SyncSettings() {
@@ -37,7 +37,7 @@ function SyncSettings() {
   >([])
   const [runsPage, setRunsPage] = useState(1)
   const [runsTotal, setRunsTotal] = useState(0)
-  const [runsPageSize, setRunsPageSize] = useState(10)
+  const [runsPageSize, setRunsPageSize] = useState(() => getSharedPageSize(10))
   const [overview, setOverview] = useState({
     db_size_bytes: 0,
     total_uploads: 0,
@@ -49,10 +49,12 @@ function SyncSettings() {
     daily_analytics_rows: 0,
     channel_daily_rows: 0,
     traffic_sources_rows: 0,
+    playlist_analytics_rows: 0,
     table_storage: [] as { table: string; bytes: number; percent: number }[],
   })
   const [deepSync, setDeepSync] = useState(storedSync?.deepSync ?? false)
   const [progress, setProgress] = useState<{ is_syncing: boolean; current_step: number; max_steps: number; message: string } | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [hoveredStorageTable, setHoveredStorageTable] = useState<string | null>(null)
   const today = new Date().toISOString().slice(0, 10)
   const [startDate, setStartDate] = useState(storedSync?.startDate ?? today)
@@ -63,12 +65,18 @@ function SyncSettings() {
     { label: 'Videos', value: 'videos' },
     { label: 'Comments', value: 'comments' },
     { label: 'Playlists', value: 'playlists' },
+    { label: 'Playlist Analytics', value: 'playlist_analytics' },
     { label: 'Traffic sources', value: 'traffic' },
-    { label: 'Channel daily', value: 'channel_daily' },
-    { label: 'Daily analytics', value: 'daily_analytics' },
+    { label: 'Channel analytics', value: 'channel_analytics' },
+    { label: 'Video analytics', value: 'video_analytics' },
   ]
   const [selectedPulls, setSelectedPulls] = useState(
     storedSync?.selectedPulls?.length ? storedSync.selectedPulls : pullOptions.map((item) => item.value)
+  )
+  const validPullValues = useMemo(() => new Set(pullOptions.map((item) => item.value)), [pullOptions])
+  const invalidSelectedPulls = useMemo(
+    () => selectedPulls.filter((value) => !validPullValues.has(value)),
+    [selectedPulls, validPullValues]
   )
 
   const loadRuns = async () => {
@@ -91,6 +99,10 @@ function SyncSettings() {
 
   useEffect(() => {
     setRunsPage(1)
+  }, [runsPageSize])
+
+  useEffect(() => {
+    setSharedPageSize(runsPageSize)
   }, [runsPageSize])
 
   useEffect(() => {
@@ -120,6 +132,7 @@ function SyncSettings() {
           daily_analytics_rows: data.daily_analytics_rows ?? 0,
           channel_daily_rows: data.channel_daily_rows ?? 0,
           traffic_sources_rows: data.traffic_sources_rows ?? 0,
+          playlist_analytics_rows: data.playlist_analytics_rows ?? 0,
           table_storage: Array.isArray(data.table_storage)
             ? data.table_storage
               .map((item: { table?: string; bytes?: number; percent?: number }) => ({
@@ -220,6 +233,11 @@ function SyncSettings() {
   }, [])
 
   const handleSync = async () => {
+    if (invalidSelectedPulls.length > 0) {
+      setSyncError(`Invalid pull keys in saved settings: ${invalidSelectedPulls.join(', ')}`)
+      return
+    }
+    setSyncError(null)
     setIsSyncing(true)
     setProgress({ is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting sync…' })
     try {
@@ -353,7 +371,10 @@ function SyncSettings() {
             <MultiSelect
               items={pullOptions}
               selected={selectedPulls}
-              onChange={setSelectedPulls}
+              onChange={(next) => {
+                setSyncError(null)
+                setSelectedPulls(next.filter((value) => validPullValues.has(value)))
+              }}
               placeholder="All data"
             />
           </div>
@@ -378,11 +399,12 @@ function SyncSettings() {
               label={isSyncing || progress?.is_syncing ? 'Syncing...' : 'Start sync'}
               onClick={handleSync}
               title={isSyncing || progress?.is_syncing ? 'Syncing...' : 'Start syncing'}
-              disabled={isSyncing || progress?.is_syncing}
+              disabled={isSyncing || progress?.is_syncing || invalidSelectedPulls.length > 0}
               variant="primary"
             />
           </div>
         </div>
+        {syncError ? <div className="sync-error-text">{syncError}</div> : null}
       </header>
       <div className="page-body">
         <div className="page-row">
@@ -449,29 +471,68 @@ function SyncSettings() {
               </div>
               <div className="db-overview-col">
                 <div className="db-overview-metric">
-                  <div className="sync-stat-label">Total videos</div>
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Total videos</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
+                      i
+                    </span>
+                  </div>
                   <div className="sync-stat-value">{overview.total_uploads.toLocaleString()}</div>
                 </div>
                 <div className="db-overview-metric">
-                  <div className="sync-stat-label">Total playlists</div>
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Total playlists</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
+                      i
+                    </span>
+                  </div>
                   <div className="sync-stat-value">{overview.total_playlists.toLocaleString()}</div>
                 </div>
                 <div className="db-overview-metric">
-                  <div className="sync-stat-label">Total comments</div>
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Total comments</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
+                      i
+                    </span>
+                  </div>
                   <div className="sync-stat-value">{overview.total_comments.toLocaleString()}</div>
                 </div>
               </div>
               <div className="db-overview-rows">
                 <div className="db-overview-row-metric">
-                  <div className="sync-stat-label">Daily analytics rows</div>
-                  <div className="sync-stat-value">{overview.daily_analytics_rows.toLocaleString()}</div>
-                </div>
-                <div className="db-overview-row-metric">
-                  <div className="sync-stat-label">Channel daily rows</div>
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Channel analytics rows</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
+                      i
+                    </span>
+                  </div>
                   <div className="sync-stat-value">{overview.channel_daily_rows.toLocaleString()}</div>
                 </div>
                 <div className="db-overview-row-metric">
-                  <div className="sync-stat-label">Traffic source rows</div>
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Video analytics rows</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
+                      i
+                    </span>
+                  </div>
+                  <div className="sync-stat-value">{overview.daily_analytics_rows.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-row-metric">
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Playlist analytics rows</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
+                      i
+                    </span>
+                  </div>
+                  <div className="sync-stat-value">{overview.playlist_analytics_rows.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-row-metric">
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Traffic source rows</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
+                      i
+                    </span>
+                  </div>
                   <div className="sync-stat-value">{overview.traffic_sources_rows.toLocaleString()}</div>
                 </div>
               </div>

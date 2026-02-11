@@ -63,7 +63,7 @@ def determine_date_range(earliest_upload: str) -> DateRange:
     return DateRange(start=start.isoformat(), end=end.isoformat())
 
 
-def fetch_daily_metrics(
+def fetch_video_daily_metrics(
     video_id: str,
     start_date: str,
     end_date: str,
@@ -95,7 +95,7 @@ def fetch_daily_metrics(
     return _fetch_report_rows(yt_analytics, request_params, max_results)
 
 
-def fetch_channel_daily(start_date: str, end_date: str) -> list[dict[str, Any]]:
+def fetch_channel_analytics(start_date: str, end_date: str) -> list[dict[str, Any]]:
     """Fetch channel-level daily analytics for a date range."""
     yt_analytics = get_analytics_client()
     request_params = {
@@ -126,6 +126,54 @@ def fetch_traffic_sources(start_date: str, end_date: str) -> list[dict[str, Any]
         "startIndex": 1,
     }
     return _fetch_report_rows(yt_analytics, request_params, 200)
+
+
+def fetch_daily_metrics(
+    video_id: str,
+    start_date: str,
+    end_date: str,
+    publish_date: str | None = None,
+    max_results: int = 200,
+) -> list[dict[str, Any]]:
+    """Backward-compatible alias for video daily analytics fetch."""
+    return fetch_video_daily_metrics(video_id, start_date, end_date, publish_date=publish_date, max_results=max_results)
+
+
+def fetch_channel_daily(start_date: str, end_date: str) -> list[dict[str, Any]]:
+    """Backward-compatible alias for channel analytics fetch."""
+    return fetch_channel_analytics(start_date, end_date)
+
+
+def fetch_playlist_daily_metrics(
+    playlist_id: str,
+    start_date: str,
+    end_date: str,
+    publish_date: str | None = None,
+    max_results: int = 200,
+) -> list[dict[str, Any]]:
+    """Fetch daily playlist analytics rows for one playlist across a date range."""
+    yt_analytics = get_analytics_client()
+    effective_start = start_date
+    if publish_date:
+        if publish_date > end_date:
+            return []
+        if publish_date > start_date:
+            effective_start = publish_date
+
+    request_params = {
+        "ids": "channel==MINE",
+        "startDate": effective_start,
+        "endDate": end_date,
+        "metrics": (
+            "playlistViews,playlistEstimatedMinutesWatched,playlistAverageViewDuration,"
+            "playlistStarts,viewsPerPlaylistStart,averageTimeInPlaylist"
+        ),
+        "dimensions": "day",
+        "filters": f"playlist=={playlist_id}",
+        "maxResults": max_results,
+        "startIndex": 1,
+    }
+    return _fetch_report_rows(yt_analytics, request_params, max_results)
 
 
 def _execute_with_retry(service, params: dict, max_attempts: int = 5):

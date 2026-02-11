@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { CommentThreadItem, type CommentRow, type CommentThread } from '../components/comments'
 import { PageCard } from '../components/layout'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { getStored, setStored } from '../utils/storage'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
 import './Page.css'
 
 type CommentApiRow = CommentRow & {
@@ -27,7 +27,7 @@ function Comments() {
     postedBefore?: string
     page?: number
   } | null)
-  const [pageSize, setPageSize] = useState(storedSettings?.pageSize ?? 10)
+  const [pageSize, setPageSize] = useState(() => getSharedPageSize(storedSettings?.pageSize ?? 10))
   const [sortBy, setSortBy] = useState<'published_at' | 'likes' | 'reply_count'>(storedSettings?.sortBy ?? 'published_at')
   const [rows, setRows] = useState<CommentApiRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -77,6 +77,11 @@ function Comments() {
   useEffect(() => {
     setPage(1)
   }, [postedAfter, postedBefore, sortBy, pageSize])
+
+  useEffect(() => {
+    setSharedPageSize(pageSize)
+  }, [pageSize])
+
   useEffect(() => {
     setStored('commentsPageSettings', {
       pageSize,
@@ -196,7 +201,7 @@ function Comments() {
                         ) : (
                           <div className="comments-group-thumb" />
                         )}
-                        <Link to={`/videoDetails/${group.videoId}?tab=comments`} className="comments-group-title">
+                        <Link to={`/videoDetails/${group.videoId}`} className="comments-group-title">
                           {group.videoTitle}
                         </Link>
                       </div>

@@ -7,6 +7,7 @@ type ActionButtonProps = {
   title?: string
   variant?: 'primary' | 'soft' | 'danger'
   active?: boolean
+  bordered?: boolean
   className?: string
   type?: 'button' | 'submit' | 'reset'
 }
@@ -18,6 +19,7 @@ function ActionButton({
   title,
   variant = 'soft',
   active = false,
+  bordered = true,
   className,
   type = 'button',
 }: ActionButtonProps) {
@@ -25,6 +27,7 @@ function ActionButton({
     'action-button',
     `action-button-${variant}`,
     active ? 'action-button-active' : '',
+    bordered ? '' : 'action-button-no-border',
     disabled ? 'action-button-disabled' : '',
     className ?? '',
   ]

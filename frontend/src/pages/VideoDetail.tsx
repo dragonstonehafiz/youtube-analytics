@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
 import { MetricChartCard } from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { CommentThreadItem, type CommentRow } from '../components/comments'
 import { formatDisplayDate } from '../utils/date'
-import { getStored, setStored } from '../utils/storage'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
 import './Page.css'
 
 type VideoMetadata = {
@@ -74,7 +74,8 @@ function aggregatePoints(points: SeriesPoint[], granularity: Granularity): Serie
 
 function VideoDetail() {
   const { videoId } = useParams()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<'analytics' | 'comments'>('analytics')
   const [video, setVideo] = useState<VideoMetadata | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,7 +86,7 @@ function VideoDetail() {
   const [comments, setComments] = useState<CommentRow[]>([])
   const [commentsTotal, setCommentsTotal] = useState(0)
   const [commentsPage, setCommentsPage] = useState(1)
-  const [commentsPageSize, setCommentsPageSize] = useState(10)
+  const [commentsPageSize, setCommentsPageSize] = useState(() => getSharedPageSize(10))
   const [commentsSort, setCommentsSort] = useState<CommentSort>(getStored('videoDetailCommentsSort', 'published_at'))
   const [dailyRows, setDailyRows] = useState<VideoDailyRow[]>([])
   const [years, setYears] = useState<string[]>([])
@@ -118,10 +119,6 @@ function VideoDetail() {
     subscribers_net: 0,
     estimated_revenue: 0,
   })
-  const activeTab = useMemo(() => {
-    const tab = searchParams.get('tab')
-    return tab === 'comments' ? 'comments' : 'analytics'
-  }, [searchParams])
   const commentsTotalPages = useMemo(() => Math.max(1, Math.ceil(commentsTotal / commentsPageSize)), [commentsTotal, commentsPageSize])
   const commentThreads = useMemo(() => {
     const parseTime = (value: string | null) => (value ? new Date(value).getTime() : 0)
@@ -214,6 +211,10 @@ function VideoDetail() {
   useEffect(() => {
     setCommentsPage(1)
   }, [videoId, activeTab])
+
+  useEffect(() => {
+    setActiveTab('analytics')
+  }, [videoId])
 
   useEffect(() => {
     setStored('videoDetailRange', {
@@ -375,10 +376,17 @@ function VideoDetail() {
     setCommentsPage(1)
   }, [commentsPageSize])
 
+  useEffect(() => {
+    setSharedPageSize(commentsPageSize)
+  }, [commentsPageSize])
+
   return (
     <section className="page">
       <header className="page-header">
-        <h1>Video</h1>
+        <div className="header-inline-title">
+          <ActionButton label="<" onClick={() => navigate(-1)} variant="soft" bordered={false} className="header-back-action" />
+          <h1>Video</h1>
+        </div>
       </header>
       <div className="page-body">
         <div className="page-row">
@@ -437,13 +445,13 @@ function VideoDetail() {
             <div className="analytics-range-controls">
               <ActionButton
                 label="Analytics"
-                onClick={() => setSearchParams({ tab: 'analytics' })}
+                onClick={() => setActiveTab('analytics')}
                 variant="soft"
                 active={activeTab === 'analytics'}
               />
               <ActionButton
                 label="Comments"
-                onClick={() => setSearchParams({ tab: 'comments' })}
+                onClick={() => setActiveTab('comments')}
                 variant="soft"
                 active={activeTab === 'comments'}
               />

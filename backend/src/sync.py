@@ -8,6 +8,7 @@ from src.database.analytics import upsert_daily_analytics
 from src.database.channel_daily import upsert_channel_daily
 from src.database.comments import upsert_comments
 from src.database.db import get_connection
+from src.database.playlist_daily import upsert_playlist_daily_analytics
 from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
 from src.database.traffic_sources import upsert_traffic_sources
 from src.database.videos import upsert_videos
@@ -15,8 +16,9 @@ from src.youtube.analytics import (
     DateRange,
     chunk_date_range,
     determine_date_range,
-    fetch_channel_daily,
-    fetch_daily_metrics,
+    fetch_channel_analytics,
+    fetch_playlist_daily_metrics,
+    fetch_video_daily_metrics,
     fetch_traffic_sources,
 )
 from src.youtube.comments import extract_comments
@@ -71,8 +73,8 @@ def get_earliest_upload_date() -> str | None:
     return str(row["earliest"])
 
 
-def get_latest_analytics_dates() -> dict[str, str]:
-    """Return a mapping of video_id to latest analytics date."""
+def get_latest_video_analytics_dates() -> dict[str, str]:
+    """Return a mapping of video_id to latest video analytics date."""
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT video_id, MAX(date) AS latest FROM daily_analytics GROUP BY video_id"
@@ -82,6 +84,19 @@ def get_latest_analytics_dates() -> dict[str, str]:
         if row["latest"]:
             latest_by_video[row["video_id"]] = str(row["latest"])
     return latest_by_video
+
+
+def get_latest_playlist_analytics_dates() -> dict[str, str]:
+    """Return a mapping of playlist_id to latest playlist analytics date."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT playlist_id, MAX(date) AS latest FROM playlist_daily_analytics GROUP BY playlist_id"
+        ).fetchall()
+    latest_by_playlist: dict[str, str] = {}
+    for row in rows:
+        if row["latest"]:
+            latest_by_playlist[row["playlist_id"]] = str(row["latest"])
+    return latest_by_playlist
 
 
 def _get_latest_date(table: str) -> str | None:
@@ -100,7 +115,14 @@ def list_video_ids() -> list[str]:
     return [row["id"] for row in rows]
 
 
-def build_publish_map() -> dict[str, str]:
+def list_playlist_ids() -> list[str]:
+    """Return all playlist IDs from the playlists table."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id FROM playlists").fetchall()
+    return [row["id"] for row in rows]
+
+
+def build_video_publish_map() -> dict[str, str]:
     """Return a mapping of video_id to publish date (YYYY-MM-DD)."""
     with get_connection() as conn:
         rows = conn.execute(
@@ -114,13 +136,37 @@ def build_publish_map() -> dict[str, str]:
     return publish_map
 
 
-def sync_daily_analytics(
+def build_playlist_publish_map() -> dict[str, str]:
+    """Return a mapping of playlist_id to publish date (YYYY-MM-DD)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, published_at FROM playlists WHERE published_at IS NOT NULL"
+        ).fetchall()
+    publish_map: dict[str, str] = {}
+    for row in rows:
+        published_at = str(row["published_at"])
+        publish_map[row["id"]] = published_at.split("T", 1)[0]
+    return publish_map
+
+
+def get_earliest_playlist_date() -> str | None:
+    """Return the earliest published date in the playlists table."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT MIN(date(published_at)) AS earliest FROM playlists"
+        ).fetchone()
+    if not row or not row["earliest"]:
+        return None
+    return str(row["earliest"])
+
+
+def sync_video_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
     deep_sync: bool = False,
     segments: list[DateRange] | None = None,
 ) -> None:
-    """Sync daily analytics rows into the database."""
+    """Sync video-level daily analytics rows into the database."""
     video_ids = list_video_ids()
     if not video_ids:
         sync_videos()
@@ -138,16 +184,16 @@ def sync_daily_analytics(
     if date_range is None:
         return None
 
-    latest_by_video = {} if deep_sync else get_latest_analytics_dates()
+    latest_by_video = {} if deep_sync else get_latest_video_analytics_dates()
     if segments is None:
         segments = chunk_date_range(date_range)
     _logger.info(
-        "Starting daily analytics sync for %s -> %s (%s segments)",
+        "Starting video analytics sync for %s -> %s (%s segments)",
         date_range.start,
         date_range.end,
         len(segments),
     )
-    publish_map = build_publish_map()
+    publish_map = build_video_publish_map()
     total_rows = 0
     segment_video_sets: list[list[str]] = []
     total_videos = 0
@@ -166,14 +212,14 @@ def sync_daily_analytics(
         segment_video_sets.append(segment_videos)
         total_videos += len(segment_videos)
     if total_videos == 0:
-        _set_progress(0, 1, _format_daily_progress(0, 0, "no videos to sync"))
+        _set_progress(0, 1, _format_video_analytics_progress(0, 0, "no videos to sync"))
         return None
-    _set_progress(0, total_videos, _format_daily_progress(0, total_videos, "starting"))
+    _set_progress(0, total_videos, _format_video_analytics_progress(0, total_videos, "starting"))
     processed_videos = 0
 
     for segment_index, segment in enumerate(segments, start=1):
         _logger.info(
-            "Daily analytics segment %s/%s: %s -> %s",
+            "Video analytics segment %s/%s: %s -> %s",
             segment_index,
             len(segments),
             segment.start,
@@ -186,7 +232,7 @@ def sync_daily_analytics(
             _set_progress(
                 processed_videos,
                 total_videos,
-                _format_daily_progress(
+                _format_video_analytics_progress(
                     processed_videos,
                     total_videos,
                     f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
@@ -198,7 +244,7 @@ def sync_daily_analytics(
                 next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
                 if next_day > segment.end:
                     continue
-            rows = fetch_daily_metrics(
+            rows = fetch_video_daily_metrics(
                 video_id,
                 next_day if latest and next_day > segment.start else segment.start,
                 segment.end,
@@ -209,12 +255,12 @@ def sync_daily_analytics(
     return None
 
 
-def sync_channel_daily(
+def sync_channel_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
     deep_sync: bool = False,
 ) -> None:
-    """Sync channel-level daily analytics rows."""
+    """Sync channel-level analytics rows."""
     earliest = get_earliest_upload_date()
     if not earliest:
         return None
@@ -235,7 +281,7 @@ def sync_channel_daily(
         return None
     segments = chunk_date_range(date_range, months_per_chunk=4)
     _logger.info(
-        "Starting channel daily sync for %s -> %s (%s segments)",
+        "Starting channel analytics sync for %s -> %s (%s segments)",
         date_range.start,
         date_range.end,
         len(segments),
@@ -245,16 +291,16 @@ def sync_channel_daily(
         _set_progress(
             index,
             max(len(segments), 1),
-            _format_pull_progress("channel daily", index, max(len(segments), 1)),
+            _format_pull_progress("channel analytics", index, max(len(segments), 1)),
         )
         _logger.info(
-            "Channel daily segment %s/%s: %s -> %s",
+            "Channel analytics segment %s/%s: %s -> %s",
             index,
             len(segments),
             segment.start,
             segment.end,
         )
-        rows = fetch_channel_daily(segment.start, segment.end)
+        rows = fetch_channel_analytics(segment.start, segment.end)
         total_rows += upsert_channel_daily(rows)
     return None
 
@@ -352,6 +398,88 @@ def sync_playlists() -> None:
         _set_progress(index, total_playlists, _format_playlist_progress(index, total_playlists, playlist_title))
 
 
+def sync_playlist_analytics(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+) -> None:
+    """Sync playlist-level daily analytics rows."""
+    playlist_ids = list_playlist_ids()
+    if not playlist_ids:
+        sync_playlists()
+        playlist_ids = list_playlist_ids()
+    earliest = get_earliest_playlist_date()
+    if not earliest:
+        return None
+
+    date_range = determine_date_range(earliest)
+    if start_date:
+        date_range = DateRange(start=start_date, end=date_range.end)
+    if end_date:
+        date_range = DateRange(start=date_range.start, end=end_date)
+    date_range = _clamp_date_range_to_today(date_range)
+    if date_range is None:
+        return None
+
+    latest_by_playlist = {} if deep_sync else get_latest_playlist_analytics_dates()
+    segments = chunk_date_range(date_range)
+    publish_map = build_playlist_publish_map()
+    segment_playlist_sets: list[list[str]] = []
+    total_playlists = 0
+    for segment in segments:
+        segment_playlists: list[str] = []
+        for playlist_id in playlist_ids:
+            publish_date = publish_map.get(playlist_id)
+            if publish_date and publish_date > segment.end:
+                continue
+            latest = latest_by_playlist.get(playlist_id)
+            if latest:
+                next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
+                if next_day > segment.end:
+                    continue
+            segment_playlists.append(playlist_id)
+        segment_playlist_sets.append(segment_playlists)
+        total_playlists += len(segment_playlists)
+    if total_playlists == 0:
+        _set_progress(0, 1, _format_playlist_analytics_progress(0, 0, "no playlists to sync"))
+        return None
+    _set_progress(0, total_playlists, _format_playlist_analytics_progress(0, total_playlists, "starting"))
+    processed_playlists = 0
+    for segment_index, segment in enumerate(segments, start=1):
+        _logger.info(
+            "Playlist analytics segment %s/%s: %s -> %s",
+            segment_index,
+            len(segments),
+            segment.start,
+            segment.end,
+        )
+        segment_playlists = segment_playlist_sets[segment_index - 1]
+        segment_total = max(len(segment_playlists), 1)
+        for playlist_index, playlist_id in enumerate(segment_playlists, start=1):
+            processed_playlists += 1
+            _set_progress(
+                processed_playlists,
+                total_playlists,
+                _format_playlist_analytics_progress(
+                    processed_playlists,
+                    total_playlists,
+                    f"{segment.start} -> {segment.end} Playlist [{playlist_index}/{segment_total}]",
+                ),
+            )
+            latest = latest_by_playlist.get(playlist_id)
+            if latest:
+                next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
+                if next_day > segment.end:
+                    continue
+            rows = fetch_playlist_daily_metrics(
+                playlist_id,
+                next_day if latest and next_day > segment.start else segment.start,
+                segment.end,
+                publish_date=publish_map.get(playlist_id),
+            )
+            upsert_playlist_daily_analytics(playlist_id, rows)
+
+
 def sync_all(
     start_date: str | None = None,
     end_date: str | None = None,
@@ -372,10 +500,12 @@ def sync_all(
             sync_playlists()
         if _should_run(selected, "traffic"):
             sync_traffic_sources(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
-        if _should_run(selected, "channel_daily"):
-            sync_channel_daily(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
-        if _should_run(selected, "daily_analytics"):
-            sync_daily_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+        if _should_run(selected, "channel_analytics"):
+            sync_channel_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+        if _should_run(selected, "playlist_analytics"):
+            sync_playlist_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+        if _should_run(selected, "video_analytics"):
+            sync_video_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
         _set_progress(1, 1, _format_pull_progress("sync complete", 1, 1))
         with _progress_lock:
             _sync_progress["status"] = "done"
@@ -420,7 +550,13 @@ def _should_run(selected: set[str] | None, key: str) -> bool:
     """Return True when a sync step is enabled."""
     if not selected:
         return True
-    return key in selected
+    if key in selected:
+        return True
+    aliases = {
+        "channel_analytics": {"channel_daily"},
+        "video_analytics": {"daily_analytics"},
+    }
+    return any(alias in selected for alias in aliases.get(key, set()))
 
 
 def _init_progress(max_steps: int) -> None:
@@ -462,9 +598,46 @@ def _format_playlist_progress(current: int, total: int, title: str | None = None
     return base
 
 
-def _format_daily_progress(current: int, total: int, detail: str | None = None) -> str:
-    """Format daily analytics progress with range detail."""
-    base = f"Daily analytics [{current}/{total}]"
+def _format_video_analytics_progress(current: int, total: int, detail: str | None = None) -> str:
+    """Format video analytics progress with range detail."""
+    base = f"Video analytics [{current}/{total}]"
+    if detail:
+        return f"{base} {detail}"
+    return base
+
+
+def get_latest_analytics_dates() -> dict[str, str]:
+    """Backward-compatible alias for latest video analytics dates."""
+    return get_latest_video_analytics_dates()
+
+
+def build_publish_map() -> dict[str, str]:
+    """Backward-compatible alias for video publish-date map."""
+    return build_video_publish_map()
+
+
+def sync_daily_analytics(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+    segments: list[DateRange] | None = None,
+) -> None:
+    """Backward-compatible alias for video analytics sync."""
+    return sync_video_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync, segments=segments)
+
+
+def sync_channel_daily(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+) -> None:
+    """Backward-compatible alias for channel analytics sync."""
+    return sync_channel_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+
+
+def _format_playlist_analytics_progress(current: int, total: int, detail: str | None = None) -> str:
+    """Format playlist analytics progress with optional detail."""
+    base = f"Playlist analytics [{current}/{total}]"
     if detail:
         return f"{base} {detail}"
     return base

@@ -115,7 +115,7 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
         return `${index === 0 ? 'M' : 'L'}${x},${y}`
       })
       .join(' ')
-  }, [points, maxValue, minValue])
+  }, [points, maxValue, minValue, innerWidth, innerHeight, padding.left, padding.top])
 
   const areaPath = useMemo(() => {
     if (!linePath) {
@@ -125,7 +125,7 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
     const lastX = xScale(lastIndex)
     const baseY = padding.top + innerHeight
     return `${linePath} L${lastX},${baseY} L${xScale(0)},${baseY} Z`
-  }, [linePath, points, maxValue, minValue])
+  }, [linePath, points, maxValue, minValue, innerWidth, innerHeight, padding.left, padding.top])
 
   const activePoint = hoverIndex !== null ? points[hoverIndex] : null
   const activeX = hoverIndex !== null ? xScale(hoverIndex) : null
