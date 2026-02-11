@@ -161,6 +161,124 @@ def list_videos(
     return {"items": [row_to_dict(row) for row in rows], "total": total}
 
 
+@router.get("/playlists")
+def list_playlists(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    q: str | None = None,
+    privacy_status: str | None = None,
+    sort: str | None = None,
+    direction: str | None = None,
+) -> dict:
+    """Return playlists with optional filters and pagination."""
+    where_clauses = []
+    params: list[object] = []
+    if q:
+        where_clauses.append("p.title LIKE ?")
+        params.append(f"%{q}%")
+    if privacy_status:
+        where_clauses.append("p.privacy_status = ?")
+        params.append(privacy_status)
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    sort_map = {
+        "title": "p.title",
+        "published_at": "p.published_at",
+        "item_count": "p.item_count",
+        "last_item_added_at": "last_item_added_at",
+        "updated_at": "p.updated_at",
+    }
+    sort_column = sort_map.get(sort or "", "last_item_added_at")
+    sort_dir = "ASC" if (direction or "").lower() == "asc" else "DESC"
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                p.*,
+                (
+                    SELECT MAX(pi.published_at)
+                    FROM playlist_items pi
+                    WHERE pi.playlist_id = p.id
+                ) AS last_item_added_at
+            FROM playlists p
+            {where_sql}
+            ORDER BY {sort_column} {sort_dir}
+            LIMIT ? OFFSET ?
+            """,
+            tuple(params + [limit, offset]),
+        ).fetchall()
+        total_row = conn.execute(
+            f"SELECT COUNT(*) AS total FROM playlists p {where_sql}",
+            tuple(params),
+        ).fetchone()
+    total = total_row["total"] if total_row and total_row["total"] is not None else 0
+    return {"items": [row_to_dict(row) for row in rows], "total": total}
+
+
+@router.get("/playlists/{playlist_id}")
+def get_playlist(playlist_id: str) -> dict:
+    """Return one playlist row by ID."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM playlists WHERE id = ?", (playlist_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Playlist not found.")
+    return {"item": row_to_dict(row)}
+
+
+@router.get("/playlists/{playlist_id}/items")
+def list_playlist_items(
+    playlist_id: str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    q: str | None = None,
+    sort_by: str = Query(default="position"),
+    direction: str = Query(default="asc"),
+) -> dict:
+    """Return playlist items with optional text filter and pagination."""
+    with get_connection() as conn:
+        exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Playlist not found.")
+        where_clauses = ["pi.playlist_id = ?"]
+        params: list[object] = [playlist_id]
+        if q:
+            where_clauses.append("(pi.title LIKE ? OR pi.video_id LIKE ?)")
+            params.extend([f"%{q}%", f"%{q}%"])
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+        sort_map = {
+            "position": "pi.position",
+            "published_at": "pi.published_at",
+            "title": "COALESCE(pi.title, '')",
+            "views": "COALESCE(v.view_count, 0)",
+        }
+        sort_column = sort_map.get(sort_by, "pi.position")
+        sort_dir = "DESC" if direction.lower() == "desc" else "ASC"
+        rows = conn.execute(
+            f"""
+            SELECT
+                pi.*,
+                v.title AS video_title,
+                v.description AS video_description,
+                v.thumbnail_url AS video_thumbnail_url,
+                v.privacy_status AS video_privacy_status,
+                v.view_count AS video_view_count,
+                v.comment_count AS video_comment_count,
+                v.like_count AS video_like_count
+            FROM playlist_items pi
+            LEFT JOIN videos v ON v.id = pi.video_id
+            {where_sql}
+            ORDER BY {sort_column} {sort_dir}, pi.id ASC
+            LIMIT ? OFFSET ?
+            """,
+            tuple(params + [limit, offset]),
+        ).fetchall()
+        total_row = conn.execute(
+            f"SELECT COUNT(*) AS total FROM playlist_items pi {where_sql}",
+            tuple(params),
+        ).fetchone()
+    total = total_row["total"] if total_row and total_row["total"] is not None else 0
+    return {"items": [row_to_dict(row) for row in rows], "total": total}
+
+
 @router.get("/comments")
 def list_comments(
     video_id: str | None = None,

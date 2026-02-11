@@ -4,6 +4,7 @@ import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher }
 import { MetricChartCard } from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { CommentThreadItem, type CommentRow } from '../components/comments'
+import { formatDisplayDate } from '../utils/date'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
@@ -381,7 +382,7 @@ function VideoDetail() {
       </header>
       <div className="page-body">
         <div className="page-row">
-          <PageCard title="Video Metadata">
+          <PageCard>
             {loading ? (
               <div className="video-detail-state">Loading video metadata...</div>
             ) : error ? (
@@ -406,7 +407,7 @@ function VideoDetail() {
                   </div>
                   <div className="video-detail-item">
                     <span>Published</span>
-                    <strong>{video.published_at ? new Date(video.published_at).toLocaleDateString() : '-'}</strong>
+                    <strong>{formatDisplayDate(video.published_at)}</strong>
                   </div>
                   <div className="video-detail-item">
                     <span>Duration</span>
@@ -538,7 +539,7 @@ function VideoDetail() {
           </div>
         </div>
         <div className="page-row">
-          <PageCard title={activeTab === 'comments' ? 'Comments' : 'Analytics'}>
+          <PageCard>
             {activeTab === 'comments' ? (
               commentsLoading ? (
                 <div className="video-detail-state">Loading comments...</div>

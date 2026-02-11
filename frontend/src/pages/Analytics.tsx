@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { DateRangePicker, Dropdown } from '../components/ui'
 import { MetricChartCard, TopContentTable, VideoDetailListCard } from '../components/analytics'
 import { PageCard } from '../components/layout'
+import { formatDisplayDate } from '../utils/date'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
@@ -470,7 +471,7 @@ function Analytics() {
           rank: index + 1,
           title: item.title,
           published_at: item.published_at ?? '',
-          upload_date: item.published_at ? new Date(item.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '',
+          upload_date: formatDisplayDate(item.published_at),
           thumbnail_url: item.thumbnail_url ?? '',
           avg_view_duration: formatDuration(item.avg_view_duration_seconds ?? 0),
           avg_view_pct: `${(item.avg_view_pct ?? 0).toFixed(1)}%`,

@@ -9,6 +9,7 @@ import {
   ProgressBar,
   YearInput,
 } from '../components/ui'
+import { formatDisplayDate } from '../utils/date'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
@@ -158,26 +159,6 @@ function SyncSettings() {
     }
     return progressState.message || ''
   }
-  const formatOverviewDate = (value: string | null) => {
-    if (!value) {
-      return '—'
-    }
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-    if (!match) {
-      return value
-    }
-    const yearValue = Number(match[1])
-    const monthValue = Number(match[2])
-    const dayValue = Number(match[3])
-    if (monthValue < 1 || monthValue > 12 || dayValue < 1 || dayValue > 31) {
-      return value
-    }
-    const monthName = new Date(Date.UTC(yearValue, monthValue - 1, dayValue)).toLocaleString(undefined, {
-      month: 'long',
-      timeZone: 'UTC',
-    })
-    return `${dayValue} ${monthName} ${yearValue}`
-  }
   const formatBytes = (value: number) => {
     if (value >= 1024 * 1024) {
       return `${(value / (1024 * 1024)).toFixed(2)} MB`
@@ -310,13 +291,13 @@ function SyncSettings() {
     end_date: string | null
   }) => {
     if (run.start_date && run.end_date) {
-      return `${run.start_date} → ${run.end_date}`
+      return `${formatDisplayDate(run.start_date)} → ${formatDisplayDate(run.end_date)}`
     }
     if (run.start_date) {
-      return `${run.start_date} → ?`
+      return `${formatDisplayDate(run.start_date)} → ?`
     }
     if (run.end_date) {
-      return `? → ${run.end_date}`
+      return `? → ${formatDisplayDate(run.end_date)}`
     }
     return 'Full data'
   }
@@ -459,11 +440,11 @@ function SyncSettings() {
               <div className="db-overview-col">
                 <div className="db-overview-metric">
                   <div className="sync-stat-label">Earliest data</div>
-                  <div className="sync-stat-value">{formatOverviewDate(overview.earliest_date)}</div>
+                  <div className="sync-stat-value">{formatDisplayDate(overview.earliest_date)}</div>
                 </div>
                 <div className="db-overview-metric">
                   <div className="sync-stat-label">Latest data</div>
-                  <div className="sync-stat-value">{formatOverviewDate(overview.latest_date)}</div>
+                  <div className="sync-stat-value">{formatDisplayDate(overview.latest_date)}</div>
                 </div>
               </div>
               <div className="db-overview-col">
@@ -535,8 +516,8 @@ function SyncSettings() {
               <>
                 {runs.map((run) => (
                   <div key={run.id} className="sync-table-row">
-                    <span>{new Date(run.started_at).toLocaleString()}</span>
-                    <span>{run.finished_at ? new Date(run.finished_at).toLocaleString() : '—'}</span>
+                    <span>{formatDisplayDate(run.started_at)}</span>
+                    <span>{run.finished_at ? formatDisplayDate(run.finished_at) : '—'}</span>
                     <span>{formatRange(run)}</span>
                     <span>{run.pulls ? run.pulls : 'All'}</span>
                     <span>{run.deep_sync ? 'Yes' : 'No'}</span>

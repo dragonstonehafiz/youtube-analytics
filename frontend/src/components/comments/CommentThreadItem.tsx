@@ -1,4 +1,5 @@
 import { ActionButton } from '../ui'
+import { formatDisplayDate } from '../../utils/date'
 import './CommentThreadItem.css'
 
 export type CommentRow = {
@@ -38,10 +39,7 @@ function upscaleYouTubeAvatar(url: string, size = 88): string {
 }
 
 function formatPostedAt(value: string | null): string {
-  if (!value) {
-    return '-'
-  }
-  return new Date(value).toLocaleString()
+  return formatDisplayDate(value)
 }
 
 function formatLikeCount(value: number | null): string {
@@ -87,7 +85,7 @@ function CommentThreadItem({ thread, videoId }: Props) {
       <div className="comment-thread-actions">
         {commentUrl ? (
           <ActionButton
-            label="See comments"
+            label="Open in YouTube"
             onClick={() => window.open(commentUrl, '_blank', 'noopener,noreferrer')}
             variant="soft"
             className="comment-thread-action-button"

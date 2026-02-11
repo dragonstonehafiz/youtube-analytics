@@ -3,6 +3,8 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import Analytics from './pages/Analytics'
 import Comments from './pages/Comments'
 import Dashboard from './pages/Dashboard'
+import PlaylistDetail from './pages/PlaylistDetail'
+import Playlists from './pages/Playlists'
 import SyncSettings from './pages/SyncSettings'
 import VideoDetail from './pages/VideoDetail'
 import Videos from './pages/Videos'
@@ -17,6 +19,7 @@ function App() {
             Dashboard
           </NavLink>
           <NavLink to="/videos">Videos</NavLink>
+          <NavLink to="/playlists">Playlists</NavLink>
           <NavLink to="/comments">Comments</NavLink>
           <NavLink to="/analytics">Analytics</NavLink>
           <NavLink to="/sync">Sync</NavLink>
@@ -26,6 +29,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/videos" element={<Videos />} />
+          <Route path="/playlists" element={<Playlists />} />
+          <Route path="/playlistDetails/:playlistId" element={<PlaylistDetail />} />
           <Route path="/comments" element={<Comments />} />
           <Route path="/videoDetails/:videoId" element={<VideoDetail />} />
           <Route path="/analytics" element={<Analytics />} />
