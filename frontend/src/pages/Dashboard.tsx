@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { VideoDetailListCard } from '../components/analytics'
-import { ChannelAnalyticsCard, CommentsPreviewCard } from '../components/dashboard'
+import { ChannelAnalyticsCard, CommentsPreviewCard, MostActiveAudienceCard } from '../components/dashboard'
 import { PageCard } from '../components/layout'
 import './Page.css'
 
@@ -69,6 +69,9 @@ function Dashboard() {
           </PageCard>
           <PageCard>
             <CommentsPreviewCard />
+          </PageCard>
+          <PageCard>
+            <MostActiveAudienceCard />
           </PageCard>
         </div>
         <div className="page-row dashboard-row">

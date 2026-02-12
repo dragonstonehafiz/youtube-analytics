@@ -221,6 +221,45 @@ def list_audience(
     return {"items": [row_to_dict(row) for row in rows], "total": total}
 
 
+@router.get("/audience/active")
+def list_active_audience(days: int = Query(default=90, ge=1, le=3650), limit: int = Query(default=10, ge=1, le=100)) -> dict:
+    """Return most active audience members by comment activity within the last N days."""
+    end_date = datetime.now(UTC).date()
+    start_date = end_date - timedelta(days=days - 1)
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                c.author_channel_id AS channel_id,
+                COALESCE(NULLIF(a.display_name, ''), MAX(COALESCE(c.author_name, '')), '@Unknown') AS display_name,
+                COALESCE(NULLIF(a.profile_image_url, ''), MAX(COALESCE(c.author_profile_image_url, '')), '') AS profile_image_url,
+                COALESCE(a.is_public_subscriber, 0) AS is_public_subscriber,
+                COUNT(*) AS comments_count,
+                COALESCE(SUM(COALESCE(c.like_count, 0)), 0) AS likes_count,
+                COALESCE(SUM(COALESCE(c.reply_count, 0)), 0) AS replies_count,
+                MAX(c.published_at) AS last_comment_at
+            FROM comments c
+            LEFT JOIN audience a ON a.channel_id = c.author_channel_id
+            WHERE c.author_channel_id IS NOT NULL
+              AND c.author_channel_id != ''
+              AND date(c.published_at) >= ?
+              AND date(c.published_at) <= ?
+            GROUP BY c.author_channel_id
+            ORDER BY comments_count DESC, likes_count DESC, last_comment_at DESC
+            LIMIT ?
+            """,
+            (start_date.isoformat(), end_date.isoformat(), limit),
+        ).fetchall()
+    return {
+        "items": [row_to_dict(row) for row in rows],
+        "range": {
+            "days": days,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+    }
+
+
 @router.get("/audience/{channel_id}")
 def get_audience_detail(channel_id: str) -> dict:
     """Return one audience row and related comment totals for a channel ID."""

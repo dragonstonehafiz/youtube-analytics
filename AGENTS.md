@@ -34,6 +34,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /playlists/{playlist_id}/published` returns playlist video publish markers grouped by day for a date range (title, published_at, thumbnail_url, content_type).
 - `GET /analytics/playlist-video-daily` returns per-day summed video analytics for videos in one playlist (aggregated from `daily_analytics` via `playlist_items`).
 - `GET /audience` returns paginated audience rows with optional `q`, `subscriber_only`, `sort_by`, and `direction`, including computed `total_comment_likes` and `total_comment_replies` from `comments`.
+- `GET /audience/active` returns top active audience members over a rolling `days` window, with `comments_count`, `likes_count`, `replies_count`, and subscriber flag.
 - `GET /audience/{channel_id}` returns one audience row plus aggregated comment stats for that channel ID.
 - Sync orchestration lives in `backend/src/sync.py`.
 - Logs should use `backend/utils/logger.py` and write to `backend/outputs/`.
@@ -160,6 +161,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Dashboard cards are componentized under `frontend/src/components/dashboard/`:
   - `ChannelAnalyticsCard.tsx`: DB-backed channel summary card (lifetime net subscribers + last-28-day metrics/trends).
   - `CommentsPreviewCard.tsx`: Recent comments preview card (latest comments list + `View more` to `/comments`).
+  - `MostActiveAudienceCard.tsx`: Most active community members card for the last 90 days with `View audience` action.
 - Dashboard rows share a common sizing class (`dashboard-row` in `frontend/src/pages/Page.css`) so channel and latest-content sections follow the same width format instead of per-row width overrides.
 - Dashboard cards use a shared fixed card width pattern via `.dashboard-row > .page-card` (non-stretch, wrapping layout) so sections do not auto-fill row width.
 
@@ -173,6 +175,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/components/ui/PageSizePicker.tsx`: Reusable pagination-size dropdown (`10`, `25`, `50`, `100`) used in Videos, Sync Runs, Video Detail comments, and Comments page.
 - `frontend/src/components/dashboard/ChannelAnalyticsCard.tsx`: Dashboard card for subscriber/summary analytics.
 - `frontend/src/components/dashboard/CommentsPreviewCard.tsx`: Dashboard card for recent comments preview.
+- `frontend/src/components/dashboard/MostActiveAudienceCard.tsx`: Dashboard card for most active community members in selected period.
 - `frontend/src/components/ui/YearInput.tsx`: Numeric year input for year-only syncs.
 - `frontend/src/components/ui/ProgressBar.tsx`: Horizontal progress bar with optional step text.
 - `frontend/src/components/layout/PageCard.tsx`: Generic card wrapper for consistent layout blocks.
