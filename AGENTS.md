@@ -17,11 +17,14 @@ Use this file to understand where to make changes and which conventions to follo
 - Playlist persistence uses `playlists` and `playlist_items` tables in `backend/src/database/schema.sql`.
 - Playlist analytics persistence uses `playlist_daily_analytics` in `backend/src/database/schema.sql` (daily `playlist_views` by `playlist_id` + `date`).
 - `playlist_daily_analytics` stores playlist daily metrics: `playlist_views`, `playlist_estimated_minutes_watched`, `playlist_average_view_duration_seconds`, `playlist_starts`, `views_per_playlist_start`, and `average_time_in_playlist_seconds`.
+- Audience persistence uses `audience` in `backend/src/database/schema.sql` (public subscribers + commenter-derived audience rows keyed by `channel_id`).
 - YouTube API helpers live in `backend/src/youtube/`.
+- Public-subscriber pull helper lives in `backend/src/youtube/subscribers.py` (`subscriptions.list` pagination).
 - Playlist API pull helpers live in `backend/src/youtube/playlists.py` (`playlists.list` + `playlistItems.list` pagination).
 - `sync_all` includes a playlists sync stage (`pulls` key: `playlists`) immediately after `comments`; playlist sync progress is tracked per playlist (not per playlist item).
+- `sync_audience` pulls public subscribers from API into `audience`, then backfills commenter-only rows from `comments`.
 - `sync_all` includes a separate playlist analytics sync stage (`pulls` key: `playlist_analytics` / label `Playlist Analytics`) that stores daily playlist views in `playlist_daily_analytics`.
-- `sync_all` stage order is: `videos` -> `comments` -> `playlists` -> `traffic` -> `channel_analytics` -> `playlist_analytics` -> `video_analytics`.
+- `sync_all` stage order is: `videos` -> `comments` -> `audience` -> `playlists` -> `traffic` -> `channel_analytics` -> `playlist_analytics` -> `video_analytics`.
 - `playlist_items.video_id` is stored as a raw YouTube ID without a foreign key to `videos.id`, so playlist sync does not depend on `videos` table coverage.
 - `GET /playlists` returns paginated playlist rows with optional `q`, `privacy_status`, `sort`, and `direction`, and includes computed fields: `last_item_added_at` (`MAX(playlist_items.published_at)`), `total_playlist_views` (`SUM(playlist_daily_analytics.playlist_views)`), and `total_content_views` (`SUM(videos.view_count)` across playlist items).
 - `GET /playlists/{playlist_id}` returns a single playlist row.
@@ -29,6 +32,8 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /analytics/playlist-daily` returns per-day playlist-view totals (`playlist_daily_analytics`) for one playlist and date range.
 - `GET /playlists/{playlist_id}/published` returns playlist video publish markers grouped by day for a date range (title, published_at, thumbnail_url, content_type).
 - `GET /analytics/playlist-video-daily` returns per-day summed video analytics for videos in one playlist (aggregated from `daily_analytics` via `playlist_items`).
+- `GET /audience` returns paginated audience rows with optional `q`, `subscriber_only`, `sort_by`, and `direction`, including computed `total_comment_likes` and `total_comment_replies` from `comments`.
+- `GET /audience/{channel_id}` returns one audience row plus aggregated comment stats for that channel ID.
 - Sync orchestration lives in `backend/src/sync.py`.
 - Logs should use `backend/utils/logger.py` and write to `backend/outputs/`.
 - Add comments when API behavior or non-obvious logic needs explanation (YouTube API params, pagination, resume logic).
@@ -47,28 +52,35 @@ Use this file to understand where to make changes and which conventions to follo
 - All user-visible dates use `day month year` format (e.g., `22 February 2026`) via `frontend/src/utils/date.ts` `formatDisplayDate(...)`; avoid time-of-day display unless explicitly required.
 - In list/table UIs, if an item has a corresponding internal app detail page, navigation should be attached to that item's title text.
 - In list/table UIs, row heights must remain constrained and consistent; content must truncate/clamp/ellipsis instead of changing row height.
+- In list/table UIs, column headers must use the same alignment as their column content.
+- In list/table UIs, numeric values should be centered; names/descriptions/titles should be left-aligned.
+- In list/table UIs, filter/sort controls that are separate from table headers should default to the right side of the row.
 - App sidebar (`frontend/src/App.css`) is sticky on desktop (`position: sticky; top: 0; height: 100vh`) so it follows vertical scroll; mobile uses normal flow.
 - On `frontend/src/pages/SyncSettings.tsx`, overview date fields (`Earliest data`, `Latest data`) are displayed as `day month year` (e.g., `7 February 2026`) instead of raw `yyyy-mm-dd`.
 - `frontend/src/pages/SyncSettings.tsx` period selector includes `From Latest Date`, which sets `start_date` to overview `latest_date` and `end_date` to today when triggering sync.
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlists` (`pull=playlists`) in addition to videos/comments/analytics pulls.
+- `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Audience` (`pull=audience`) immediately after `Comments`.
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlist Analytics` (`pull=playlist_analytics`) as its own pull option.
 - `frontend/src/pages/SyncSettings.tsx` uses analytics pull keys `channel_analytics` and `video_analytics` (labels: `Channel analytics`, `Video analytics`); backend accepts legacy aliases `channel_daily` and `daily_analytics`.
 - `frontend/src/pages/SyncSettings.tsx` treats unknown/legacy pull keys in saved settings as invalid on the client: sync is blocked and a visible error is shown; no `/sync` request is sent until selection is corrected.
 - `frontend/src/pages/SyncSettings.tsx` Database Overview metric cards include an info icon per metric (total videos/playlists/comments + channel/video/playlist analytics rows + traffic source rows); each tooltip uses `API Used:` with bullet lines and shows the API family for that metric.
-- `GET /stats/overview` includes `total_playlists`, and `frontend/src/pages/SyncSettings.tsx` Database Overview metric stack shows `Total videos`, `Total playlists`, and `Total comments` in that order.
+- `GET /stats/overview` includes `total_playlists` and `total_audience`, and `frontend/src/pages/SyncSettings.tsx` Database Overview metric stack shows `Total videos`, `Total comments`, `Total audience`, and `Total playlists` in that order.
 - In `frontend/src/pages/Page.css`, Sync Database Overview metric cards use stretch/flex distribution (no fixed card heights) so each metric column fills available height and its cards split that height evenly.
 - `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
 - `GET /stats/overview` `table_storage.percent` is normalized against tracked table bytes only (tables + their indexes), so donut slices sum to 100% of table storage rather than total SQLite file size.
 - `frontend/src/pages/SyncSettings.tsx` uses a 4-column Database Overview layout:
   - Column 1: Database size + donut chart (ring only) with total size in the center.
   - Column 2: Earliest data (top), Latest data (bottom).
-  - Column 3: Total videos (top), Total playlists (middle), Total comments (bottom).
+  - Column 3: Total videos (top), Total comments, Total audience, Total playlists (bottom).
   - Column 4: Channel analytics rows, Video analytics rows, Playlist analytics rows, Traffic source rows.
   - Donut slices show table size and percent on hover; no persistent table list below the chart.
 - `GET /stats/overview` includes `playlist_analytics_rows` (`COUNT(*)` from `playlist_daily_analytics`) for Sync Database Overview.
 - `frontend` includes playlist routes/pages:
   - `frontend` route `/playlists` -> `frontend/src/pages/Playlists.tsx` (playlist list with filters/sort/pagination; no actions column, title click opens details; recency column shows `last_item_added_at`).
   - `frontend` route `/playlistDetails/:playlistId` -> `frontend/src/pages/PlaylistDetail.tsx` (playlist metadata + paginated item list).
+- `frontend` includes audience routes/pages:
+  - `frontend` route `/audience` -> `frontend/src/pages/Audience.tsx` (audience list with filters/sort/pagination, including `Total likes` and `Total replies` columns).
+  - `frontend` route `/audienceDetails/:channelId` -> `frontend/src/pages/AudienceDetail.tsx` (audience metadata + grouped-by-video comments for that author channel).
 - `frontend/src/pages/Playlists.tsx` table columns include `Playlist views` (sum from `playlist_daily_analytics`) and `Content views` (sum of current `videos.view_count` for items in playlist).
 - `frontend/src/pages/Playlists.tsx` description text is single-line truncated (`ellipsis`) so playlist list rows keep consistent height.
 - `frontend/src/pages/PlaylistDetail.tsx` uses extracted playlist-item components under `frontend/src/components/playlists/`, includes a dedicated `Position` column, and supports sortable headers for `Position`, `Added`, and `Views`; rows include `Views`, `Comments`, and `Likes` columns, and use the same hover pattern as videos (description hides and action buttons show). The items view has no search input.
@@ -118,13 +130,15 @@ Use this file to understand where to make changes and which conventions to follo
 - Video detail `Analytics` tab includes range/granularity controls (no content-type selector): `Daily/7-days/28-days/90-days/Monthly/Yearly` + `Presets/Yearly/Custom range`.
 - Video detail analytics control state is shared across all video detail pages via storage keys `videoDetailGranularity` and `videoDetailRange`.
 - `GET /comments` supports optional `video_id` filtering, pagination (`limit`, `offset`), and sorting via `sort_by` (`published_at`, `likes`, or `reply_count`) plus `direction` (`asc`/`desc`), returning `{ items, total }`.
+- `GET /comments` also supports optional `author_channel_id` filtering.
 - `GET /comments` returns paginated comment rows with optional `video_id` filter, sorting, and persisted `reply_count` from the comments table.
 - `backend/src/youtube/comments.py` sync stores top-level comments only from `commentThreads.list` (no per-parent reply pagination during sync); top-level rows persist `reply_count` from `snippet.totalReplyCount`.
 - Video detail `Comments` tab loads comments from `GET /comments?video_id=...` and renders returned comments as a flat list (no inline child-reply rendering).
 - Video detail comments UI uses a non-interactive, YouTube Studio-like list style (avatar + handle/date + text + reply count only), without action controls (reply/like/dislike/love).
 - Comments data now stores and returns `author_profile_image_url` from YouTube; `frontend/src/pages/VideoDetail.tsx` uses it for real avatar images with initials fallback.
 - Comments schema now includes `reply_count` on each row; sync writes top-level rows with `totalReplyCount`.
-- `frontend/src/components/comments/CommentThreadItem.tsx` is the reusable comment item UI used by Video detail and Comments pages.
+- `frontend/src/components/comments/CommentThreadItem.tsx` is the reusable comment item UI used by Video detail and grouped comment pages.
+- `frontend/src/components/comments/CommentVideoGroup.tsx` is the reusable video-group wrapper for comment lists (video header + grouped comment threads).
 - `frontend/src/components/comments/CommentThreadItem.tsx` upscales YouTube avatar URLs (e.g., `s28` -> `s88`) before rendering profile images.
 - `frontend/src/components/comments/CommentThreadItem.tsx` shows likes beneath each comment text and always shows parent-child count as `Replies: N`.
 - `frontend/src/components/comments/CommentThreadItem.tsx` includes an `Open in YouTube` action button that opens the exact YouTube comment URL (`watch?v=<video_id>&lc=<comment_id>`).
@@ -134,7 +148,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Video detail comments pagination uses `frontend/src/components/ui/PageSwitcher.tsx`.
 - Videos and Sync Runs pagination also use `frontend/src/components/ui/PageSwitcher.tsx` instead of page-specific inline button groups.
 - Videos, Playlists, Playlist Detail items, Sync Runs, Video Detail comments, and Comments include a per-page dropdown in the pagination footer (bottom-right) with options `10`, `25`, `50`, `100`; the selected size is shared globally via local storage so changing it on any page applies across all pages.
-- `frontend/src/pages/Comments.tsx` is a dedicated comments page that loads paginated comments via `GET /comments`, groups by `video_id`, and renders `CommentThreadItem` entries (no inline child-reply rendering).
+- `frontend/src/pages/Comments.tsx` is a dedicated comments page that loads paginated comments via `GET /comments`, groups by `video_id`, and renders `CommentVideoGroup` sections (with `CommentThreadItem` entries inside).
 - `GET /comments` includes `video_title` and `video_thumbnail_url` (joined from `videos`) so grouped comments can show a readable video header with thumbnail without extra requests.
 - `frontend/src/pages/Comments.tsx` includes a top `Published range` filter using `DateRangePicker`, wired to `GET /comments` query params `published_after` and `published_before`.
 - `frontend/src/pages/Comments.tsx` persists filter/sort/pagination settings in local storage key `commentsPageSettings`; default sort is `Date posted`.

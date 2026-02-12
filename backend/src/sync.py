@@ -5,6 +5,7 @@ from threading import Lock
 
 from utils.logger import get_logger
 from src.database.analytics import upsert_daily_analytics
+from src.database.audience import upsert_audience, upsert_commenters_from_comments
 from src.database.channel_daily import upsert_channel_daily
 from src.database.comments import upsert_comments
 from src.database.db import get_connection
@@ -23,6 +24,7 @@ from src.youtube.analytics import (
 )
 from src.youtube.comments import extract_comments
 from src.youtube.playlists import get_all_playlist_items, get_all_playlists
+from src.youtube.subscribers import extract_public_subscribers
 from src.youtube.videos import safe_get_videos
 from src.youtube.videos import get_short_video_ids
 
@@ -382,6 +384,14 @@ def sync_comments() -> None:
         total += upsert_comments(rows)
 
 
+def sync_audience() -> None:
+    """Sync public subscribers, then backfill commenter-only audience from comments DB."""
+    _logger.info("Starting audience sync")
+    subscriber_rows = extract_public_subscribers()
+    upsert_audience(subscriber_rows)
+    upsert_commenters_from_comments()
+
+
 def sync_playlists() -> None:
     """Sync playlists and playlist items, tracking progress per playlist."""
     _logger.info("Starting playlists sync")
@@ -496,6 +506,8 @@ def sync_all(
             sync_videos()
         if _should_run(selected, "comments"):
             sync_comments()
+        if _should_run(selected, "audience"):
+            sync_audience()
         if _should_run(selected, "playlists"):
             sync_playlists()
         if _should_run(selected, "traffic"):

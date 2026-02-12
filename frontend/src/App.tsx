@@ -1,6 +1,8 @@
 import './App.css'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import Analytics from './pages/Analytics'
+import Audience from './pages/Audience'
+import AudienceDetail from './pages/AudienceDetail'
 import Comments from './pages/Comments'
 import Dashboard from './pages/Dashboard'
 import PlaylistDetail from './pages/PlaylistDetail'
@@ -21,6 +23,7 @@ function App() {
           <NavLink to="/videos">Videos</NavLink>
           <NavLink to="/playlists">Playlists</NavLink>
           <NavLink to="/comments">Comments</NavLink>
+          <NavLink to="/audience">Audience</NavLink>
           <NavLink to="/analytics">Analytics</NavLink>
           <NavLink to="/sync">Sync</NavLink>
         </nav>
@@ -32,6 +35,8 @@ function App() {
           <Route path="/playlists" element={<Playlists />} />
           <Route path="/playlistDetails/:playlistId" element={<PlaylistDetail />} />
           <Route path="/comments" element={<Comments />} />
+          <Route path="/audience" element={<Audience />} />
+          <Route path="/audienceDetails/:channelId" element={<AudienceDetail />} />
           <Route path="/videoDetails/:videoId" element={<VideoDetail />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/sync" element={<SyncSettings />} />

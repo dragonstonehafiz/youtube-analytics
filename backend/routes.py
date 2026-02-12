@@ -161,6 +161,91 @@ def list_videos(
     return {"items": [row_to_dict(row) for row in rows], "total": total}
 
 
+@router.get("/audience")
+def list_audience(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    q: str | None = None,
+    subscriber_only: bool | None = None,
+    sort_by: str = Query(default="last_commented_at"),
+    direction: str = Query(default="desc"),
+) -> dict:
+    """Return audience rows with optional search/filter and pagination."""
+    where_clauses = []
+    params: list[object] = []
+    if q:
+        where_clauses.append("a.display_name LIKE ?")
+        params.append(f"%{q}%")
+    if subscriber_only is True:
+        where_clauses.append("a.is_public_subscriber = 1")
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    sort_map = {
+        "subscribed_at": "a.subscribed_at",
+        "first_commented_at": "a.first_commented_at",
+        "last_commented_at": "a.last_commented_at",
+        "comment_count": "a.comment_count",
+        "total_comment_likes": "COALESCE(cs.total_comment_likes, 0)",
+        "total_comment_replies": "COALESCE(cs.total_comment_replies, 0)",
+    }
+    sort_column = sort_map.get(sort_by, "a.last_commented_at")
+    sort_dir = "ASC" if direction.lower() == "asc" else "DESC"
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                a.*,
+                COALESCE(cs.total_comment_likes, 0) AS total_comment_likes,
+                COALESCE(cs.total_comment_replies, 0) AS total_comment_replies
+            FROM audience a
+            LEFT JOIN (
+                SELECT
+                    author_channel_id AS channel_id,
+                    SUM(COALESCE(like_count, 0)) AS total_comment_likes,
+                    SUM(COALESCE(reply_count, 0)) AS total_comment_replies
+                FROM comments
+                WHERE author_channel_id IS NOT NULL AND author_channel_id != ''
+                GROUP BY author_channel_id
+            ) cs ON cs.channel_id = a.channel_id
+            {where_sql}
+            ORDER BY ({sort_column} IS NULL) ASC, {sort_column} {sort_dir}, a.channel_id ASC
+            LIMIT ? OFFSET ?
+            """,
+            tuple(params + [limit, offset]),
+        ).fetchall()
+        total_row = conn.execute(
+            f"SELECT COUNT(*) AS total FROM audience a {where_sql}",
+            tuple(params),
+        ).fetchone()
+    total = total_row["total"] if total_row and total_row["total"] is not None else 0
+    return {"items": [row_to_dict(row) for row in rows], "total": total}
+
+
+@router.get("/audience/{channel_id}")
+def get_audience_detail(channel_id: str) -> dict:
+    """Return one audience row and related comment totals for a channel ID."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM audience WHERE channel_id = ?", (channel_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Audience member not found.")
+        stats_row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total_comments,
+                COUNT(DISTINCT video_id) AS distinct_videos,
+                COALESCE(SUM(COALESCE(like_count, 0)), 0) AS total_comment_likes,
+                MIN(published_at) AS first_comment_at,
+                MAX(published_at) AS last_comment_at
+            FROM comments
+            WHERE author_channel_id = ?
+            """,
+            (channel_id,),
+        ).fetchone()
+    return {
+        "item": row_to_dict(row),
+        "stats": row_to_dict(stats_row) if stats_row else {},
+    }
+
+
 @router.get("/playlists")
 def list_playlists(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -392,6 +477,7 @@ def list_playlist_video_daily(playlist_id: str, start_date: str, end_date: str) 
 @router.get("/comments")
 def list_comments(
     video_id: str | None = None,
+    author_channel_id: str | None = None,
     published_after: str | None = None,
     published_before: str | None = None,
     limit: int = Query(default=100, ge=1, le=1000),
@@ -399,12 +485,15 @@ def list_comments(
     sort_by: str = Query(default="published_at"),
     direction: str = Query(default="desc"),
 ) -> dict:
-    """Return comments with optional video filter/pagination."""
+    """Return comments with optional video/author filters and pagination."""
     where_clauses = []
     params: list[object] = []
     if video_id:
         where_clauses.append("c.video_id = ?")
         params.append(video_id)
+    if author_channel_id:
+        where_clauses.append("c.author_channel_id = ?")
+        params.append(author_channel_id)
     if published_after:
         where_clauses.append("date(c.published_at) >= ?")
         params.append(published_after)
@@ -781,6 +870,7 @@ def get_overview_stats() -> dict:
         db_size_bytes = page_count * page_size
         total_uploads = conn.execute("SELECT COUNT(*) AS count FROM videos").fetchone()[0]
         total_playlists = conn.execute("SELECT COUNT(*) AS count FROM playlists").fetchone()[0]
+        total_audience = conn.execute("SELECT COUNT(*) AS count FROM audience").fetchone()[0]
         total_views_row = conn.execute("SELECT SUM(views) AS total FROM channel_daily_analytics").fetchone()
         total_views = total_views_row["total"] if total_views_row and total_views_row["total"] is not None else 0
         total_comments_row = conn.execute("SELECT COUNT(*) AS count FROM comments").fetchone()
@@ -806,6 +896,7 @@ def get_overview_stats() -> dict:
         "db_size_bytes": db_size_bytes,
         "total_uploads": total_uploads,
         "total_playlists": total_playlists,
+        "total_audience": total_audience,
         "total_views": total_views,
         "total_comments": total_comments,
         "earliest_date": earliest_date,

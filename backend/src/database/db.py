@@ -161,3 +161,4 @@ def _ensure_playlist_items_schema(conn: sqlite3.Connection) -> None:
         conn.commit()
     finally:
         conn.execute("PRAGMA foreign_keys = ON;")
+

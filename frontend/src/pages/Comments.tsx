@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { CommentThreadItem, type CommentRow, type CommentThread } from '../components/comments'
+import { CommentVideoGroup, type CommentRow, type CommentThread } from '../components/comments'
 import { PageCard } from '../components/layout'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
@@ -191,29 +190,16 @@ function Comments() {
             ) : groups.length === 0 ? (
               <div className="video-detail-state">No comments found.</div>
             ) : (
-              <div className="comments-groups">
-                {groups.map((group) => (
-                  <section key={group.videoId} className="comments-group">
-                    <header className="comments-group-header">
-                      <div className="comments-group-video">
-                        {group.videoThumbnailUrl ? (
-                          <img className="comments-group-thumb" src={group.videoThumbnailUrl} alt={group.videoTitle} />
-                        ) : (
-                          <div className="comments-group-thumb" />
-                        )}
-                        <Link to={`/videoDetails/${group.videoId}`} className="comments-group-title">
-                          {group.videoTitle}
-                        </Link>
-                      </div>
-                      <span className="comments-group-count">{group.comments.length.toLocaleString()} threads</span>
-                    </header>
-                    <div className="comments-group-items">
-                      {group.comments.map((thread) => (
-                        <CommentThreadItem key={thread.parent.id} thread={thread} videoId={group.videoId} />
-                      ))}
-                    </div>
-                  </section>
-                ))}
+                <div className="comments-groups">
+                  {groups.map((group) => (
+                    <CommentVideoGroup
+                      key={group.videoId}
+                      videoId={group.videoId}
+                      videoTitle={group.videoTitle}
+                      videoThumbnailUrl={group.videoThumbnailUrl}
+                      comments={group.comments}
+                    />
+                  ))}
                 <div className="pagination-footer">
                   <div className="pagination-main">
                     <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />

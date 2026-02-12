@@ -41,9 +41,10 @@ function SyncSettings() {
   const [overview, setOverview] = useState({
     db_size_bytes: 0,
     total_uploads: 0,
+    total_comments: 0,
+    total_audience: 0,
     total_playlists: 0,
     total_views: 0,
-    total_comments: 0,
     earliest_date: null as string | null,
     latest_date: null as string | null,
     daily_analytics_rows: 0,
@@ -64,6 +65,7 @@ function SyncSettings() {
   const pullOptions = [
     { label: 'Videos', value: 'videos' },
     { label: 'Comments', value: 'comments' },
+    { label: 'Audience', value: 'audience' },
     { label: 'Playlists', value: 'playlists' },
     { label: 'Playlist Analytics', value: 'playlist_analytics' },
     { label: 'Traffic sources', value: 'traffic' },
@@ -124,9 +126,10 @@ function SyncSettings() {
         setOverview({
           db_size_bytes: data.db_size_bytes ?? 0,
           total_uploads: data.total_uploads ?? 0,
+          total_comments: data.total_comments ?? 0,
+          total_audience: data.total_audience ?? 0,
           total_playlists: data.total_playlists ?? 0,
           total_views: data.total_views ?? 0,
-          total_comments: data.total_comments ?? 0,
           earliest_date: data.earliest_date ?? null,
           latest_date: data.latest_date ?? null,
           daily_analytics_rows: data.daily_analytics_rows ?? 0,
@@ -481,21 +484,30 @@ function SyncSettings() {
                 </div>
                 <div className="db-overview-metric">
                   <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Total playlists</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.total_playlists.toLocaleString()}</div>
-                </div>
-                <div className="db-overview-metric">
-                  <div className="sync-stat-label-row">
                     <div className="sync-stat-label">Total comments</div>
                     <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
                       i
                     </span>
                   </div>
                   <div className="sync-stat-value">{overview.total_comments.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-metric">
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Total audience</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3\n- YouTube comments data'}>
+                      i
+                    </span>
+                  </div>
+                  <div className="sync-stat-value">{overview.total_audience.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-metric">
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Total playlists</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
+                      i
+                    </span>
+                  </div>
+                  <div className="sync-stat-value">{overview.total_playlists.toLocaleString()}</div>
                 </div>
               </div>
               <div className="db-overview-rows">

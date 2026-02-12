@@ -140,3 +140,17 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_comments_video ON comments(video_id);
+CREATE INDEX IF NOT EXISTS idx_comments_author_channel ON comments(author_channel_id);
+
+CREATE TABLE IF NOT EXISTS audience (
+    channel_id TEXT PRIMARY KEY,
+    display_name TEXT,
+    profile_image_url TEXT,
+    is_public_subscriber INTEGER NOT NULL DEFAULT 0,
+    subscribed_at TEXT,
+    first_commented_at TEXT,
+    last_commented_at TEXT,
+    comment_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_audience_subscriber ON audience(is_public_subscriber);

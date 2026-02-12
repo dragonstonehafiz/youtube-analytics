@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton } from '../ui'
+import { ActionButton, ProfileImage } from '../ui'
 import './CommentsPreviewCard.css'
 
 type CommentPreview = {
@@ -41,17 +41,6 @@ function toHandle(value: string | null): string {
   return trimmed.startsWith('@') ? trimmed : `@${trimmed}`
 }
 
-function avatarInitial(value: string | null): string {
-  if (!value || !value.trim()) {
-    return 'U'
-  }
-  return value.trim().charAt(0).toUpperCase()
-}
-
-function upscaleYouTubeAvatar(url: string, size = 88): string {
-  return url.replace(/\/s\d+(-[a-z0-9-]+)?\/photo\.jpg$/i, `/s${size}/photo.jpg`)
-}
-
 function CommentsPreviewCard() {
   const navigate = useNavigate()
   const [items, setItems] = useState<CommentPreview[]>([])
@@ -89,11 +78,13 @@ function CommentsPreviewCard() {
           {items.map((item) => (
             <article key={item.id} className="dashboard-comment-item">
               <div className="dashboard-comment-main">
-                {item.author_profile_image_url ? (
-                  <img className="dashboard-comment-avatar" src={upscaleYouTubeAvatar(item.author_profile_image_url)} alt={item.author_name ?? 'Profile'} />
-                ) : (
-                  <div className="dashboard-comment-avatar">{avatarInitial(item.author_name)}</div>
-                )}
+                <ProfileImage
+                  className="dashboard-comment-avatar"
+                  src={item.author_profile_image_url}
+                  name={item.author_name}
+                  fallbackInitial="U"
+                  youtubeAvatarSize={88}
+                />
                 <div className="dashboard-comment-content">
                   <div className="dashboard-comment-meta">
                     <span className="dashboard-comment-handle">{toHandle(item.author_name)}</span>

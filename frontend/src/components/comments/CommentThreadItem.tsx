@@ -1,4 +1,5 @@
-import { ActionButton } from '../ui'
+import { Link } from 'react-router-dom'
+import { ActionButton, ProfileImage } from '../ui'
 import { formatDisplayDate } from '../../utils/date'
 import './CommentThreadItem.css'
 
@@ -6,6 +7,7 @@ export type CommentRow = {
   id: string
   video_id?: string | null
   author_name: string | null
+  author_channel_id?: string | null
   author_profile_image_url: string | null
   reply_count?: number | null
   text_display: string | null
@@ -25,17 +27,6 @@ function getAuthorHandle(value: string | null): string {
   }
   const trimmed = value.trim()
   return trimmed.startsWith('@') ? trimmed : `@${trimmed}`
-}
-
-function getAvatarInitial(value: string | null): string {
-  if (!value || !value.trim()) {
-    return '?'
-  }
-  return value.trim().charAt(0).toUpperCase()
-}
-
-function upscaleYouTubeAvatar(url: string, size = 88): string {
-  return url.replace(/\/s\d+(-[a-z0-9-]+)?\/photo\.jpg$/i, `/s${size}/photo.jpg`)
 }
 
 function formatPostedAt(value: string | null): string {
@@ -61,18 +52,24 @@ function CommentThreadItem({ thread, videoId }: Props) {
   return (
     <article className="comment-thread-item">
       <div className="comment-thread-row">
-        {thread.parent.author_profile_image_url ? (
-          <img
-            className="comment-thread-avatar"
-            src={upscaleYouTubeAvatar(thread.parent.author_profile_image_url)}
-            alt={thread.parent.author_name || 'Profile'}
-          />
-        ) : (
-          <div className="comment-thread-avatar">{getAvatarInitial(thread.parent.author_name)}</div>
-        )}
+        <ProfileImage
+          className="comment-thread-avatar"
+          src={thread.parent.author_profile_image_url}
+          name={thread.parent.author_name}
+          youtubeAvatarSize={88}
+        />
         <div className="comment-thread-main">
           <header className="comment-thread-header">
-            <div className="comment-thread-author">{getAuthorHandle(thread.parent.author_name)}</div>
+            {thread.parent.author_channel_id ? (
+              <Link
+                to={`/audienceDetails/${encodeURIComponent(thread.parent.author_channel_id)}`}
+                className="comment-thread-author comment-thread-author-link"
+              >
+                {getAuthorHandle(thread.parent.author_name)}
+              </Link>
+            ) : (
+              <div className="comment-thread-author">{getAuthorHandle(thread.parent.author_name)}</div>
+            )}
             <div className="comment-thread-date">{formatPostedAt(thread.parent.published_at)}</div>
           </header>
           <div className="comment-thread-text">{thread.parent.text_display || ''}</div>
