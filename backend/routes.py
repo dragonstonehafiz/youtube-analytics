@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
@@ -332,6 +333,10 @@ def list_playlist_items(
     direction: str = Query(default="asc"),
 ) -> dict:
     """Return playlist items with optional text filter and pagination."""
+    recent_end = datetime.now(UTC).date()
+    recent_start = recent_end - timedelta(days=89)
+    recent_start_str = recent_start.isoformat()
+    recent_end_str = recent_end.isoformat()
     with get_connection() as conn:
         exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
         if not exists:
@@ -347,6 +352,9 @@ def list_playlist_items(
             "published_at": "pi.published_at",
             "title": "COALESCE(pi.title, '')",
             "views": "COALESCE(v.view_count, 0)",
+            "comments": "COALESCE(v.comment_count, 0)",
+            "likes": "COALESCE(v.like_count, 0)",
+            "recent_views": "COALESCE(rv.recent_views, 0)",
         }
         sort_column = sort_map.get(sort_by, "pi.position")
         sort_dir = "DESC" if direction.lower() == "desc" else "ASC"
@@ -360,14 +368,33 @@ def list_playlist_items(
                 v.privacy_status AS video_privacy_status,
                 v.view_count AS video_view_count,
                 v.comment_count AS video_comment_count,
-                v.like_count AS video_like_count
+                v.like_count AS video_like_count,
+                COALESCE(rv.recent_views, 0) AS video_recent_views,
+                COALESCE(va.total_watch_time_minutes, 0) AS video_watch_time_minutes,
+                COALESCE(va.avg_view_duration_seconds, 0) AS video_average_view_duration_seconds
             FROM playlist_items pi
             LEFT JOIN videos v ON v.id = pi.video_id
+            LEFT JOIN (
+                SELECT
+                    video_id,
+                    SUM(COALESCE(views, 0)) AS recent_views
+                FROM daily_analytics
+                WHERE date >= ? AND date <= ?
+                GROUP BY video_id
+            ) rv ON rv.video_id = pi.video_id
+            LEFT JOIN (
+                SELECT
+                    video_id,
+                    SUM(COALESCE(watch_time_minutes, 0)) AS total_watch_time_minutes,
+                    AVG(COALESCE(average_view_duration_seconds, 0)) AS avg_view_duration_seconds
+                FROM daily_analytics
+                GROUP BY video_id
+            ) va ON va.video_id = pi.video_id
             {where_sql}
             ORDER BY {sort_column} {sort_dir}, pi.id ASC
             LIMIT ? OFFSET ?
             """,
-            tuple(params + [limit, offset]),
+            tuple([recent_start_str, recent_end_str] + params + [limit, offset]),
         ).fetchall()
         total_row = conn.execute(
             f"SELECT COUNT(*) AS total FROM playlist_items pi {where_sql}",
@@ -790,6 +817,7 @@ def list_top_content(
                 v.thumbnail_url AS thumbnail_url,
                 v.duration_seconds AS duration_seconds,
                 SUM(a.views) AS views,
+                SUM(a.watch_time_minutes) AS watch_time_minutes,
                 AVG(a.average_view_duration_seconds) AS avg_view_duration_seconds
             FROM daily_analytics a
             JOIN videos v ON v.id = a.video_id
@@ -814,6 +842,7 @@ def list_top_content(
                 "published_at": row["published_at"] or "",
                 "thumbnail_url": row["thumbnail_url"] or "",
                 "views": row["views"] or 0,
+                "watch_time_minutes": row["watch_time_minutes"] or 0,
                 "avg_view_duration_seconds": avg_view_duration_seconds,
                 "avg_view_pct": avg_view_pct,
             }

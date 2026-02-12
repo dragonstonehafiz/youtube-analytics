@@ -11,6 +11,7 @@ type VideoDetailListItem = {
   thumbnail_url: string
   published_at: string
   views: number
+  watch_time_minutes: number
   avg_view_duration_seconds: number
   avg_view_pct: number
 }
@@ -40,6 +41,7 @@ function Dashboard() {
             thumbnail_url: String(item.thumbnail_url ?? ''),
             published_at: String(item.published_at ?? ''),
             views: Number(item.views ?? 0),
+            watch_time_minutes: Number(item.watch_time_minutes ?? 0),
             avg_view_duration_seconds: Number(item.avg_view_duration_seconds ?? 0),
             avg_view_pct: Number(item.avg_view_pct ?? 0),
           }))
@@ -75,7 +77,6 @@ function Dashboard() {
               title="Latest longform content"
               items={latestLongform}
               onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-              onOpenComments={(videoId) => navigate(`/videos/${videoId}`)}
             />
           </PageCard>
           <PageCard>
@@ -83,7 +84,6 @@ function Dashboard() {
               title="Latest shortform content"
               items={latestShorts}
               onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-              onOpenComments={(videoId) => navigate(`/videos/${videoId}`)}
             />
           </PageCard>
         </div>

@@ -8,20 +8,19 @@ export type VideoDetailListItem = {
   thumbnail_url: string
   published_at: string
   views: number
+  watch_time_minutes: number
   avg_view_duration_seconds: number
   avg_view_pct: number
 }
 
-type VideoDetailMetricKey = 'views' | 'avg_duration'
+type VideoDetailMetricKey = 'views' | 'watch_time' | 'avg_duration'
 
 type VideoDetailListCardProps = {
   title: string
   items: VideoDetailListItem[]
   onOpenVideo: (videoId: string) => void
-  onOpenComments?: (videoId: string) => void
   emptyText?: string
   actionLabel?: string
-  commentsActionLabel?: string
   showTypicalRange?: boolean
   metrics?: VideoDetailMetricKey[]
 }
@@ -39,22 +38,6 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-function formatAge(publishedAt: string): string {
-  if (!publishedAt) {
-    return '-'
-  }
-  const now = new Date()
-  const published = new Date(publishedAt)
-  const deltaMs = Math.max(0, now.getTime() - published.getTime())
-  const totalHours = Math.floor(deltaMs / 3600000)
-  const days = Math.floor(totalHours / 24)
-  const hours = totalHours % 24
-  if (days > 0) {
-    return `First ${days} day${days === 1 ? '' : 's'} ${hours} hour${hours === 1 ? '' : 's'}`
-  }
-  return `First ${hours} hour${hours === 1 ? '' : 's'}`
-}
-
 function formatCompact(value: number): string {
   if (value >= 1000000) {
     return `${(value / 1000000).toFixed(1)}M`
@@ -63,6 +46,17 @@ function formatCompact(value: number): string {
     return `${(value / 1000).toFixed(1)}K`
   }
   return `${Math.round(value)}`
+}
+
+function formatWatchTimeHours(minutes: number): string {
+  const hours = minutes / 60
+  if (hours >= 1000) {
+    return `${(hours / 1000).toFixed(1)}K`
+  }
+  if (hours >= 100) {
+    return `${Math.round(hours)}`
+  }
+  return hours.toFixed(1)
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -110,10 +104,8 @@ function VideoDetailListCard({
   title,
   items,
   onOpenVideo,
-  onOpenComments,
   emptyText = 'No videos in this range.',
   actionLabel = 'See analytics',
-  commentsActionLabel = 'See comments',
   showTypicalRange = true,
   metrics = ['views', 'avg_duration'],
 }: VideoDetailListCardProps) {
@@ -127,6 +119,7 @@ function VideoDetailListCard({
   const typicalRanges = useMemo(
     () => ({
       views: buildTypicalRange(items.map((item) => item.views)),
+      watchTime: buildTypicalRange(items.map((item) => item.watch_time_minutes)),
       avgDuration: buildTypicalRange(items.map((item) => item.avg_view_duration_seconds)),
     }),
     [items]
@@ -148,7 +141,6 @@ function VideoDetailListCard({
             )}
             <div className="video-detail-list-thumb-title">{activeItem.title}</div>
           </div>
-          <div className="video-detail-list-age">{formatAge(activeItem.published_at)}</div>
           <div className="video-detail-list-metrics">
             {[
               metrics.includes('views')
@@ -169,6 +161,16 @@ function VideoDetailListCard({
                     valueText: formatDuration(activeItem.avg_view_duration_seconds),
                     range: typicalRanges.avgDuration,
                     tickFormatter: (value: number) => formatDuration(value),
+                  }
+                : null,
+              metrics.includes('watch_time')
+                ? {
+                    key: 'watchTime',
+                    label: 'Watch time (hours)',
+                    raw: activeItem.watch_time_minutes,
+                    valueText: formatWatchTimeHours(activeItem.watch_time_minutes),
+                    range: typicalRanges.watchTime,
+                    tickFormatter: (value: number) => formatWatchTimeHours(value),
                   }
                 : null,
             ]
@@ -207,14 +209,6 @@ function VideoDetailListCard({
           </div>
           <div className="video-detail-list-actions">
             <ActionButton label={actionLabel} variant="soft" className="video-detail-list-open" onClick={() => onOpenVideo(activeItem.video_id)} />
-            {onOpenComments ? (
-              <ActionButton
-                label={commentsActionLabel}
-                variant="soft"
-                className="video-detail-list-open"
-                onClick={() => onOpenComments(activeItem.video_id)}
-              />
-            ) : null}
           </div>
           <div className="video-detail-list-footer">
             <button

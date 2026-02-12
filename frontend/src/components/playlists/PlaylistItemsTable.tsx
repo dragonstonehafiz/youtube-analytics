@@ -1,6 +1,6 @@
 import PlaylistItemRow, { type PlaylistItemRowData } from './PlaylistItemRow'
 
-export type PlaylistItemSortKey = 'position' | 'published_at' | 'views'
+export type PlaylistItemSortKey = 'position' | 'published_at' | 'views' | 'comments' | 'likes'
 
 type PlaylistItemsTableProps = {
   items: PlaylistItemRowData[]
@@ -39,8 +39,22 @@ function PlaylistItemsTable({ items, sortBy, direction, onToggleSort }: Playlist
           Views
           {sortBy === 'views' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
         </button>
-        <span className="right">Comments</span>
-        <span className="right">Likes</span>
+        <button
+          type="button"
+          className={sortBy === 'comments' ? 'video-sort-button active right' : 'video-sort-button right'}
+          onClick={() => onToggleSort('comments')}
+        >
+          Comments
+          {sortBy === 'comments' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
+        </button>
+        <button
+          type="button"
+          className={sortBy === 'likes' ? 'video-sort-button active right' : 'video-sort-button right'}
+          onClick={() => onToggleSort('likes')}
+        >
+          Likes
+          {sortBy === 'likes' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
+        </button>
       </div>
       {items.length === 0 ? (
         <div className="video-detail-state">No playlist items found.</div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { MetricChartCard } from '../components/analytics'
+import { MetricChartCard, VideoDetailListCard, type VideoDetailListItem } from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../components/playlists'
 import { formatDisplayDate } from '../utils/date'
@@ -211,6 +211,10 @@ function PlaylistDetail() {
     average_time_in_playlist_seconds: 0,
   })
   const [comparisons, setComparisons] = useState<Partial<Record<MetricKey, MetricComparison>>>({})
+  const [topPerformingItems, setTopPerformingItems] = useState<VideoDetailListItem[]>([])
+  const [topPerformingError, setTopPerformingError] = useState<string | null>(null)
+  const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
+  const [recentPerformingError, setRecentPerformingError] = useState<string | null>(null)
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
   const range = useMemo(() => {
     const now = new Date()
@@ -327,6 +331,92 @@ function PlaylistDetail() {
 
     loadItems()
   }, [playlistId, page, pageSize, sortBy, direction])
+
+  useEffect(() => {
+    async function loadTopPerformingItems() {
+      if (!playlistId) {
+        setTopPerformingItems([])
+        setTopPerformingError('Missing playlist ID.')
+        return
+      }
+      setTopPerformingError(null)
+      try {
+        const params = new URLSearchParams({
+          limit: '10',
+          offset: '0',
+          sort_by: 'views',
+          direction: 'desc',
+        })
+        const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}/items?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load top playlist content (${response.status})`)
+        }
+        const data = await response.json()
+        const rows = Array.isArray(data.items) ? (data.items as PlaylistItemRowData[]) : []
+        const mapped: VideoDetailListItem[] = rows
+          .filter((item) => Boolean(item.video_id))
+          .map((item) => ({
+            video_id: item.video_id as string,
+            title: item.video_title || item.title || '(untitled)',
+            thumbnail_url: item.video_thumbnail_url || item.thumbnail_url || '',
+            published_at: item.video_published_at || item.published_at || '',
+            views: item.video_view_count ?? 0,
+            watch_time_minutes: item.video_watch_time_minutes ?? 0,
+            avg_view_duration_seconds: item.video_average_view_duration_seconds ?? 0,
+            avg_view_pct: 0,
+          }))
+        setTopPerformingItems(mapped)
+      } catch (err) {
+        setTopPerformingError(err instanceof Error ? err.message : 'Failed to load top playlist content.')
+        setTopPerformingItems([])
+      }
+    }
+
+    loadTopPerformingItems()
+  }, [playlistId])
+
+  useEffect(() => {
+    async function loadRecentPerformingItems() {
+      if (!playlistId) {
+        setRecentPerformingItems([])
+        setRecentPerformingError('Missing playlist ID.')
+        return
+      }
+      setRecentPerformingError(null)
+      try {
+        const params = new URLSearchParams({
+          limit: '10',
+          offset: '0',
+          sort_by: 'recent_views',
+          direction: 'desc',
+        })
+        const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}/items?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load recent top playlist content (${response.status})`)
+        }
+        const data = await response.json()
+        const rows = Array.isArray(data.items) ? (data.items as PlaylistItemRowData[]) : []
+        const mapped: VideoDetailListItem[] = rows
+          .filter((item) => Boolean(item.video_id))
+          .map((item) => ({
+            video_id: item.video_id as string,
+            title: item.video_title || item.title || '(untitled)',
+            thumbnail_url: item.video_thumbnail_url || item.thumbnail_url || '',
+            published_at: item.video_published_at || item.published_at || '',
+            views: item.video_recent_views ?? 0,
+            watch_time_minutes: item.video_watch_time_minutes ?? 0,
+            avg_view_duration_seconds: item.video_average_view_duration_seconds ?? 0,
+            avg_view_pct: 0,
+          }))
+        setRecentPerformingItems(mapped)
+      } catch (err) {
+        setRecentPerformingError(err instanceof Error ? err.message : 'Failed to load recent top playlist content.')
+        setRecentPerformingItems([])
+      }
+    }
+
+    loadRecentPerformingItems()
+  }, [playlistId])
 
   useEffect(() => {
     setPage(1)
@@ -804,23 +894,57 @@ function PlaylistDetail() {
           </PageCard>
         </div>
         <div className="page-row">
-          <PageCard>
-            {loadingItems ? (
-              <div className="video-detail-state">Loading playlist items...</div>
-            ) : errorItems ? (
-              <div className="video-detail-state">{errorItems}</div>
-            ) : (
-              <PlaylistItemsTable items={items} sortBy={sortBy} direction={direction} onToggleSort={toggleSort} />
-            )}
-            <div className="pagination-footer">
-              <div className="pagination-main">
-                <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+          <div className="playlist-detail-items-layout">
+            <PageCard>
+              {loadingItems ? (
+                <div className="video-detail-state">Loading playlist items...</div>
+              ) : errorItems ? (
+                <div className="video-detail-state">{errorItems}</div>
+              ) : (
+                <PlaylistItemsTable items={items} sortBy={sortBy} direction={direction} onToggleSort={toggleSort} />
+              )}
+              <div className="pagination-footer">
+                <div className="pagination-main">
+                  <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                </div>
+                <div className="pagination-size">
+                  <PageSizePicker value={pageSize} onChange={setPageSize} />
+                </div>
               </div>
-              <div className="pagination-size">
-                <PageSizePicker value={pageSize} onChange={setPageSize} />
-              </div>
+            </PageCard>
+            <div className="playlist-detail-side-cards">
+              <PageCard>
+                {topPerformingError ? (
+                  <div className="video-detail-state">{topPerformingError}</div>
+                ) : (
+                  <VideoDetailListCard
+                    title="Top performing content"
+                    items={topPerformingItems}
+                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                    emptyText="No playlist videos available."
+                    actionLabel="See analytics"
+                    showTypicalRange
+                    metrics={['views', 'watch_time', 'avg_duration']}
+                  />
+                )}
+              </PageCard>
+              <PageCard>
+                {recentPerformingError ? (
+                  <div className="video-detail-state">{recentPerformingError}</div>
+                ) : (
+                  <VideoDetailListCard
+                    title="Top performing content (last 90 days)"
+                    items={recentPerformingItems}
+                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                    emptyText="No recent playlist video activity."
+                    actionLabel="See analytics"
+                    showTypicalRange
+                    metrics={['views', 'watch_time', 'avg_duration']}
+                  />
+                )}
+              </PageCard>
             </div>
-          </PageCard>
+          </div>
         </div>
       </div>
     </section>

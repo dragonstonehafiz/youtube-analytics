@@ -28,6 +28,7 @@ type LatestContentItem = {
   thumbnail_url: string
   published_at: string
   views: number
+  watch_time_minutes: number
   avg_view_duration_seconds: number
   avg_view_pct: number
 }
@@ -489,12 +490,17 @@ function Analytics() {
   useEffect(() => {
     async function loadLatestContentCards() {
       try {
+        const today = new Date()
+        const end = today.toISOString().slice(0, 10)
+        const start = new Date(today)
+        start.setDate(start.getDate() - 89)
+        const startDate = start.toISOString().slice(0, 10)
         const [longformResponse, shortResponse] = await Promise.all([
           fetch(
-            `http://127.0.0.1:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=published_at&direction=desc&privacy_status=public`
+            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc&privacy_status=public`
           ),
           fetch(
-            `http://127.0.0.1:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=published_at&direction=desc&privacy_status=public`
+            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc&privacy_status=public`
           ),
         ])
         const [longformData, shortData] = await Promise.all([longformResponse.json(), shortResponse.json()])
@@ -505,6 +511,7 @@ function Analytics() {
             thumbnail_url: String(item.thumbnail_url ?? ''),
             published_at: String(item.published_at ?? ''),
             views: Number(item.views ?? 0),
+            watch_time_minutes: Number(item.watch_time_minutes ?? 0),
             avg_view_duration_seconds: Number(item.avg_view_duration_seconds ?? 0),
             avg_view_pct: Number(item.avg_view_pct ?? 0),
           }))
@@ -518,7 +525,7 @@ function Analytics() {
     }
 
     loadLatestContentCards()
-  }, [range.start, range.end])
+  }, [])
 
   return (
     <section className="page">
@@ -649,18 +656,16 @@ function Analytics() {
             <div className="analytics-side-cards">
               <PageCard>
                 <VideoDetailListCard
-                  title="Latest longform content"
+                  title="Top longform content (last 90 days)"
                   items={latestLongform}
                   onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-                  onOpenComments={(videoId) => navigate(`/videos/${videoId}`)}
                 />
               </PageCard>
               <PageCard>
                 <VideoDetailListCard
-                  title="Latest short content"
+                  title="Top short content (last 90 days)"
                   items={latestShorts}
                   onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-                  onOpenComments={(videoId) => navigate(`/videos/${videoId}`)}
                 />
               </PageCard>
             </div>

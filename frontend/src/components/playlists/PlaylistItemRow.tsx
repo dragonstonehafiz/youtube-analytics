@@ -22,6 +22,9 @@ export type PlaylistItemRowData = {
   video_view_count: number | null
   video_comment_count: number | null
   video_like_count: number | null
+  video_recent_views: number | null
+  video_watch_time_minutes: number | null
+  video_average_view_duration_seconds: number | null
 }
 
 type PlaylistItemRowProps = {
