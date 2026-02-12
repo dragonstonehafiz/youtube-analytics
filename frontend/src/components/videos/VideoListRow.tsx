@@ -34,7 +34,7 @@ function VideoListRow({ video }: VideoListRowProps) {
           <button
             type="button"
             className="video-title-button"
-            onClick={() => navigate(`/videoDetails/${video.id}`)}
+            onClick={() => navigate(`/videos/${video.id}`)}
           >
             {video.title}
           </button>

@@ -651,16 +651,16 @@ function Analytics() {
                 <VideoDetailListCard
                   title="Latest longform content"
                   items={latestLongform}
-                  onOpenVideo={(videoId) => navigate(`/videoDetails/${videoId}`)}
-                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}`)}
+                  onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                  onOpenComments={(videoId) => navigate(`/videos/${videoId}`)}
                 />
               </PageCard>
               <PageCard>
                 <VideoDetailListCard
                   title="Latest short content"
                   items={latestShorts}
-                  onOpenVideo={(videoId) => navigate(`/videoDetails/${videoId}`)}
-                  onOpenComments={(videoId) => navigate(`/videoDetails/${videoId}`)}
+                  onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                  onOpenComments={(videoId) => navigate(`/videos/${videoId}`)}
                 />
               </PageCard>
             </div>

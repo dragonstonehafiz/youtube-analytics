@@ -62,7 +62,7 @@ function CommentThreadItem({ thread, videoId }: Props) {
           <header className="comment-thread-header">
             {thread.parent.author_channel_id ? (
               <Link
-                to={`/audienceDetails/${encodeURIComponent(thread.parent.author_channel_id)}`}
+                to={`/audience/${encodeURIComponent(thread.parent.author_channel_id)}`}
                 className="comment-thread-author comment-thread-author-link"
               >
                 {getAuthorHandle(thread.parent.author_name)}

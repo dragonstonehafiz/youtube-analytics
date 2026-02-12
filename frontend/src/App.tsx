@@ -33,11 +33,11 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/videos" element={<Videos />} />
           <Route path="/playlists" element={<Playlists />} />
-          <Route path="/playlistDetails/:playlistId" element={<PlaylistDetail />} />
+          <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />
           <Route path="/comments" element={<Comments />} />
           <Route path="/audience" element={<Audience />} />
-          <Route path="/audienceDetails/:channelId" element={<AudienceDetail />} />
-          <Route path="/videoDetails/:videoId" element={<VideoDetail />} />
+          <Route path="/audience/:channelId" element={<AudienceDetail />} />
+          <Route path="/videos/:videoId" element={<VideoDetail />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/sync" element={<SyncSettings />} />
         </Routes>

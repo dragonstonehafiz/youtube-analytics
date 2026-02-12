@@ -49,7 +49,7 @@ function PlaylistItemRow({ item }: PlaylistItemRowProps) {
             <button
               type="button"
               className="video-title-button"
-              onClick={() => navigate(`/videoDetails/${item.video_id}`)}
+              onClick={() => navigate(`/videos/${item.video_id}`)}
             >
               {title}
             </button>

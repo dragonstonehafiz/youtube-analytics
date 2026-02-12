@@ -205,7 +205,7 @@ function Playlists() {
                         <button
                           type="button"
                           className="video-title-button"
-                          onClick={() => navigate(`/playlistDetails/${playlist.id}`)}
+                          onClick={() => navigate(`/playlists/${playlist.id}`)}
                         >
                           {playlist.title || '(untitled)'}
                         </button>

@@ -77,10 +77,10 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /stats/overview` includes `playlist_analytics_rows` (`COUNT(*)` from `playlist_daily_analytics`) for Sync Database Overview.
 - `frontend` includes playlist routes/pages:
   - `frontend` route `/playlists` -> `frontend/src/pages/Playlists.tsx` (playlist list with filters/sort/pagination; no actions column, title click opens details; recency column shows `last_item_added_at`).
-  - `frontend` route `/playlistDetails/:playlistId` -> `frontend/src/pages/PlaylistDetail.tsx` (playlist metadata + paginated item list).
+  - `frontend` route `/playlists/:playlistId` -> `frontend/src/pages/PlaylistDetail.tsx` (playlist metadata + paginated item list).
 - `frontend` includes audience routes/pages:
   - `frontend` route `/audience` -> `frontend/src/pages/Audience.tsx` (audience list with filters/sort/pagination, including `Total likes` and `Total replies` columns).
-  - `frontend` route `/audienceDetails/:channelId` -> `frontend/src/pages/AudienceDetail.tsx` (audience metadata + grouped-by-video comments for that author channel).
+  - `frontend` route `/audience/:channelId` -> `frontend/src/pages/AudienceDetail.tsx` (audience metadata + grouped-by-video comments for that author channel).
 - `frontend/src/pages/Playlists.tsx` table columns include `Playlist views` (sum from `playlist_daily_analytics`) and `Content views` (sum of current `videos.view_count` for items in playlist).
 - `frontend/src/pages/Playlists.tsx` description text is single-line truncated (`ellipsis`) so playlist list rows keep consistent height.
 - `frontend/src/pages/PlaylistDetail.tsx` uses extracted playlist-item components under `frontend/src/components/playlists/`, includes a dedicated `Position` column, and supports sortable headers for `Position`, `Added`, and `Views`; rows include `Views`, `Comments`, and `Likes` columns, and use the same hover pattern as videos (description hides and action buttons show). The items view has no search input.
@@ -95,7 +95,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/Videos.tsx` filter controls use shared UI components where applicable: `Dropdown` for visibility/type and `DateRangePicker` for the published range.
 - `frontend/src/pages/Videos.tsx` videos table columns are `Video`, `Visibility`, `Date`, `Views`, `Comments`, `Likes` (no `Restrictions` column).
 - `frontend/src/pages/Videos.tsx` uses extracted table components under `frontend/src/components/videos/` for video list rendering (`VideoListTable` + `VideoListRow`).
-- Video detail route path is `frontend` route `/videoDetails/:videoId` (not `/videos/:videoId`).
+- Video detail route path is `frontend` route `/videos/:videoId`.
 - `GET /videos` supports `content_type` filtering (`video` for longform, `short` for shorts).
 - `GET /videos/{video_id}` returns a single video row for video detail metadata.
 - Video `content_type` classification in `backend/src/database/videos.py` uses short-video IDs from the `UUSH...`-derived playlist (`backend/src/youtube/videos.py`) instead of stream dimensions/thumbnail heuristics.
@@ -110,7 +110,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/Analytics.tsx` KPI cards now compare current totals to the immediately previous equal-length date window and show trend indicators (green up/gray down) with text like `X% more/less than previous N days`.
 - `frontend/src/pages/Analytics.tsx` now includes a right-side latest-content rail with two reusable cards (`frontend/src/components/analytics/VideoDetailListCard.tsx`): one for longform (`content_type=video`) and one for shorts (`content_type=short`), each sourced from `GET /analytics/top-content` for the selected date range and sorted by newest publish date first.
 - `frontend/src/components/analytics/VideoDetailListCard.tsx` is the reusable video-detail list card component (title + arbitrary item list + CTA), and supports per-metric typical-range meters (currently views and average view duration) with up/down trend arrows when the active video is outside the card's typical range.
-- `frontend/src/components/analytics/VideoDetailListCard.tsx` supports two CTA buttons: `See video analytics` and optional `See video comments` (both navigate to `/videoDetails/:videoId`).
+- `frontend/src/components/analytics/VideoDetailListCard.tsx` supports two CTA buttons: `See video analytics` and optional `See video comments` (both navigate to `/videos/:videoId`).
 - On `frontend/src/pages/Analytics.tsx`, only the two latest-content cards request `privacy_status=public` (public videos only). `Top content this period` remains unfiltered by privacy unless content type filtering is applied.
 - `GET /videos/published` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to upload indicators (All = all uploads, Longform = only longform uploads, Shortform = only short uploads).
 - `GET /analytics/top-content` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to `Top content this period`.
@@ -177,7 +177,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/components/analytics/TopContentTable.tsx`: Top content table for analytics summaries.
 - `frontend/src/components/videos/VideoListTable.tsx`: Reusable videos table (headers, sort controls, empty state).
 - `frontend/src/components/videos/VideoListRow.tsx`: Reusable videos table row (thumbnail/title/description + action buttons + metrics cells).
-- `frontend/src/components/videos/VideoListRow.tsx` videos row keeps only the `Open in YouTube` action button; clicking the title opens `/videoDetails/:videoId`.
+- `frontend/src/components/videos/VideoListRow.tsx` videos row keeps only the `Open in YouTube` action button; clicking the title opens `/videos/:videoId`.
 - `frontend/src/pages/VideoDetail.tsx` tab selection (`Analytics`/`Comments`) is local UI state only (not URL query params), and each navigation to a video detail page defaults to `Analytics`.
 - `frontend/src/components/playlists/PlaylistItemsTable.tsx`: Reusable playlist-items table (headers with sortable `Position`, `Added`, and `Views`).
 - `frontend/src/components/playlists/PlaylistItemRow.tsx`: Reusable playlist-item row mirroring video-row layout with added position cell.

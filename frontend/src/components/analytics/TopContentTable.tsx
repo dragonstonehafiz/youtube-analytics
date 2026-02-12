@@ -38,7 +38,7 @@ function TopContentTable({ items }: TopContentTableProps) {
                 <div className="thumb" />
               )}
               <div className="meta">
-                <Link className="title top-content-link" to={`/videoDetails/${item.video_id}`}>
+                <Link className="title top-content-link" to={`/videos/${item.video_id}`}>
                   {item.title}
                 </Link>
               </div>

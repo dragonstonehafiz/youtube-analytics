@@ -18,7 +18,7 @@ function CommentVideoGroup({ videoId, videoTitle, videoThumbnailUrl, comments }:
           ) : (
             <div className="comments-group-thumb" />
           )}
-          <Link to={`/videoDetails/${videoId}`} className="comments-group-title">
+          <Link to={`/videos/${videoId}`} className="comments-group-title">
             {videoTitle}
           </Link>
         </div>

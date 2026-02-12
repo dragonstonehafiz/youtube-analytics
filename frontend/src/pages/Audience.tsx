@@ -190,7 +190,7 @@ function Audience() {
                         name={row.display_name}
                       />
                       <div className="audience-meta">
-                        <Link to={`/audienceDetails/${row.channel_id}`} className="audience-name-link">
+                        <Link to={`/audience/${row.channel_id}`} className="audience-name-link">
                           {row.display_name || '(unknown)'}
                         </Link>
                       </div>
