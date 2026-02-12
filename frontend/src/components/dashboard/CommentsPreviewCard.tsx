@@ -6,6 +6,7 @@ import './CommentsPreviewCard.css'
 type CommentPreview = {
   id: string
   author_name: string | null
+  author_channel_id: string | null
   author_profile_image_url: string | null
   published_at: string | null
   text_display: string | null
@@ -45,6 +46,13 @@ function CommentsPreviewCard() {
   const navigate = useNavigate()
   const [items, setItems] = useState<CommentPreview[]>([])
 
+  const handleOpenAudience = (channelId: string | null) => {
+    if (!channelId) {
+      return
+    }
+    navigate(`/audience/${channelId}`)
+  }
+
   useEffect(() => {
     async function loadCommentsPreview() {
       try {
@@ -53,6 +61,7 @@ function CommentsPreviewCard() {
         const mapped = (Array.isArray(data?.items) ? data.items : []).map((item: any) => ({
           id: String(item.id ?? ''),
           author_name: item.author_name ?? null,
+          author_channel_id: item.author_channel_id ?? null,
           author_profile_image_url: item.author_profile_image_url ?? null,
           published_at: item.published_at ?? null,
           text_display: item.text_display ?? null,
@@ -78,17 +87,35 @@ function CommentsPreviewCard() {
           {items.map((item) => (
             <article key={item.id} className="dashboard-comment-item">
               <div className="dashboard-comment-main">
-                <ProfileImage
-                  className="dashboard-comment-avatar"
-                  src={item.author_profile_image_url}
-                  name={item.author_name}
-                  fallbackInitial="U"
-                  youtubeAvatarSize={88}
-                />
+                <button
+                  type="button"
+                  className="dashboard-comment-avatar-button"
+                  onClick={() => handleOpenAudience(item.author_channel_id)}
+                  disabled={!item.author_channel_id}
+                  aria-label="View audience member"
+                >
+                  <ProfileImage
+                    className="dashboard-comment-avatar"
+                    src={item.author_profile_image_url}
+                    name={item.author_name}
+                    fallbackInitial="U"
+                    youtubeAvatarSize={88}
+                  />
+                </button>
                 <div className="dashboard-comment-content">
                   <div className="dashboard-comment-meta">
-                    <span className="dashboard-comment-handle">{toHandle(item.author_name)}</span>
-                    <span className="dashboard-comment-dot">•</span>
+                    {item.author_channel_id ? (
+                      <button
+                        type="button"
+                        className="video-title-button"
+                        onClick={() => handleOpenAudience(item.author_channel_id)}
+                      >
+                        {toHandle(item.author_name)}
+                      </button>
+                    ) : (
+                      <span className="video-title">{toHandle(item.author_name)}</span>
+                    )}
+                    <span className="dashboard-comment-sep">-</span>
                     <span className="dashboard-comment-time">{formatRelativeTime(item.published_at)}</span>
                   </div>
                   <div className="dashboard-comment-text">{item.text_display ?? ''}</div>
@@ -109,3 +136,4 @@ function CommentsPreviewCard() {
 }
 
 export default CommentsPreviewCard
+

@@ -5,6 +5,7 @@ import { MetricChartCard, VideoDetailListCard, type VideoDetailListItem } from '
 import { PageCard } from '../components/layout'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../components/playlists'
 import { formatDisplayDate } from '../utils/date'
+import { formatCurrency, formatWholeNumber } from '../utils/number'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
 import './Page.css'
 
@@ -855,20 +856,20 @@ function PlaylistDetail() {
                   {
                     key: 'views',
                     label: viewMode === 'playlist_views' ? 'Playlist Views' : 'Video Views',
-                    value: totals.views.toLocaleString(),
+                    value: formatWholeNumber(totals.views),
                     comparison: comparisons.views,
                   },
                   {
                     key: 'watch_time',
                     label: 'Watch time (hours)',
-                    value: Math.round(totals.watch_time_minutes / 60).toLocaleString(),
+                    value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
                     comparison: comparisons.watch_time,
                   },
                   {
                     key: 'subscribers',
                     label: viewMode === 'video_views' ? 'Subscribers' : 'Avg view duration',
                     value: viewMode === 'video_views'
-                      ? totals.subscribers_net.toLocaleString()
+                      ? formatWholeNumber(totals.subscribers_net)
                       : formatDurationSeconds(totals.average_view_duration_seconds),
                     comparison: comparisons.subscribers,
                   },
@@ -876,7 +877,7 @@ function PlaylistDetail() {
                     key: 'revenue',
                     label: viewMode === 'video_views' ? 'Estimated revenue' : 'Avg time in playlist',
                     value: viewMode === 'video_views'
-                      ? `$${Math.round(totals.estimated_revenue).toLocaleString()}`
+                      ? formatCurrency(totals.estimated_revenue)
                       : formatDurationSeconds(totals.average_time_in_playlist_seconds),
                     comparison: comparisons.revenue,
                   },

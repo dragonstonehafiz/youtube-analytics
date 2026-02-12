@@ -5,6 +5,7 @@ import { MetricChartCard } from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { CommentThreadItem, type CommentRow } from '../components/comments'
 import { formatDisplayDate } from '../utils/date'
+import { formatCurrency, formatWholeNumber } from '../utils/number'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
 import './Page.css'
 
@@ -27,6 +28,9 @@ type VideoDailyRow = {
   views: number | null
   watch_time_minutes: number | null
   estimated_revenue: number | null
+  ad_impressions: number | null
+  monetized_playbacks: number | null
+  cpm: number | null
   subscribers_gained: number | null
   subscribers_lost: number | null
 }
@@ -72,10 +76,70 @@ function aggregatePoints(points: SeriesPoint[], granularity: Granularity): Serie
   return aggregated
 }
 
+function aggregateWeightedPoints(
+  points: SeriesPoint[],
+  weights: SeriesPoint[],
+  granularity: Granularity
+): SeriesPoint[] {
+  if (granularity === 'daily' || points.length === 0) {
+    return points
+  }
+
+  const weightByDate = new Map(weights.map((point) => [point.date, point.value]))
+
+  if (granularity === 'monthly' || granularity === 'yearly') {
+    const grouped = new Map<string, { value: number; weight: number; lastDate: string; fallbackSum: number; fallbackCount: number }>()
+    points.forEach((point) => {
+      const key = granularity === 'monthly' ? point.date.slice(0, 7) : point.date.slice(0, 4)
+      const weight = weightByDate.get(point.date) ?? 0
+      const existing = grouped.get(key)
+      if (existing) {
+        existing.value += point.value * weight
+        existing.weight += weight
+        existing.fallbackSum += point.value
+        existing.fallbackCount += 1
+        existing.lastDate = point.date
+      } else {
+        grouped.set(key, {
+          value: point.value * weight,
+          weight,
+          lastDate: point.date,
+          fallbackSum: point.value,
+          fallbackCount: 1,
+        })
+      }
+    })
+    return Array.from(grouped.entries()).map(([key, group]) => ({
+      date: granularity === 'monthly' ? key : `${key}-01-01`,
+      value: group.weight > 0 ? group.value / group.weight : group.fallbackSum / group.fallbackCount,
+    }))
+  }
+
+  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
+  const aggregated: SeriesPoint[] = []
+  for (let index = 0; index < points.length; index += windowSize) {
+    const bucket = points.slice(index, index + windowSize)
+    let weightedSum = 0
+    let weightSum = 0
+    let fallbackSum = 0
+    bucket.forEach((item) => {
+      const weight = weightByDate.get(item.date) ?? 0
+      weightedSum += item.value * weight
+      weightSum += weight
+      fallbackSum += item.value
+    })
+    aggregated.push({
+      date: bucket[bucket.length - 1].date,
+      value: weightSum > 0 ? weightedSum / weightSum : fallbackSum / bucket.length,
+    })
+  }
+  return aggregated
+}
+
 function VideoDetail() {
   const { videoId } = useParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'analytics' | 'comments'>('analytics')
+  const [activeTab, setActiveTab] = useState<'analytics' | 'monetization' | 'comments'>('analytics')
   const [video, setVideo] = useState<VideoMetadata | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -113,11 +177,18 @@ function VideoDetail() {
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
   const [granularity, setGranularity] = useState<Granularity>(getStored('videoDetailGranularity', 'daily'))
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
+  const [monetizationSeries, setMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [totals, setTotals] = useState({
     views: 0,
     watch_time_minutes: 0,
     subscribers_net: 0,
     estimated_revenue: 0,
+  })
+  const [monetizationTotals, setMonetizationTotals] = useState({
+    estimated_revenue: 0,
+    ad_impressions: 0,
+    monetized_playbacks: 0,
+    cpm: 0,
   })
   const commentsTotalPages = useMemo(() => Math.max(1, Math.ceil(commentsTotal / commentsPageSize)), [commentsTotal, commentsPageSize])
   const commentThreads = useMemo(() => {
@@ -242,6 +313,8 @@ function VideoDetail() {
         setYears([])
         setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
         setTotals({ views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0 })
+        setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [] })
+        setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
         setAnalyticsError('Missing video ID.')
         return
       }
@@ -270,6 +343,8 @@ function VideoDetail() {
         if (sorted.length === 0) {
           setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
           setTotals({ views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0 })
+          setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [] })
+          setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
           return
         }
       } catch (err) {
@@ -314,6 +389,9 @@ function VideoDetail() {
           value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0),
         }))
         const revenueSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 }))
+        const adImpressionsSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.ad_impressions ?? 0 }))
+        const monetizedPlaybacksSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.monetized_playbacks ?? 0 }))
+        const cpmSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.cpm ?? 0 }))
 
         const totalViews = sorted.reduce((sum, item) => sum + (item.views ?? 0), 0)
         const totalWatchMinutes = sorted.reduce((sum, item) => sum + (item.watch_time_minutes ?? 0), 0)
@@ -322,6 +400,9 @@ function VideoDetail() {
           0
         )
         const totalRevenue = sorted.reduce((sum, item) => sum + (item.estimated_revenue ?? 0), 0)
+        const totalAdImpressions = sorted.reduce((sum, item) => sum + (item.ad_impressions ?? 0), 0)
+        const totalMonetizedPlaybacks = sorted.reduce((sum, item) => sum + (item.monetized_playbacks ?? 0), 0)
+        const totalCpm = sorted.reduce((sum, item) => sum + (item.cpm ?? 0), 0)
 
         setSeries({
           views: aggregatePoints(viewsSeries, granularity),
@@ -334,6 +415,18 @@ function VideoDetail() {
           watch_time_minutes: totalWatchMinutes,
           subscribers_net: totalSubsNet,
           estimated_revenue: totalRevenue,
+        })
+        setMonetizationSeries({
+          estimated_revenue: aggregatePoints(revenueSeries, granularity),
+          ad_impressions: aggregatePoints(adImpressionsSeries, granularity),
+          monetized_playbacks: aggregatePoints(monetizedPlaybacksSeries, granularity),
+          cpm: aggregateWeightedPoints(cpmSeries, adImpressionsSeries, granularity),
+        })
+        setMonetizationTotals({
+          estimated_revenue: totalRevenue,
+          ad_impressions: totalAdImpressions,
+          monetized_playbacks: totalMonetizedPlaybacks,
+          cpm: totalCpm,
         })
     } catch (err) {
       setAnalyticsError(err instanceof Error ? err.message : 'Failed to process analytics.')
@@ -444,10 +537,16 @@ function VideoDetail() {
           <div className="video-detail-toolbar">
             <div className="analytics-range-controls">
               <ActionButton
-                label="Analytics"
+                label="Metrics"
                 onClick={() => setActiveTab('analytics')}
                 variant="soft"
                 active={activeTab === 'analytics'}
+              />
+              <ActionButton
+                label="Monetization"
+                onClick={() => setActiveTab('monetization')}
+                variant="soft"
+                active={activeTab === 'monetization'}
               />
               <ActionButton
                 label="Comments"
@@ -456,7 +555,7 @@ function VideoDetail() {
                 active={activeTab === 'comments'}
               />
             </div>
-            {activeTab === 'analytics' ? (
+            {activeTab === 'analytics' || activeTab === 'monetization' ? (
               <div className="analytics-range-controls">
               <Dropdown
                 value={granularity}
@@ -581,21 +680,54 @@ function VideoDetail() {
             ) : analyticsError ? (
               <div className="video-detail-state">{analyticsError}</div>
             ) : (
-              <MetricChartCard
-                metrics={[
-                  { key: 'views', label: 'Views', value: totals.views.toLocaleString() },
-                  { key: 'watch_time', label: 'Watch time (hours)', value: Math.round(totals.watch_time_minutes / 60).toLocaleString() },
-                  { key: 'subscribers', label: 'Subscribers', value: totals.subscribers_net.toLocaleString() },
-                  { key: 'revenue', label: 'Estimated revenue', value: `$${Math.round(totals.estimated_revenue).toLocaleString()}` },
-                ]}
-                series={{
-                  views: series.views ?? [],
-                  watch_time: series.watch_time ?? [],
-                  subscribers: series.subscribers ?? [],
-                  revenue: series.revenue ?? [],
-                }}
-                publishedDates={{}}
-              />
+              activeTab === 'analytics' ? (
+                <MetricChartCard
+                  metrics={[
+                    { key: 'views', label: 'Views', value: formatWholeNumber(totals.views) },
+                    { key: 'watch_time', label: 'Watch time (hours)', value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)) },
+                    { key: 'subscribers', label: 'Subscribers', value: formatWholeNumber(totals.subscribers_net) },
+                    { key: 'revenue', label: 'Estimated revenue', value: formatCurrency(totals.estimated_revenue) },
+                  ]}
+                  series={{
+                    views: series.views ?? [],
+                    watch_time: series.watch_time ?? [],
+                    subscribers: series.subscribers ?? [],
+                    revenue: series.revenue ?? [],
+                  }}
+                  publishedDates={{}}
+                />
+              ) : (
+                <MetricChartCard
+                  metrics={[
+                    {
+                      key: 'estimated_revenue',
+                      label: 'Estimated revenue',
+                      value: formatCurrency(monetizationTotals.estimated_revenue),
+                    },
+                    {
+                      key: 'ad_impressions',
+                      label: 'Ad impressions',
+                      value: formatWholeNumber(monetizationTotals.ad_impressions),
+                    },
+                    {
+                      key: 'monetized_playbacks',
+                      label: 'Monetized playbacks',
+                      value: formatWholeNumber(monetizationTotals.monetized_playbacks),
+                    },
+                    {
+                      key: 'cpm',
+                      label: 'CPM',
+                      value: formatCurrency(monetizationTotals.cpm),
+                    },
+                  ]}
+                  series={{
+                    estimated_revenue: monetizationSeries.estimated_revenue ?? [],
+                    ad_impressions: monetizationSeries.ad_impressions ?? [],
+                    monetized_playbacks: monetizationSeries.monetized_playbacks ?? [],
+                    cpm: monetizationSeries.cpm ?? [],
+                  }}
+                />
+              )
             )}
           </PageCard>
         </div>

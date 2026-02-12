@@ -669,6 +669,13 @@ def list_daily_summary(start_date: str, end_date: str, content_type: str | None 
                 SUM(a.views) AS views,
                 SUM(a.watch_time_minutes) AS watch_time_minutes,
                 SUM(a.estimated_revenue) AS estimated_revenue,
+                SUM(a.ad_impressions) AS ad_impressions,
+                SUM(a.monetized_playbacks) AS monetized_playbacks,
+                CASE
+                    WHEN SUM(COALESCE(a.ad_impressions, 0)) > 0
+                    THEN SUM(COALESCE(a.cpm, 0) * COALESCE(a.ad_impressions, 0)) / SUM(COALESCE(a.ad_impressions, 0))
+                    ELSE AVG(a.cpm)
+                END AS cpm,
                 SUM(a.average_view_duration_seconds) AS average_view_duration_seconds,
                 SUM(a.likes) AS likes,
                 SUM(a.comments) AS comments,
@@ -689,9 +696,18 @@ def list_daily_summary(start_date: str, end_date: str, content_type: str | None 
         "views": sum(item.get("views") or 0 for item in items),
         "watch_time_minutes": sum(item.get("watch_time_minutes") or 0 for item in items),
         "estimated_revenue": sum(item.get("estimated_revenue") or 0 for item in items),
+        "ad_impressions": sum(item.get("ad_impressions") or 0 for item in items),
+        "monetized_playbacks": sum(item.get("monetized_playbacks") or 0 for item in items),
+        "cpm": None,
         "subscribers_gained": sum(item.get("subscribers_gained") or 0 for item in items),
         "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
     }
+    if totals["ad_impressions"] > 0:
+        totals["cpm"] = sum(
+            (item.get("cpm") or 0) * (item.get("ad_impressions") or 0) for item in items
+        ) / totals["ad_impressions"]
+    else:
+        totals["cpm"] = sum(item.get("cpm") or 0 for item in items) / len(items) if items else 0
     totals["subscribers_net"] = totals["subscribers_gained"] - totals["subscribers_lost"]
     return {"items": items, "totals": totals}
 
@@ -707,10 +723,25 @@ def list_channel_daily(
             """
             SELECT
                 date AS day,
+                engaged_views,
                 views,
                 watch_time_minutes,
                 estimated_revenue,
+                estimated_ad_revenue,
+                gross_revenue,
+                estimated_red_partner_revenue,
                 average_view_duration_seconds,
+                average_view_percentage,
+                likes,
+                dislikes,
+                comments,
+                shares,
+                monetized_playbacks,
+                playback_based_cpm,
+                ad_impressions,
+                cpm,
+                impressions,
+                impressions_ctr,
                 subscribers_gained,
                 subscribers_lost
             FROM channel_daily_analytics
@@ -722,10 +753,25 @@ def list_channel_daily(
 
     items = [row_to_dict(row) for row in rows]
     totals = {
+        "engaged_views": sum(item.get("engaged_views") or 0 for item in items),
         "views": sum(item.get("views") or 0 for item in items),
         "watch_time_minutes": sum(item.get("watch_time_minutes") or 0 for item in items),
         "estimated_revenue": sum(item.get("estimated_revenue") or 0 for item in items),
+        "estimated_ad_revenue": sum(item.get("estimated_ad_revenue") or 0 for item in items),
+        "gross_revenue": sum(item.get("gross_revenue") or 0 for item in items),
+        "estimated_red_partner_revenue": sum(item.get("estimated_red_partner_revenue") or 0 for item in items),
         "average_view_duration_seconds": sum(item.get("average_view_duration_seconds") or 0 for item in items),
+        "average_view_percentage": sum(item.get("average_view_percentage") or 0 for item in items),
+        "likes": sum(item.get("likes") or 0 for item in items),
+        "dislikes": sum(item.get("dislikes") or 0 for item in items),
+        "comments": sum(item.get("comments") or 0 for item in items),
+        "shares": sum(item.get("shares") or 0 for item in items),
+        "monetized_playbacks": sum(item.get("monetized_playbacks") or 0 for item in items),
+        "playback_based_cpm": sum(item.get("playback_based_cpm") or 0 for item in items),
+        "ad_impressions": sum(item.get("ad_impressions") or 0 for item in items),
+        "cpm": sum(item.get("cpm") or 0 for item in items),
+        "impressions": sum(item.get("impressions") or 0 for item in items),
+        "impressions_ctr": sum(item.get("impressions_ctr") or 0 for item in items),
         "subscribers_gained": sum(item.get("subscribers_gained") or 0 for item in items),
         "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
     }
@@ -830,7 +876,7 @@ def list_top_content(
     sort_by: str = Query(default="views"),
     direction: str = Query(default="desc"),
 ) -> dict:
-    """Return content in a date range, sorted by views or publish date, optionally filtered by content type."""
+    """Return content in a date range, sorted by supported metric/date, optionally filtered by content type."""
     where_sql = "a.date >= ? AND a.date <= ?"
     params: list[object] = [start_date, end_date]
     if content_type:
@@ -841,6 +887,7 @@ def list_top_content(
         params.append(privacy_status)
     sort_map = {
         "views": "views",
+        "estimated_revenue": "estimated_revenue",
         "published_at": "COALESCE(v.published_at, '')",
     }
     sort_column = sort_map.get(sort_by, "views")
@@ -857,6 +904,7 @@ def list_top_content(
                 v.duration_seconds AS duration_seconds,
                 SUM(a.views) AS views,
                 SUM(a.watch_time_minutes) AS watch_time_minutes,
+                SUM(a.estimated_revenue) AS estimated_revenue,
                 AVG(a.average_view_duration_seconds) AS avg_view_duration_seconds
             FROM daily_analytics a
             JOIN videos v ON v.id = a.video_id
@@ -882,6 +930,7 @@ def list_top_content(
                 "thumbnail_url": row["thumbnail_url"] or "",
                 "views": row["views"] or 0,
                 "watch_time_minutes": row["watch_time_minutes"] or 0,
+                "estimated_revenue": row["estimated_revenue"] or 0,
                 "avg_view_duration_seconds": avg_view_duration_seconds,
                 "avg_view_pct": avg_view_pct,
             }

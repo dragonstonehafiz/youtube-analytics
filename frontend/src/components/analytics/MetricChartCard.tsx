@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { formatDecimalNumber, formatWholeNumber } from '../../utils/number'
 import './MetricChartCard.css'
 
-type MetricKey = 'views' | 'watch_time' | 'subscribers' | 'revenue'
-
 type MetricSummary = {
-  key: MetricKey
+  key: string
   label: string
   value: string
   comparison?: {
@@ -23,7 +22,7 @@ type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 
 type MetricChartCardProps = {
   metrics: MetricSummary[]
-  series: Record<MetricKey, SeriesPoint[]>
+  series: Record<string, SeriesPoint[]>
   publishedDates?: Record<string, PublishedItem[]>
   publishedBucketMeta?: Record<string, BucketMeta>
 }
@@ -40,8 +39,10 @@ type ClusteredMarker = {
   dayCount: number
 }
 
+const DECIMAL_METRICS = new Set(['revenue', 'estimated_revenue', 'cpm', 'rpm', 'playback_based_cpm'])
+
 function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucketMeta = {} }: MetricChartCardProps) {
-  const [activeMetric, setActiveMetric] = useState<MetricKey>('views')
+  const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [hoverPublish, setHoverPublish] = useState<{
     x: number
@@ -76,6 +77,12 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
     observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [])
+
+  useEffect(() => {
+    if (!metrics.some((metric) => metric.key === activeMetric)) {
+      setActiveMetric(metrics[0]?.key ?? '')
+    }
+  }, [metrics, activeMetric])
 
   const { minValue, maxValue, ticks } = useMemo(() => {
     const values = points.map((point) => point.value)
@@ -244,6 +251,10 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
     setHoverIndex(null)
   }
 
+  const formatChartValue = (value: number) => (
+    DECIMAL_METRICS.has(activeMetric) ? formatDecimalNumber(value) : formatWholeNumber(Math.round(value))
+  )
+
   return (
     <div className="metric-chart-card" ref={containerRef}>
       <div className="metric-row">
@@ -293,7 +304,7 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
                 fill="#64748b"
                 textAnchor="end"
               >
-                {Math.round(tick).toLocaleString()}
+                {formatChartValue(tick)}
               </text>
             </g>
           ))}
@@ -390,7 +401,7 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
             style={{ left: activeX, top: activeY }}
           >
             <div className="tooltip-date">{activePoint.date}</div>
-            <div className="tooltip-value">{activePoint.value.toLocaleString()}</div>
+            <div className="tooltip-value">{formatChartValue(activePoint.value)}</div>
           </div>
         ) : null}
         {hoverPublish ? (

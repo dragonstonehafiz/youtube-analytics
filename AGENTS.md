@@ -52,6 +52,9 @@ Use this file to understand where to make changes and which conventions to follo
 - Whenever possible, reuse existing UI components (especially from `frontend/src/components/ui/`) instead of introducing custom one-off controls.
 - Shared color theme lives in `frontend/src/index.css` as CSS variables.
 - All user-visible dates use `day month year` format (e.g., `22 February 2026`) via `frontend/src/utils/date.ts` `formatDisplayDate(...)`; avoid time-of-day display unless explicitly required.
+- Number formatting:
+  - Whole numbers use `X,XXX` grouping (views, subscribers, counts).
+  - Decimals use `X,XX.000` (estimated revenue, CPM, rates).
 - In list/table UIs, if an item has a corresponding internal app detail page, navigation should be attached to that item's title text.
 - In list/table UIs, row heights must remain constrained and consistent; content must truncate/clamp/ellipsis instead of changing row height.
 - In list/table UIs, column headers must use the same alignment as their column content.
@@ -103,13 +106,21 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /videos/{video_id}` returns a single video row for video detail metadata.
 - Video `content_type` classification in `backend/src/database/videos.py` uses short-video IDs from the `UUSH...`-derived playlist (`backend/src/youtube/videos.py`) instead of stream dimensions/thumbnail heuristics.
 - `sync_videos` (and the videos pull inside `sync_all`) fetches shorts IDs via `get_short_video_ids()` and passes them to `upsert_videos(..., short_video_ids=...)`; if shorts ID retrieval fails, videos sync fails (fail-fast behavior).
-- `sync_channel_analytics` writes a single combined channel-daily series to `channel_daily_analytics` (one row per day).
-- `sync_video_analytics` writes per-video daily series to `daily_analytics` (one row per `video_id` + day).
+- `sync_channel_analytics` writes a single combined channel-daily series to `channel_daily_analytics` (one row per day) and stores expanded channel metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `likes`, `dislikes`, `comments`, `shares`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
+- `sync_video_analytics` writes per-video daily series to `daily_analytics` (one row per `video_id` + day) and stores expanded video metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
 - `GET /analytics/channel-daily` returns the single combined channel-daily series.
 - `frontend/src/pages/Analytics.tsx` chart range is trimmed to the first/last day that has channel-daily data within the selected range, while still rendering zero-value gaps for missing days inside that trimmed span.
-- `GET /analytics/daily/summary` supports optional `content_type` (`video` or `short`) and aggregates from `daily_analytics` joined to `videos`.
+- `GET /analytics/daily/summary` supports optional `content_type` (`video` or `short`) and aggregates from `daily_analytics` joined to `videos`, including `cpm` as an ad-impression-weighted average.
+- `GET /analytics/daily/summary` includes `ad_impressions` and `monetized_playbacks` in per-day items and totals.
 - `frontend/src/pages/Analytics.tsx` includes a content dropdown with `All Videos`, `Longform`, `Shortform`; `All Videos` uses `/analytics/channel-daily`, while `Longform`/`Shortform` use `/analytics/daily/summary?content_type=...` for the same chart component.
 - `frontend/src/pages/Analytics.tsx` includes a granularity dropdown for chart aggregation: `Daily`, `7-days`, `28-days`, `90-days`, `Monthly`, `Yearly`. Aggregation is done in frontend from daily series data.
+- `frontend/src/pages/Analytics.tsx` includes a top tab switch between `Metrics` and `Monetization`; the date/content/granularity/range controls are shared and drive data on both tabs.
+- `frontend/src/pages/Analytics.tsx` keeps the shared date/content/granularity/range controls in the page header row (above the Metrics/Monetization tab row).
+- `frontend/src/pages/Analytics.tsx` monetization view renders a top `MetricChartCard` sourced from `GET /analytics/channel-daily`, plus a second row with `How much you're earning` and `Content performance` cards.
+- CPM chart aggregation uses ad-impression-weighted averages when grouping multiple days (7-day, 28-day, monthly, yearly) instead of summing CPM values.
+- Monetization chart metrics on `frontend/src/pages/Analytics.tsx` are `Estimated revenue` (`estimated_revenue`), `Ad impressions` (`ad_impressions`), `Monetized playbacks` (`monetized_playbacks`), and `CPM` (`cpm`), aggregated in frontend by selected granularity.
+- On `frontend/src/pages/Analytics.tsx`, monetization chart data uses `GET /analytics/daily/summary` and follows the shared content selector (`All Videos`, `Longform`, `Shortform`).
+- In `MonetizationContentPerformanceCard`, video titles are clickable and navigate to the video detail page.
 - `frontend/src/pages/Analytics.tsx` KPI cards now compare current totals to the immediately previous equal-length date window and show trend indicators (green up/gray down) with text like `X% more/less than previous N days`.
 - `frontend/src/pages/Analytics.tsx` includes a right-side top-content rail with two reusable cards (`frontend/src/components/analytics/VideoDetailListCard.tsx`): one for longform (`content_type=video`) and one for shorts (`content_type=short`), each sourced from `GET /analytics/top-content` over the last 90 days and sorted by views (`sort_by=views`, `direction=desc`).
 - `frontend/src/components/analytics/VideoDetailListCard.tsx` is the reusable video-detail list card component (title + arbitrary item list + CTA), and supports per-metric typical-range meters (currently views and average view duration) with up/down trend arrows when the active video is outside the card's typical range.
@@ -117,8 +128,8 @@ Use this file to understand where to make changes and which conventions to follo
 - On `frontend/src/pages/Analytics.tsx`, only the two latest-content cards request `privacy_status=public` (public videos only). `Top content this period` remains unfiltered by privacy unless content type filtering is applied.
 - `GET /videos/published` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to upload indicators (All = all uploads, Longform = only longform uploads, Shortform = only short uploads).
 - `GET /analytics/top-content` supports optional `content_type` (`video` or `short`), and `frontend/src/pages/Analytics.tsx` applies the same content dropdown to `Top content this period`.
-- `GET /analytics/top-content` also supports optional sorting via `sort_by` (`views` or `published_at`) and `direction` (`asc`/`desc`).
-- `GET /analytics/top-content` items include `watch_time_minutes` in addition to views and average view duration metrics.
+- `GET /analytics/top-content` also supports optional sorting via `sort_by` (`views`, `estimated_revenue`, or `published_at`) and `direction` (`asc`/`desc`).
+- `GET /analytics/top-content` items include `watch_time_minutes` and `estimated_revenue` in addition to views and average view duration metrics.
 - `GET /analytics/top-content` also supports optional `privacy_status` filtering (e.g., `public`).
 - Upload indicators on the Analytics chart are rebucketed to match selected granularity (`Daily`, `7-days`, `28-days`, `90-days`, `Monthly`, `Yearly`) using the same day-bucket mapping as the graph.
 - Grouped upload-indicator tooltip headers show bucket start date, end date, and window length (days), plus published count.
@@ -160,7 +171,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/Dashboard.tsx` includes a `Channel analytics` card showing current subscribers as lifetime net subscribers (`SUM(subscribers_gained - subscribers_lost)`) from `GET /analytics/channel-daily`, plus last-28-day summary metrics (views, watch time hours, estimated revenue) with simple up/down trend indicators vs the previous 28-day window.
 - Dashboard cards are componentized under `frontend/src/components/dashboard/`:
   - `ChannelAnalyticsCard.tsx`: DB-backed channel summary card (lifetime net subscribers + last-28-day metrics/trends).
-  - `CommentsPreviewCard.tsx`: Recent comments preview card (latest comments list + `View more` to `/comments`).
+  - `CommentsPreviewCard.tsx`: Recent comments preview card (latest comments list + `View more` to `/comments`); comment author avatar/handle links to `/audience/:channelId` when available.
   - `MostActiveAudienceCard.tsx`: Most active community members card for the last 90 days with `View audience` action.
 - Dashboard rows share a common sizing class (`dashboard-row` in `frontend/src/pages/Page.css`) so channel and latest-content sections follow the same width format instead of per-row width overrides.
 - Dashboard cards use a shared fixed card width pattern via `.dashboard-row > .page-card` (non-stretch, wrapping layout) so sections do not auto-fill row width.
@@ -184,7 +195,8 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/components/videos/VideoListTable.tsx`: Reusable videos table (headers, sort controls, empty state).
 - `frontend/src/components/videos/VideoListRow.tsx`: Reusable videos table row (thumbnail/title/description + action buttons + metrics cells).
 - `frontend/src/components/videos/VideoListRow.tsx` videos row keeps only the `Open in YouTube` action button; clicking the title opens `/videos/:videoId`.
-- `frontend/src/pages/VideoDetail.tsx` tab selection (`Analytics`/`Comments`) is local UI state only (not URL query params), and each navigation to a video detail page defaults to `Analytics`.
+- `frontend/src/pages/VideoDetail.tsx` tab selection (`Analytics`/`Monetization`/`Comments`) is local UI state only (not URL query params), and each navigation to a video detail page defaults to `Analytics`.
+- `frontend/src/pages/VideoDetail.tsx` monetization tab reuses `MetricChartCard` with the same range/granularity controls as analytics, showing `Estimated revenue`, `Ad impressions`, and `Monetized playbacks` for that video.
 - `frontend/src/components/playlists/PlaylistItemsTable.tsx`: Reusable playlist-items table (headers with sortable `Position`, `Added`, and `Views`).
 - `frontend/src/components/playlists/PlaylistItemRow.tsx`: Reusable playlist-item row mirroring video-row layout with added position cell.
 - Component barrels live in:

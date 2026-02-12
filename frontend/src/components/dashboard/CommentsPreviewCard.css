@@ -42,6 +42,20 @@
   min-width: 0;
 }
 
+.dashboard-comment-avatar-button {
+  border: none;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.dashboard-comment-avatar-button:disabled {
+  cursor: default;
+}
+
 .dashboard-comment-avatar {
   width: 34px;
   height: 34px;
@@ -73,12 +87,7 @@
   font-size: 12px;
 }
 
-.dashboard-comment-handle {
-  color: #334155;
-  font-weight: 600;
-}
-
-.dashboard-comment-dot {
+.dashboard-comment-sep {
   color: #94a3b8;
 }
 

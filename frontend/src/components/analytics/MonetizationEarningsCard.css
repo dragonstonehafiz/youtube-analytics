@@ -1,0 +1,56 @@
+.earnings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.earnings-card-title {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.earnings-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.earnings-card-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 112px;
+  gap: 10px;
+  align-items: center;
+}
+
+.earnings-card-row > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.earnings-card-bar-wrap {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+}
+
+.earnings-card-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #0ea5a4;
+}
+
+.earnings-card-row strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .earnings-card-row {
+    grid-template-columns: 130px minmax(0, 1fr) 104px;
+  }
+}

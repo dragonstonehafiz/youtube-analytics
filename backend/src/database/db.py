@@ -28,6 +28,7 @@ def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(schema_sql)
         _ensure_video_columns(conn)
+        _ensure_daily_analytics_columns(conn)
         _ensure_channel_daily_columns(conn)
         _ensure_sync_run_columns(conn)
         _ensure_comment_columns(conn)
@@ -67,12 +68,47 @@ def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
 def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
     """Add new columns to channel_daily_analytics table if missing (idempotent)."""
     columns = [
+        ("engaged_views", "INTEGER"),
+        ("estimated_ad_revenue", "REAL"),
+        ("gross_revenue", "REAL"),
+        ("estimated_red_partner_revenue", "REAL"),
+        ("average_view_percentage", "REAL"),
+        ("likes", "INTEGER"),
+        ("dislikes", "INTEGER"),
+        ("comments", "INTEGER"),
+        ("shares", "INTEGER"),
+        ("monetized_playbacks", "INTEGER"),
+        ("playback_based_cpm", "REAL"),
+        ("ad_impressions", "INTEGER"),
+        ("cpm", "REAL"),
+        ("impressions", "INTEGER"),
+        ("impressions_ctr", "REAL"),
         ("subscribers_gained", "INTEGER"),
         ("subscribers_lost", "INTEGER"),
     ]
     for name, col_type in columns:
         try:
             conn.execute(f"ALTER TABLE channel_daily_analytics ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_daily_analytics_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to daily_analytics table if missing (idempotent)."""
+    columns = [
+        ("engaged_views", "INTEGER"),
+        ("estimated_ad_revenue", "REAL"),
+        ("gross_revenue", "REAL"),
+        ("estimated_red_partner_revenue", "REAL"),
+        ("average_view_percentage", "REAL"),
+        ("monetized_playbacks", "INTEGER"),
+        ("playback_based_cpm", "REAL"),
+        ("ad_impressions", "INTEGER"),
+        ("cpm", "REAL"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE daily_analytics ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
 
@@ -161,4 +197,3 @@ def _ensure_playlist_items_schema(conn: sqlite3.Connection) -> None:
         conn.commit()
     finally:
         conn.execute("PRAGMA foreign_keys = ON;")
-

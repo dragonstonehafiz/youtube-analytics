@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DateRangePicker, Dropdown } from '../components/ui'
-import { MetricChartCard, TopContentTable, VideoDetailListCard } from '../components/analytics'
+import {
+  MetricChartCard,
+  MonetizationContentPerformanceCard,
+  MonetizationEarningsCard,
+  TopContentTable,
+  VideoDetailListCard,
+} from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { formatDisplayDate } from '../utils/date'
+import { formatCurrency, formatWholeNumber } from '../utils/number'
 import { getStored, setStored } from '../utils/storage'
 import './Page.css'
 
@@ -31,6 +38,34 @@ type LatestContentItem = {
   watch_time_minutes: number
   avg_view_duration_seconds: number
   avg_view_pct: number
+}
+type AnalyticsTab = 'metrics' | 'monetization'
+type MonetizationTotalsState = {
+  estimated_revenue: number
+  ad_impressions: number
+  monetized_playbacks: number
+  cpm: number
+}
+type MonetizationComparisonState = Partial<
+  Record<'estimated_revenue' | 'ad_impressions' | 'monetized_playbacks' | 'cpm', MetricComparison>
+>
+type MonetizationContentType = 'video' | 'short'
+type MonetizationMonthly = {
+  monthKey: string
+  label: string
+  amount: number
+}
+type MonetizationTopItem = {
+  video_id: string
+  title: string
+  thumbnail_url: string
+  revenue: number
+}
+type MonetizationPerformance = {
+  views: number
+  estimated_revenue: number
+  rpm: number
+  items: MonetizationTopItem[]
 }
 
 function buildDayBucketMap(days: string[], granularity: Granularity): Map<string, string> {
@@ -152,6 +187,66 @@ function aggregatePoints(points: SeriesPoint[], granularity: Granularity): Serie
   return aggregated
 }
 
+function aggregateWeightedPoints(
+  points: SeriesPoint[],
+  weights: SeriesPoint[],
+  granularity: Granularity
+): SeriesPoint[] {
+  if (granularity === 'daily' || points.length === 0) {
+    return points
+  }
+
+  const weightByDate = new Map(weights.map((point) => [point.date, point.value]))
+
+  if (granularity === 'monthly' || granularity === 'yearly') {
+    const grouped = new Map<string, { value: number; weight: number; lastDate: string; fallbackSum: number; fallbackCount: number }>()
+    points.forEach((point) => {
+      const key = granularity === 'monthly' ? point.date.slice(0, 7) : point.date.slice(0, 4)
+      const weight = weightByDate.get(point.date) ?? 0
+      const existing = grouped.get(key)
+      if (existing) {
+        existing.value += point.value * weight
+        existing.weight += weight
+        existing.fallbackSum += point.value
+        existing.fallbackCount += 1
+        existing.lastDate = point.date
+      } else {
+        grouped.set(key, {
+          value: point.value * weight,
+          weight,
+          lastDate: point.date,
+          fallbackSum: point.value,
+          fallbackCount: 1,
+        })
+      }
+    })
+    return Array.from(grouped.entries()).map(([key, group]) => ({
+      date: granularity === 'monthly' ? key : `${key}-01-01`,
+      value: group.weight > 0 ? group.value / group.weight : group.fallbackSum / group.fallbackCount,
+    }))
+  }
+
+  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
+  const aggregated: SeriesPoint[] = []
+  for (let index = 0; index < points.length; index += windowSize) {
+    const bucket = points.slice(index, index + windowSize)
+    let weightedSum = 0
+    let weightSum = 0
+    let fallbackSum = 0
+    bucket.forEach((item) => {
+      const weight = weightByDate.get(item.date) ?? 0
+      weightedSum += item.value * weight
+      weightSum += weight
+      fallbackSum += item.value
+    })
+    aggregated.push({
+      date: bucket[bucket.length - 1].date,
+      value: weightSum > 0 ? weightedSum / weightSum : fallbackSum / bucket.length,
+    })
+  }
+  return aggregated
+}
+
 function Analytics() {
   const navigate = useNavigate()
   const [years, setYears] = useState<string[]>([])
@@ -170,6 +265,7 @@ function Analytics() {
     customEnd?: string
   } | null)
   const [mode, setMode] = useState<'presets' | 'year' | 'custom'>(storedRange?.mode ?? 'presets')
+  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>(getStored('analyticsTab', 'metrics'))
   const [presetSelection, setPresetSelection] = useState(storedRange?.presetSelection ?? 'range:28d')
   const [yearSelection, setYearSelection] = useState(storedRange?.yearSelection ?? '')
   const [monthSelection, setMonthSelection] = useState(storedRange?.monthSelection ?? 'all')
@@ -189,6 +285,7 @@ function Analytics() {
     estimated_revenue: 0,
   })
   const [comparisons, setComparisons] = useState<Partial<Record<MetricKey, MetricComparison>>>({})
+  const [monetizationComparisons, setMonetizationComparisons] = useState<MonetizationComparisonState>({})
   const [latestLongform, setLatestLongform] = useState<LatestContentItem[]>([])
   const [latestShorts, setLatestShorts] = useState<LatestContentItem[]>([])
   const [topContent, setTopContent] = useState<
@@ -204,6 +301,24 @@ function Analytics() {
       views: string
     }[]
   >([])
+  const [monetizationTotals, setMonetizationTotals] = useState<MonetizationTotalsState>({
+    estimated_revenue: 0,
+    ad_impressions: 0,
+    monetized_playbacks: 0,
+    cpm: 0,
+  })
+  const [monetizationContentType, setMonetizationContentType] = useState<MonetizationContentType>('video')
+  const [monthlyEarnings, setMonthlyEarnings] = useState<MonetizationMonthly[]>([])
+  const [contentPerformance, setContentPerformance] = useState<Record<MonetizationContentType, MonetizationPerformance>>({
+    video: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
+    short: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
+  })
+  const [monetizationSeries, setMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({
+    estimated_revenue: [],
+    ad_impressions: [],
+    monetized_playbacks: [],
+    cpm: [],
+  })
 
   const range = useMemo(() => {
     const now = new Date()
@@ -262,6 +377,18 @@ function Analytics() {
     }
   }, [range.start, range.end])
 
+  const buildComparison = (currentValue: number, previousValue: number, windowLabel: string): MetricComparison => {
+    const rawDelta = currentValue - previousValue
+    if (rawDelta === 0) {
+      return { direction: 'flat', percentText: `No change vs previous ${windowLabel}` }
+    }
+    const base = previousValue === 0 ? 1 : Math.abs(previousValue)
+    const percent = Math.abs((rawDelta / base) * 100)
+    return {
+      direction: rawDelta > 0 ? 'up' : 'down',
+      percentText: `${percent.toFixed(1)}% ${rawDelta > 0 ? 'more' : 'less'} than previous ${windowLabel}`,
+    }
+  }
   useEffect(() => {
     async function loadYears() {
       try {
@@ -303,6 +430,10 @@ function Analytics() {
   useEffect(() => {
     setStored('analyticsGranularity', granularity)
   }, [granularity])
+
+  useEffect(() => {
+    setStored('analyticsTab', analyticsTab)
+  }, [analyticsTab])
 
   useEffect(() => {
     async function loadSummary() {
@@ -527,6 +658,176 @@ function Analytics() {
     loadLatestContentCards()
   }, [])
 
+  useEffect(() => {
+    async function loadMonetizationData() {
+      try {
+        const startDate = range.start
+        const endDate = range.end
+        const previousStart = previousRange.start
+        const previousEnd = previousRange.end
+
+        const monetizationSummaryUrl =
+          contentSelection === 'all'
+            ? `http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}`
+            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=${contentSelection}`
+        const monetizationPreviousUrl =
+          contentSelection === 'all'
+            ? `http://127.0.0.1:8000/analytics/daily/summary?start_date=${previousStart}&end_date=${previousEnd}`
+            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${previousStart}&end_date=${previousEnd}&content_type=${contentSelection}`
+
+        const [monetizationSummaryResponse, previousSummaryResponse, videoSummaryResponse, shortSummaryResponse, videoTopResponse, shortTopResponse] = await Promise.all([
+          fetch(monetizationSummaryUrl),
+          fetch(monetizationPreviousUrl),
+          fetch(`http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=video`),
+          fetch(`http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=short`),
+          fetch(
+            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${endDate}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`
+          ),
+          fetch(
+            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${endDate}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`
+          ),
+        ])
+
+        const [payload, previousPayload, videoSummary, shortSummary, videoTop, shortTop] = await Promise.all([
+          monetizationSummaryResponse.json(),
+          previousSummaryResponse.json(),
+          videoSummaryResponse.json(),
+          shortSummaryResponse.json(),
+          videoTopResponse.json(),
+          shortTopResponse.json(),
+        ])
+        const items = Array.isArray(payload?.items) ? payload.items : []
+        const byDay = new Map<string, any>()
+        items.forEach((item: any) => {
+          if (typeof item?.day === 'string') {
+            byDay.set(item.day, item)
+          }
+        })
+        const sortedUniqueDays = Array.from(
+          new Set<string>(
+            items
+              .map((item: any) => item.day)
+              .filter((day: unknown): day is string => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day))
+          )
+        ).sort((a, b) => a.localeCompare(b))
+        if (sortedUniqueDays.length === 0) {
+          setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
+          setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
+          return
+        }
+        const days: string[] = []
+        const cursor = new Date(`${sortedUniqueDays[0]}T00:00:00Z`)
+        const end = new Date(`${sortedUniqueDays[sortedUniqueDays.length - 1]}T00:00:00Z`)
+        while (cursor <= end) {
+          days.push(cursor.toISOString().slice(0, 10))
+          cursor.setUTCDate(cursor.getUTCDate() + 1)
+        }
+        const dailyRevenue = days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) }))
+        const dailyAdImpressions = days.map((day) => ({ date: day, value: Number(byDay.get(day)?.ad_impressions ?? 0) }))
+        const dailyMonetizedPlaybacks = days.map((day) => ({
+          date: day,
+          value: Number(byDay.get(day)?.monetized_playbacks ?? 0),
+        }))
+        const dailyCpm = days.map((day) => ({ date: day, value: Number(byDay.get(day)?.cpm ?? 0) }))
+        setMonetizationSeries({
+          estimated_revenue: aggregatePoints(dailyRevenue, granularity),
+          ad_impressions: aggregatePoints(dailyAdImpressions, granularity),
+          monetized_playbacks: aggregatePoints(dailyMonetizedPlaybacks, granularity),
+          cpm: aggregateWeightedPoints(dailyCpm, dailyAdImpressions, granularity),
+        })
+        setMonetizationTotals({
+          estimated_revenue: Number(payload?.totals?.estimated_revenue ?? 0),
+          ad_impressions: Number(payload?.totals?.ad_impressions ?? 0),
+          monetized_playbacks: Number(payload?.totals?.monetized_playbacks ?? 0),
+          cpm: Number(payload?.totals?.cpm ?? 0),
+        })
+
+        const previousTotals = {
+          estimated_revenue: Number(previousPayload?.totals?.estimated_revenue ?? 0),
+          ad_impressions: Number(previousPayload?.totals?.ad_impressions ?? 0),
+          monetized_playbacks: Number(previousPayload?.totals?.monetized_playbacks ?? 0),
+          cpm: Number(previousPayload?.totals?.cpm ?? 0),
+        }
+        const windowLabel = previousRange.daySpan === 1 ? '1 day' : `${previousRange.daySpan} days`
+        setMonetizationComparisons({
+          estimated_revenue: buildComparison(
+            Number(payload?.totals?.estimated_revenue ?? 0),
+            previousTotals.estimated_revenue,
+            windowLabel
+          ),
+          ad_impressions: buildComparison(
+            Number(payload?.totals?.ad_impressions ?? 0),
+            previousTotals.ad_impressions,
+            windowLabel
+          ),
+          monetized_playbacks: buildComparison(
+            Number(payload?.totals?.monetized_playbacks ?? 0),
+            previousTotals.monetized_playbacks,
+            windowLabel
+          ),
+          cpm: buildComparison(
+            Number(payload?.totals?.cpm ?? 0),
+            previousTotals.cpm,
+            windowLabel
+          ),
+        })
+
+        const monthTotals = new Map<string, number>()
+        items.forEach((item: any) => {
+          const day = String(item?.day ?? '')
+          if (!day || day.length < 7) {
+            return
+          }
+          const monthKey = day.slice(0, 7)
+          const value = Number(item?.estimated_revenue ?? 0)
+          monthTotals.set(monthKey, (monthTotals.get(monthKey) ?? 0) + value)
+        })
+        const monthly = Array.from(monthTotals.entries())
+          .sort((a: [string, number], b: [string, number]) => b[0].localeCompare(a[0]))
+          .map(([monthKey, amount]) => {
+            const [year, month] = monthKey.split('-')
+            const dateValue = new Date(Date.UTC(Number(year), Number(month) - 1, 1))
+            return {
+              monthKey,
+              label: dateValue.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+              amount,
+            }
+          })
+        setMonthlyEarnings(monthly.slice(0, 12))
+
+        const mapPerformance = (summaryPayload: any, topPayload: any): MonetizationPerformance => {
+          const views = Number(summaryPayload?.totals?.views ?? 0)
+          const estimatedRevenue = Number(summaryPayload?.totals?.estimated_revenue ?? 0)
+          const rpm = views > 0 ? (estimatedRevenue / views) * 1000 : 0
+          const topItems = Array.isArray(topPayload?.items) ? topPayload.items : []
+          const mapped = topItems.map((item: any) => ({
+            video_id: String(item?.video_id ?? ''),
+            title: String(item?.title ?? '(untitled)'),
+            thumbnail_url: String(item?.thumbnail_url ?? ''),
+            revenue: Number(item?.estimated_revenue ?? 0),
+          }))
+          return { views, estimated_revenue: estimatedRevenue, rpm, items: mapped }
+        }
+        setContentPerformance({
+          video: mapPerformance(videoSummary, videoTop),
+          short: mapPerformance(shortSummary, shortTop),
+        })
+      } catch (error) {
+        console.error('Failed to load monetization data', error)
+        setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
+        setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
+        setMonetizationComparisons({})
+        setMonthlyEarnings([])
+        setContentPerformance({
+          video: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
+          short: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
+        })
+      }
+    }
+
+    loadMonetizationData()
+  }, [range.start, range.end, granularity, previousRange.start, previousRange.end, previousRange.daySpan, contentSelection])
+
   return (
     <section className="page">
       <header className="page-header header-row">
@@ -617,59 +918,132 @@ function Analytics() {
           ) : null}
         </div>
       </header>
+      <div className="analytics-tab-row">
+        <button
+          type="button"
+          className={analyticsTab === 'metrics' ? 'analytics-tab active' : 'analytics-tab'}
+          onClick={() => setAnalyticsTab('metrics')}
+        >
+          Metrics
+        </button>
+        <button
+          type="button"
+          className={analyticsTab === 'monetization' ? 'analytics-tab active' : 'analytics-tab'}
+          onClick={() => setAnalyticsTab('monetization')}
+        >
+          Monetization
+        </button>
+      </div>
       <div className="page-body">
         <div className="page-row">
-          <div className="analytics-main-layout">
-            <div className="analytics-main-column">
+          {analyticsTab === 'metrics' ? (
+            <div className="analytics-main-layout">
+              <div className="analytics-main-column">
+                <PageCard>
+                  <MetricChartCard
+                    metrics={[
+                      { key: 'views', label: 'Views', value: formatWholeNumber(totals.views), comparison: comparisons.views },
+                      {
+                        key: 'watch_time',
+                        label: 'Watch time (hours)',
+                        value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
+                        comparison: comparisons.watch_time,
+                      },
+                      { key: 'subscribers', label: 'Subscribers', value: formatWholeNumber(totals.subscribers_net), comparison: comparisons.subscribers },
+                      {
+                        key: 'revenue',
+                        label: 'Estimated revenue',
+                        value: formatCurrency(totals.estimated_revenue),
+                        comparison: comparisons.revenue,
+                      },
+                    ]}
+                    series={{
+                      views: series.views ?? [],
+                      watch_time: series.watch_time ?? [],
+                      subscribers: series.subscribers ?? [],
+                      revenue: series.revenue ?? [],
+                    }}
+                    publishedDates={publishedDates}
+                    publishedBucketMeta={publishBucketMeta}
+                  />
+                </PageCard>
+              <PageCard>
+                  <TopContentTable items={topContent} />
+                </PageCard>
+              </div>
+              <div className="analytics-side-cards">
+                <PageCard>
+                  <VideoDetailListCard
+                    title="Top longform content (last 90 days)"
+                    items={latestLongform}
+                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                  />
+                </PageCard>
+              <PageCard>
+                  <VideoDetailListCard
+                    title="Top short content (last 90 days)"
+                    items={latestShorts}
+                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                  />
+                </PageCard>
+              </div>
+            </div>
+          ) : (
+            <div className="analytics-monetization-layout">
               <PageCard>
                 <MetricChartCard
                   metrics={[
-                    { key: 'views', label: 'Views', value: totals.views.toLocaleString(), comparison: comparisons.views },
                     {
-                      key: 'watch_time',
-                      label: 'Watch time (hours)',
-                      value: Math.round(totals.watch_time_minutes / 60).toLocaleString(),
-                      comparison: comparisons.watch_time,
-                    },
-                    { key: 'subscribers', label: 'Subscribers', value: totals.subscribers_net.toLocaleString(), comparison: comparisons.subscribers },
-                    {
-                      key: 'revenue',
+                      key: 'estimated_revenue',
                       label: 'Estimated revenue',
-                      value: `$${Math.round(totals.estimated_revenue).toLocaleString()}`,
-                      comparison: comparisons.revenue,
+                      value: formatCurrency(monetizationTotals.estimated_revenue),
+                      comparison: monetizationComparisons.estimated_revenue,
+                    },
+                    {
+                      key: 'ad_impressions',
+                      label: 'Ad impressions',
+                      value: formatWholeNumber(monetizationTotals.ad_impressions),
+                      comparison: monetizationComparisons.ad_impressions,
+                    },
+                    {
+                      key: 'monetized_playbacks',
+                      label: 'Monetized playbacks',
+                      value: formatWholeNumber(monetizationTotals.monetized_playbacks),
+                      comparison: monetizationComparisons.monetized_playbacks,
+                    },
+                    {
+                      key: 'cpm',
+                      label: 'CPM',
+                      value: formatCurrency(monetizationTotals.cpm),
+                      comparison: monetizationComparisons.cpm,
                     },
                   ]}
                   series={{
-                    views: series.views ?? [],
-                    watch_time: series.watch_time ?? [],
-                    subscribers: series.subscribers ?? [],
-                    revenue: series.revenue ?? [],
+                    estimated_revenue: monetizationSeries.estimated_revenue ?? [],
+                    ad_impressions: monetizationSeries.ad_impressions ?? [],
+                    monetized_playbacks: monetizationSeries.monetized_playbacks ?? [],
+                    cpm: monetizationSeries.cpm ?? [],
                   }}
                   publishedDates={publishedDates}
                   publishedBucketMeta={publishBucketMeta}
                 />
               </PageCard>
-              <PageCard>
-                <TopContentTable items={topContent} />
-              </PageCard>
+              <div className="analytics-monetization-cards-row">
+                <PageCard>
+                  <MonetizationEarningsCard items={monthlyEarnings} />
+                </PageCard>
+                <PageCard>
+                  <MonetizationContentPerformanceCard
+                    contentType={monetizationContentType}
+                    onContentTypeChange={setMonetizationContentType}
+                    performance={contentPerformance}
+                    itemCount={7}
+                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                  />
+                </PageCard>
+              </div>
             </div>
-            <div className="analytics-side-cards">
-              <PageCard>
-                <VideoDetailListCard
-                  title="Top longform content (last 90 days)"
-                  items={latestLongform}
-                  onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-                />
-              </PageCard>
-              <PageCard>
-                <VideoDetailListCard
-                  title="Top short content (last 90 days)"
-                  items={latestShorts}
-                  onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-                />
-              </PageCard>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </section>

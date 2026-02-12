@@ -18,13 +18,22 @@ class DateRange:
 
 
 METRICS = [
+    "engagedViews",
     "views",
     "estimatedMinutesWatched",
     "estimatedRevenue",
+    "estimatedAdRevenue",
+    "grossRevenue",
+    "estimatedRedPartnerRevenue",
     "averageViewDuration",
+    "averageViewPercentage",
     "likes",
     "comments",
     "shares",
+    "monetizedPlaybacks",
+    "playbackBasedCpm",
+    "adImpressions",
+    "cpm",
     "subscribersGained",
     "subscribersLost",
 ]
@@ -103,8 +112,10 @@ def fetch_channel_analytics(start_date: str, end_date: str) -> list[dict[str, An
         "startDate": start_date,
         "endDate": end_date,
         "metrics": (
-            "views,estimatedMinutesWatched,estimatedRevenue,averageViewDuration,"
-            "subscribersGained,subscribersLost"
+            "engagedViews,views,estimatedMinutesWatched,estimatedRevenue,estimatedAdRevenue,"
+            "grossRevenue,estimatedRedPartnerRevenue,averageViewDuration,averageViewPercentage,"
+            "likes,dislikes,comments,shares,monetizedPlaybacks,playbackBasedCpm,"
+            "adImpressions,cpm,subscribersGained,subscribersLost"
         ),
         "dimensions": "day",
         "maxResults": 200,
