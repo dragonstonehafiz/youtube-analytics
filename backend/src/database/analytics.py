@@ -36,8 +36,9 @@ def upsert_daily_analytics(video_id: str, rows: list[dict]) -> int:
         )
 
     sql = """
-        INSERT INTO daily_analytics (
-            video_id, date, engaged_views, views, watch_time_minutes, estimated_revenue,
+        INSERT INTO video_analytics (
+            video_id, date, engaged_views, views,
+            watch_time_minutes, estimated_revenue,
             estimated_ad_revenue, gross_revenue, estimated_red_partner_revenue,
             average_view_duration_seconds, average_view_percentage, likes, comments, shares,
             monetized_playbacks, playback_based_cpm, ad_impressions, cpm,
@@ -70,3 +71,6 @@ def upsert_daily_analytics(video_id: str, rows: list[dict]) -> int:
         conn.executemany(sql, values)
         conn.commit()
     return len(values)
+
+
+

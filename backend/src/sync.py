@@ -12,6 +12,8 @@ from src.database.db import get_connection
 from src.database.playlist_daily import upsert_playlist_daily_analytics
 from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
 from src.database.traffic_sources import upsert_traffic_sources
+from src.database.video_search_insights import upsert_video_search_insights
+from src.database.video_traffic_source import upsert_video_traffic_source
 from src.database.videos import upsert_videos
 from src.youtube.analytics import (
     DateRange,
@@ -19,7 +21,9 @@ from src.youtube.analytics import (
     determine_date_range,
     fetch_channel_analytics,
     fetch_playlist_daily_metrics,
+    fetch_video_search_insight_metrics,
     fetch_video_daily_metrics,
+    fetch_video_traffic_source_metrics,
     fetch_traffic_sources,
 )
 from src.youtube.comments import extract_comments
@@ -56,7 +60,7 @@ def prune_missing_videos(current_ids: set[str]) -> int:
             return 0
         stale_placeholders = ",".join("?" for _ in stale_ids)
         conn.execute(
-            f"DELETE FROM daily_analytics WHERE video_id IN ({stale_placeholders})",
+            f"DELETE FROM video_analytics WHERE video_id IN ({stale_placeholders})",
             tuple(stale_ids),
         )
         conn.execute(f"DELETE FROM videos WHERE id IN ({stale_placeholders})", tuple(stale_ids))
@@ -79,7 +83,33 @@ def get_latest_video_analytics_dates() -> dict[str, str]:
     """Return a mapping of video_id to latest video analytics date."""
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT video_id, MAX(date) AS latest FROM daily_analytics GROUP BY video_id"
+            "SELECT video_id, MAX(date) AS latest FROM video_analytics GROUP BY video_id"
+        ).fetchall()
+    latest_by_video: dict[str, str] = {}
+    for row in rows:
+        if row["latest"]:
+            latest_by_video[row["video_id"]] = str(row["latest"])
+    return latest_by_video
+
+
+def get_latest_video_traffic_source_dates() -> dict[str, str]:
+    """Return a mapping of video_id to latest video traffic-source date."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT video_id, MAX(date) AS latest FROM video_traffic_source GROUP BY video_id"
+        ).fetchall()
+    latest_by_video: dict[str, str] = {}
+    for row in rows:
+        if row["latest"]:
+            latest_by_video[row["video_id"]] = str(row["latest"])
+    return latest_by_video
+
+
+def get_latest_video_search_insight_dates() -> dict[str, str]:
+    """Return a mapping of video_id to latest video-search-insight date."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT video_id, MAX(date) AS latest FROM video_search_insights GROUP BY video_id"
         ).fetchall()
     latest_by_video: dict[str, str] = {}
     for row in rows:
@@ -205,11 +235,9 @@ def sync_video_analytics(
             publish_date = publish_map.get(video_id)
             if publish_date and publish_date > segment.end:
                 continue
-            latest = latest_by_video.get(video_id)
-            if latest:
-                next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
-                if next_day > segment.end:
-                    continue
+            next_start = _next_table_sync_start(latest_by_video.get(video_id), segment.start)
+            if next_start > segment.end:
+                continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
         total_videos += len(segment_videos)
@@ -240,19 +268,123 @@ def sync_video_analytics(
                     f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
                 ),
             )
-            latest = latest_by_video.get(video_id)
-            # Resume per video from the day after the latest stored row.
-            if latest:
-                next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
-                if next_day > segment.end:
-                    continue
+            publish_date = publish_map.get(video_id)
+            next_start = _next_table_sync_start(latest_by_video.get(video_id), segment.start)
+            if next_start > segment.end:
+                continue
             rows = fetch_video_daily_metrics(
                 video_id,
-                next_day if latest and next_day > segment.start else segment.start,
+                next_start,
                 segment.end,
-                publish_date=publish_map.get(video_id),
+                publish_date=publish_date,
             )
             total_rows += upsert_daily_analytics(video_id, rows)
+            latest_by_video[video_id] = segment.end
+
+    return None
+
+
+def sync_video_traffic_source(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+    segments: list[DateRange] | None = None,
+) -> None:
+    """Sync per-video daily traffic-source and search-term insight rows."""
+    video_ids = list_video_ids()
+    if not video_ids:
+        sync_videos()
+        video_ids = list_video_ids()
+    earliest = get_earliest_upload_date()
+    if not earliest:
+        return None
+
+    date_range = determine_date_range(earliest)
+    if start_date:
+        date_range = DateRange(start=start_date, end=date_range.end)
+    if end_date:
+        date_range = DateRange(start=date_range.start, end=end_date)
+    date_range = _clamp_date_range_to_today(date_range)
+    if date_range is None:
+        return None
+
+    latest_traffic_by_video = {} if deep_sync else get_latest_video_traffic_source_dates()
+    latest_search_by_video = {} if deep_sync else get_latest_video_search_insight_dates()
+    if segments is None:
+        segments = chunk_date_range(date_range)
+    _logger.info(
+        "Starting video traffic-source sync for %s -> %s (%s segments)",
+        date_range.start,
+        date_range.end,
+        len(segments),
+    )
+    publish_map = build_video_publish_map()
+    total_rows = 0
+    segment_video_sets: list[list[str]] = []
+    total_videos = 0
+    for segment in segments:
+        segment_videos: list[str] = []
+        for video_id in video_ids:
+            publish_date = publish_map.get(video_id)
+            if publish_date and publish_date > segment.end:
+                continue
+            traffic_start = _next_table_sync_start(latest_traffic_by_video.get(video_id), segment.start)
+            search_start = _next_table_sync_start(latest_search_by_video.get(video_id), segment.start)
+            if traffic_start > segment.end and search_start > segment.end:
+                continue
+            segment_videos.append(video_id)
+        segment_video_sets.append(segment_videos)
+        total_videos += len(segment_videos)
+    if total_videos == 0:
+        _set_progress(0, 1, _format_video_traffic_progress(0, 0, "no videos to sync"))
+        return None
+    _set_progress(0, total_videos, _format_video_traffic_progress(0, total_videos, "starting"))
+    processed_videos = 0
+
+    for segment_index, segment in enumerate(segments, start=1):
+        _logger.info(
+            "Video traffic-source segment %s/%s: %s -> %s",
+            segment_index,
+            len(segments),
+            segment.start,
+            segment.end,
+        )
+        segment_videos = segment_video_sets[segment_index - 1]
+        segment_total = max(len(segment_videos), 1)
+        for video_index, video_id in enumerate(segment_videos, start=1):
+            processed_videos += 1
+            _set_progress(
+                processed_videos,
+                total_videos,
+                _format_video_traffic_progress(
+                    processed_videos,
+                    total_videos,
+                    f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
+                ),
+            )
+            publish_date = publish_map.get(video_id)
+            traffic_start = _next_table_sync_start(latest_traffic_by_video.get(video_id), segment.start)
+            search_start = _next_table_sync_start(latest_search_by_video.get(video_id), segment.start)
+
+            if traffic_start <= segment.end:
+                traffic_rows = fetch_video_traffic_source_metrics(
+                    video_id,
+                    traffic_start,
+                    segment.end,
+                    publish_date=publish_date,
+                )
+                total_rows += upsert_video_traffic_source(video_id, traffic_rows)
+                latest_traffic_by_video[video_id] = segment.end
+
+            if search_start <= segment.end:
+                search_rows = fetch_video_search_insight_metrics(
+                    video_id,
+                    search_start,
+                    segment.end,
+                    publish_date=publish_date,
+                )
+                total_rows += upsert_video_search_insights(video_id, search_rows)
+                latest_search_by_video[video_id] = segment.end
 
     return None
 
@@ -274,7 +406,7 @@ def sync_channel_analytics(
     date_range = _clamp_date_range_to_today(date_range)
     if date_range is None:
         return None
-    latest = None if deep_sync else _get_latest_date("channel_daily_analytics")
+    latest = None if deep_sync else _get_latest_date("channel_analytics")
     if latest:
         next_day = (datetime.fromisoformat(latest).date() + timedelta(days=1)).isoformat()
         if next_day > date_range.start:
@@ -518,6 +650,8 @@ def sync_all(
             sync_playlist_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
         if _should_run(selected, "video_analytics"):
             sync_video_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+        if _should_run(selected, "video_traffic_source"):
+            sync_video_traffic_source(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
         _set_progress(1, 1, _format_pull_progress("sync complete", 1, 1))
         with _progress_lock:
             _sync_progress["status"] = "done"
@@ -567,6 +701,7 @@ def _should_run(selected: set[str] | None, key: str) -> bool:
     aliases = {
         "channel_analytics": {"channel_daily"},
         "video_analytics": {"daily_analytics"},
+        "video_traffic_source": {"video_traffic"},
     }
     return any(alias in selected for alias in aliases.get(key, set()))
 
@@ -613,6 +748,14 @@ def _format_playlist_progress(current: int, total: int, title: str | None = None
 def _format_video_analytics_progress(current: int, total: int, detail: str | None = None) -> str:
     """Format video analytics progress with range detail."""
     base = f"Video analytics [{current}/{total}]"
+    if detail:
+        return f"{base} {detail}"
+    return base
+
+
+def _format_video_traffic_progress(current: int, total: int, detail: str | None = None) -> str:
+    """Format video traffic-source progress with range detail."""
+    base = f"Video traffic source [{current}/{total}]"
     if detail:
         return f"{base} {detail}"
     return base
@@ -665,6 +808,13 @@ def _clamp_date_range_to_today(date_range: DateRange) -> DateRange | None:
     return date_range
 
 
+def _next_table_sync_start(latest_date: str | None, fallback_start: str) -> str:
+    """Return table-specific next sync day, or fallback start when empty."""
+    if not latest_date:
+        return fallback_start
+    return (datetime.fromisoformat(latest_date).date() + timedelta(days=1)).isoformat()
+
+
 def get_sync_progress() -> dict:
     """Return the current in-memory sync progress state."""
     with _progress_lock:
@@ -700,3 +850,4 @@ def _finish_sync_run(run_id: int, status: str, error_message: str | None = None)
             (datetime.utcnow().isoformat() + "Z", status, error_message, run_id),
         )
         conn.commit()
+

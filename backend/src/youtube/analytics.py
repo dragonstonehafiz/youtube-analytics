@@ -17,7 +17,7 @@ class DateRange:
     end: str
 
 
-METRICS = [
+VIDEO_DAILY_METRICS = [
     "engagedViews",
     "views",
     "estimatedMinutesWatched",
@@ -89,19 +89,86 @@ def fetch_video_daily_metrics(
         if publish_date > start_date:
             effective_start = publish_date
 
-    # Request daily analytics per video; page with startIndex/maxResults.
-    request_params = {
+    base_request_params = {
         "ids": "channel==MINE",
         "startDate": effective_start,
         "endDate": end_date,
-        "metrics": ",".join(METRICS),
+        "metrics": ",".join(VIDEO_DAILY_METRICS),
         "dimensions": "day",
         "filters": f"video=={video_id}",
         "maxResults": max_results,
         "startIndex": 1,
     }
+    return _fetch_report_rows(yt_analytics, base_request_params, max_results)
 
-    return _fetch_report_rows(yt_analytics, request_params, max_results)
+
+def fetch_video_traffic_source_metrics(
+    video_id: str,
+    start_date: str,
+    end_date: str,
+    publish_date: str | None = None,
+    max_results: int = 200,
+) -> list[dict[str, Any]]:
+    """Fetch daily per-source traffic rows for one video across a date range."""
+    yt_analytics = get_analytics_client()
+    effective_start = start_date
+    if publish_date:
+        if publish_date > end_date:
+            return []
+        if publish_date > start_date:
+            effective_start = publish_date
+    base_request_params = {
+        "ids": "channel==MINE",
+        "startDate": effective_start,
+        "endDate": end_date,
+        "metrics": "views,estimatedMinutesWatched",
+        "dimensions": "day,insightTrafficSourceType",
+        "filters": f"video=={video_id}",
+        "maxResults": max_results,
+        "startIndex": 1,
+    }
+    return _fetch_report_rows(yt_analytics, base_request_params, max_results)
+
+
+def fetch_video_search_insight_metrics(
+    video_id: str,
+    start_date: str,
+    end_date: str,
+    publish_date: str | None = None,
+    max_results: int = 25,
+) -> list[dict[str, Any]]:
+    """Fetch daily YouTube-search term insight rows for one video across a date range."""
+    yt_analytics = get_analytics_client()
+    effective_start = start_date
+    if publish_date:
+        if publish_date > end_date:
+            return []
+        if publish_date > start_date:
+            effective_start = publish_date
+    # YouTube Analytics does not support day+insightTrafficSourceDetail together.
+    # Query one day at a time with insightTrafficSourceDetail only, then stamp the day.
+    rows: list[dict[str, Any]] = []
+    current = date.fromisoformat(effective_start)
+    end = date.fromisoformat(end_date)
+    while current <= end:
+        day = current.isoformat()
+        request_params = {
+            "ids": "channel==MINE",
+            "startDate": day,
+            "endDate": day,
+            "metrics": "views,estimatedMinutesWatched",
+            "dimensions": "insightTrafficSourceDetail",
+            "filters": f"video=={video_id};insightTrafficSourceType==YT_SEARCH",
+            "sort": "-views",
+            "maxResults": max_results,
+            "startIndex": 1,
+        }
+        day_rows = _fetch_report_rows(yt_analytics, request_params, max_results)
+        for row in day_rows:
+            row["day"] = day
+        rows.extend(day_rows)
+        current += timedelta(days=1)
+    return rows
 
 
 def fetch_channel_analytics(start_date: str, end_date: str) -> list[dict[str, Any]]:
@@ -241,3 +308,7 @@ def _fetch_report_rows(service, request_params: dict, max_results: int) -> list[
         request_params["startIndex"] += max_results
         time.sleep(0.2)
     return results
+
+
+
+

@@ -417,7 +417,7 @@ def list_playlist_items(
                 SELECT
                     video_id,
                     SUM(COALESCE(views, 0)) AS recent_views
-                FROM daily_analytics
+                FROM video_analytics
                 WHERE date >= ? AND date <= ?
                 GROUP BY video_id
             ) rv ON rv.video_id = pi.video_id
@@ -426,7 +426,7 @@ def list_playlist_items(
                     video_id,
                     SUM(COALESCE(watch_time_minutes, 0)) AS total_watch_time_minutes,
                     AVG(COALESCE(average_view_duration_seconds, 0)) AS avg_view_duration_seconds
-                FROM daily_analytics
+                FROM video_analytics
                 GROUP BY video_id
             ) va ON va.video_id = pi.video_id
             {where_sql}
@@ -521,7 +521,7 @@ def list_playlist_video_daily(playlist_id: str, start_date: str, end_date: str) 
                 SUM(COALESCE(a.estimated_revenue, 0)) AS estimated_revenue,
                 SUM(COALESCE(a.subscribers_gained, 0)) AS subscribers_gained,
                 SUM(COALESCE(a.subscribers_lost, 0)) AS subscribers_lost
-            FROM daily_analytics a
+            FROM video_analytics a
             JOIN playlist_videos pv ON pv.video_id = a.video_id
             WHERE a.date >= ? AND a.date <= ?
             GROUP BY a.date
@@ -621,7 +621,28 @@ def list_daily_analytics(
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
     query = f"""
-        SELECT * FROM daily_analytics
+        SELECT
+            video_id,
+            date,
+            engaged_views,
+            views,
+            watch_time_minutes,
+            estimated_revenue,
+            estimated_ad_revenue,
+            gross_revenue,
+            estimated_red_partner_revenue,
+            average_view_duration_seconds,
+            average_view_percentage,
+            likes,
+            comments,
+            shares,
+            monetized_playbacks,
+            playback_based_cpm,
+            ad_impressions,
+            cpm,
+            subscribers_gained,
+            subscribers_lost
+        FROM video_analytics
         {where_sql}
         ORDER BY date DESC
         LIMIT ?
@@ -638,10 +659,10 @@ def list_analytics_years() -> dict:
     """Return distinct years present in daily analytics data."""
     with get_connection() as conn:
         daily_row = conn.execute(
-            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM daily_analytics"
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM video_analytics"
         ).fetchone()
         channel_row = conn.execute(
-            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM channel_daily_analytics"
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM channel_analytics"
         ).fetchone()
     min_dates = [row["min_date"] for row in (daily_row, channel_row) if row and row["min_date"]]
     max_dates = [row["max_date"] for row in (daily_row, channel_row) if row and row["max_date"]]
@@ -682,7 +703,7 @@ def list_daily_summary(start_date: str, end_date: str, content_type: str | None 
                 SUM(a.shares) AS shares,
                 SUM(a.subscribers_gained) AS subscribers_gained,
                 SUM(a.subscribers_lost) AS subscribers_lost
-            FROM daily_analytics a
+            FROM video_analytics a
             JOIN videos v ON v.id = a.video_id
             WHERE {where_sql}
             GROUP BY a.date
@@ -744,7 +765,7 @@ def list_channel_daily(
                 impressions_ctr,
                 subscribers_gained,
                 subscribers_lost
-            FROM channel_daily_analytics
+            FROM channel_analytics
             WHERE date >= ? AND date <= ?
             ORDER BY date ASC
             """,
@@ -906,7 +927,7 @@ def list_top_content(
                 SUM(a.watch_time_minutes) AS watch_time_minutes,
                 SUM(a.estimated_revenue) AS estimated_revenue,
                 AVG(a.average_view_duration_seconds) AS avg_view_duration_seconds
-            FROM daily_analytics a
+            FROM video_analytics a
             JOIN videos v ON v.id = a.video_id
             WHERE {where_sql}
             GROUP BY v.id
@@ -988,21 +1009,29 @@ def get_overview_stats() -> dict:
         total_uploads = conn.execute("SELECT COUNT(*) AS count FROM videos").fetchone()[0]
         total_playlists = conn.execute("SELECT COUNT(*) AS count FROM playlists").fetchone()[0]
         total_audience = conn.execute("SELECT COUNT(*) AS count FROM audience").fetchone()[0]
-        total_views_row = conn.execute("SELECT SUM(views) AS total FROM channel_daily_analytics").fetchone()
+        total_views_row = conn.execute("SELECT SUM(views) AS total FROM channel_analytics").fetchone()
         total_views = total_views_row["total"] if total_views_row and total_views_row["total"] is not None else 0
         total_comments_row = conn.execute("SELECT COUNT(*) AS count FROM comments").fetchone()
         total_comments = total_comments_row["count"] if total_comments_row and total_comments_row["count"] is not None else 0
-        earliest_row = conn.execute("SELECT MIN(date) AS earliest FROM daily_analytics").fetchone()
-        latest_row = conn.execute("SELECT MAX(date) AS latest FROM daily_analytics").fetchone()
+        earliest_row = conn.execute("SELECT MIN(date) AS earliest FROM video_analytics").fetchone()
+        latest_row = conn.execute("SELECT MAX(date) AS latest FROM video_analytics").fetchone()
         earliest_date = earliest_row["earliest"] if earliest_row else None
         latest_date = latest_row["latest"] if latest_row else None
-        daily_rows = conn.execute("SELECT COUNT(*) AS count FROM daily_analytics").fetchone()
-        channel_rows = conn.execute("SELECT COUNT(*) AS count FROM channel_daily_analytics").fetchone()
+        daily_rows = conn.execute("SELECT COUNT(*) AS count FROM video_analytics").fetchone()
+        channel_rows = conn.execute("SELECT COUNT(*) AS count FROM channel_analytics").fetchone()
         traffic_rows = conn.execute("SELECT COUNT(*) AS count FROM traffic_sources_daily").fetchone()
+        video_traffic_rows = conn.execute("SELECT COUNT(*) AS count FROM video_traffic_source").fetchone()
+        video_search_rows = conn.execute("SELECT COUNT(*) AS count FROM video_search_insights").fetchone()
         playlist_analytics_rows = conn.execute("SELECT COUNT(*) AS count FROM playlist_daily_analytics").fetchone()
         daily_analytics_rows = daily_rows["count"] if daily_rows and daily_rows["count"] is not None else 0
         channel_daily_rows = channel_rows["count"] if channel_rows and channel_rows["count"] is not None else 0
         traffic_sources_rows = traffic_rows["count"] if traffic_rows and traffic_rows["count"] is not None else 0
+        video_traffic_source_rows = (
+            video_traffic_rows["count"] if video_traffic_rows and video_traffic_rows["count"] is not None else 0
+        )
+        video_search_rows_total = (
+            video_search_rows["count"] if video_search_rows and video_search_rows["count"] is not None else 0
+        )
         total_playlist_analytics_rows = (
             playlist_analytics_rows["count"]
             if playlist_analytics_rows and playlist_analytics_rows["count"] is not None
@@ -1021,6 +1050,9 @@ def get_overview_stats() -> dict:
         "daily_analytics_rows": daily_analytics_rows,
         "channel_daily_rows": channel_daily_rows,
         "traffic_sources_rows": traffic_sources_rows,
+        "video_traffic_source_rows": video_traffic_source_rows,
+        "video_search_rows": video_search_rows_total,
         "playlist_analytics_rows": total_playlist_analytics_rows,
         "table_storage": table_storage,
     }
+

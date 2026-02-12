@@ -36,7 +36,7 @@ def upsert_channel_daily(rows: list[dict]) -> int:
             )
         )
     sql = """
-        INSERT INTO channel_daily_analytics (
+        INSERT INTO channel_analytics (
             date, engaged_views, views, watch_time_minutes, estimated_revenue,
             estimated_ad_revenue, gross_revenue, estimated_red_partner_revenue,
             average_view_duration_seconds, average_view_percentage,

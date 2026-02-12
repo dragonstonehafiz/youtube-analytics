@@ -17,6 +17,10 @@ Use this file to understand where to make changes and which conventions to follo
 - Playlist persistence uses `playlists` and `playlist_items` tables in `backend/src/database/schema.sql`.
 - Playlist analytics persistence uses `playlist_daily_analytics` in `backend/src/database/schema.sql` (daily `playlist_views` by `playlist_id` + `date`).
 - `playlist_daily_analytics` stores playlist daily metrics: `playlist_views`, `playlist_estimated_minutes_watched`, `playlist_average_view_duration_seconds`, `playlist_starts`, `views_per_playlist_start`, and `average_time_in_playlist_seconds`.
+- Video analytics persistence uses `video_analytics` in `backend/src/database/schema.sql` (daily rows by `video_id` + `date`).
+- Channel analytics persistence uses `channel_analytics` in `backend/src/database/schema.sql` (daily rows by `date`).
+- Video traffic-source persistence uses `video_traffic_source` in `backend/src/database/schema.sql` (daily rows by `video_id` + `date` + `traffic_source`).
+- Video search-term insight persistence uses `video_search_insights` in `backend/src/database/schema.sql` (daily rows by `video_id` + `date` + `search_term`).
 - Audience persistence uses `audience` in `backend/src/database/schema.sql` (public subscribers + commenter-derived audience rows keyed by `channel_id`).
 - YouTube API helpers live in `backend/src/youtube/`.
 - Public-subscriber pull helper lives in `backend/src/youtube/subscribers.py` (`subscriptions.list` pagination).
@@ -24,15 +28,15 @@ Use this file to understand where to make changes and which conventions to follo
 - `sync_all` includes a playlists sync stage (`pulls` key: `playlists`) immediately after `comments`; playlist sync progress is tracked per playlist (not per playlist item).
 - `sync_audience` pulls public subscribers from API into `audience`, then backfills commenter-only rows from `comments`.
 - `sync_all` includes a separate playlist analytics sync stage (`pulls` key: `playlist_analytics` / label `Playlist Analytics`) that stores daily playlist views in `playlist_daily_analytics`.
-- `sync_all` stage order is: `videos` -> `comments` -> `audience` -> `playlists` -> `traffic` -> `channel_analytics` -> `playlist_analytics` -> `video_analytics`.
+- `sync_all` stage order is: `videos` -> `comments` -> `audience` -> `playlists` -> `traffic` -> `channel_analytics` -> `playlist_analytics` -> `video_analytics` -> `video_traffic_source`.
 - `playlist_items.video_id` is stored as a raw YouTube ID without a foreign key to `videos.id`, so playlist sync does not depend on `videos` table coverage.
 - `GET /playlists` returns paginated playlist rows with optional `q`, `privacy_status`, `sort`, and `direction`, and includes computed fields: `last_item_added_at` (`MAX(playlist_items.published_at)`), `total_playlist_views` (`SUM(playlist_daily_analytics.playlist_views)`), and `total_content_views` (`SUM(videos.view_count)` across playlist items).
 - `GET /playlists/{playlist_id}` returns a single playlist row.
 - `GET /playlists/{playlist_id}/items` returns paginated playlist items with optional `q`, `sort_by`, and `direction`.
-- `GET /playlists/{playlist_id}/items` includes joined per-video analytics fields `video_recent_views` (last 90 days SUM of `daily_analytics.views`), `video_watch_time_minutes` (SUM of `daily_analytics.watch_time_minutes`), and `video_average_view_duration_seconds` (AVG of `daily_analytics.average_view_duration_seconds`).
+- `GET /playlists/{playlist_id}/items` includes joined per-video analytics fields `video_recent_views` (last 90 days SUM of `video_analytics.views`), `video_watch_time_minutes` (SUM of `video_analytics.watch_time_minutes`), and `video_average_view_duration_seconds` (AVG of `video_analytics.average_view_duration_seconds`).
 - `GET /analytics/playlist-daily` returns per-day playlist-view totals (`playlist_daily_analytics`) for one playlist and date range.
 - `GET /playlists/{playlist_id}/published` returns playlist video publish markers grouped by day for a date range (title, published_at, thumbnail_url, content_type).
-- `GET /analytics/playlist-video-daily` returns per-day summed video analytics for videos in one playlist (aggregated from `daily_analytics` via `playlist_items`).
+- `GET /analytics/playlist-video-daily` returns per-day summed video analytics for videos in one playlist (aggregated from `video_analytics` via `playlist_items`).
 - `GET /audience` returns paginated audience rows with optional `q`, `subscriber_only`, `sort_by`, and `direction`, including computed `total_comment_likes` and `total_comment_replies` from `comments`.
 - `GET /audience/active` returns top active audience members over a rolling `days` window, with `comments_count`, `likes_count`, `replies_count`, and subscriber flag.
 - `GET /audience/{channel_id}` returns one audience row plus aggregated comment stats for that channel ID.
@@ -66,20 +70,21 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlists` (`pull=playlists`) in addition to videos/comments/analytics pulls.
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Audience` (`pull=audience`) immediately after `Comments`.
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlist Analytics` (`pull=playlist_analytics`) as its own pull option.
-- `frontend/src/pages/SyncSettings.tsx` uses analytics pull keys `channel_analytics` and `video_analytics` (labels: `Channel analytics`, `Video analytics`); backend accepts legacy aliases `channel_daily` and `daily_analytics`.
+- `frontend/src/pages/SyncSettings.tsx` uses analytics pull keys `channel_analytics`, `video_analytics`, and `video_traffic_source` (labels: `Channel analytics`, `Video analytics`, `Video traffic source`); backend accepts legacy aliases `channel_daily` and `daily_analytics`.
 - `frontend/src/pages/SyncSettings.tsx` treats unknown/legacy pull keys in saved settings as invalid on the client: sync is blocked and a visible error is shown; no `/sync` request is sent until selection is corrected.
-- `frontend/src/pages/SyncSettings.tsx` Database Overview metric cards include an info icon per metric (total videos/playlists/comments + channel/video/playlist analytics rows + traffic source rows); each tooltip uses `API Used:` with bullet lines and shows the API family for that metric.
+- `frontend/src/pages/SyncSettings.tsx` Database Overview metric cards include an info icon per metric (total videos/playlists/comments + channel/video/playlist analytics rows + traffic source rows + video traffic source rows + video search rows); each tooltip uses `API Used:` with bullet lines and shows the API family for that metric.
 - `GET /stats/overview` includes `total_playlists` and `total_audience`, and `frontend/src/pages/SyncSettings.tsx` Database Overview metric stack shows `Total videos`, `Total comments`, `Total audience`, and `Total playlists` in that order.
 - In `frontend/src/pages/Page.css`, Sync Database Overview metric cards use stretch/flex distribution (no fixed card heights) so each metric column fills available height and its cards split that height evenly.
 - `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
 - `GET /stats/overview` `table_storage.percent` is normalized against tracked table bytes only (tables + their indexes), so donut slices sum to 100% of table storage rather than total SQLite file size.
-- `frontend/src/pages/SyncSettings.tsx` uses a 4-column Database Overview layout:
+- `frontend/src/pages/SyncSettings.tsx` uses a 5-column Database Overview layout:
   - Column 1: Database size + donut chart (ring only) with total size in the center.
   - Column 2: Earliest data (top), Latest data (bottom).
   - Column 3: Total videos (top), Total comments, Total audience, Total playlists (bottom).
   - Column 4: Channel analytics rows, Video analytics rows, Playlist analytics rows, Traffic source rows.
+  - Column 5: Video traffic source rows, Video search rows.
   - Donut slices show table size and percent on hover; no persistent table list below the chart.
-- `GET /stats/overview` includes `playlist_analytics_rows` (`COUNT(*)` from `playlist_daily_analytics`) for Sync Database Overview.
+- `GET /stats/overview` includes `playlist_analytics_rows` (`COUNT(*)` from `playlist_daily_analytics`), `video_traffic_source_rows` (`COUNT(*)` from `video_traffic_source`), and `video_search_rows` (`COUNT(*)` from `video_search_insights`) for Sync Database Overview.
 - `frontend` includes playlist routes/pages:
   - `frontend` route `/playlists` -> `frontend/src/pages/Playlists.tsx` (playlist list with filters/sort/pagination; no actions column, title click opens details; recency column shows `last_item_added_at`).
   - `frontend` route `/playlists/:playlistId` -> `frontend/src/pages/PlaylistDetail.tsx` (playlist metadata + paginated item list).
@@ -106,11 +111,12 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /videos/{video_id}` returns a single video row for video detail metadata.
 - Video `content_type` classification in `backend/src/database/videos.py` uses short-video IDs from the `UUSH...`-derived playlist (`backend/src/youtube/videos.py`) instead of stream dimensions/thumbnail heuristics.
 - `sync_videos` (and the videos pull inside `sync_all`) fetches shorts IDs via `get_short_video_ids()` and passes them to `upsert_videos(..., short_video_ids=...)`; if shorts ID retrieval fails, videos sync fails (fail-fast behavior).
-- `sync_channel_analytics` writes a single combined channel-daily series to `channel_daily_analytics` (one row per day) and stores expanded channel metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `likes`, `dislikes`, `comments`, `shares`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
-- `sync_video_analytics` writes per-video daily series to `daily_analytics` (one row per `video_id` + day) and stores expanded video metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
+- `sync_channel_analytics` writes a single combined channel-daily series to `channel_analytics` (one row per day) and stores expanded channel metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `likes`, `dislikes`, `comments`, `shares`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
+- `sync_video_analytics` writes per-video daily series to `video_analytics` (one row per `video_id` + day) and stores expanded video metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
+- `sync_video_traffic_source` is a separate stage that syncs per-video daily traffic-source rows into `video_traffic_source` and per-video daily YouTube-search term rows into `video_search_insights`.
 - `GET /analytics/channel-daily` returns the single combined channel-daily series.
 - `frontend/src/pages/Analytics.tsx` chart range is trimmed to the first/last day that has channel-daily data within the selected range, while still rendering zero-value gaps for missing days inside that trimmed span.
-- `GET /analytics/daily/summary` supports optional `content_type` (`video` or `short`) and aggregates from `daily_analytics` joined to `videos`, including `cpm` as an ad-impression-weighted average.
+- `GET /analytics/daily/summary` supports optional `content_type` (`video` or `short`) and aggregates from `video_analytics` joined to `videos`, including `cpm` as an ad-impression-weighted average.
 - `GET /analytics/daily/summary` includes `ad_impressions` and `monetized_playbacks` in per-day items and totals.
 - `frontend/src/pages/Analytics.tsx` includes a content dropdown with `All Videos`, `Longform`, `Shortform`; `All Videos` uses `/analytics/channel-daily`, while `Longform`/`Shortform` use `/analytics/daily/summary?content_type=...` for the same chart component.
 - `frontend/src/pages/Analytics.tsx` includes a granularity dropdown for chart aggregation: `Daily`, `7-days`, `28-days`, `90-days`, `Monthly`, `Yearly`. Aggregation is done in frontend from daily series data.
@@ -206,3 +212,4 @@ Use this file to understand where to make changes and which conventions to follo
   - `frontend/src/components/comments/index.ts`
   - `frontend/src/components/videos/index.ts`
   - `frontend/src/components/playlists/index.ts`
+

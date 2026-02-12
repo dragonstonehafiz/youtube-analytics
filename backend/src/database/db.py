@@ -29,6 +29,7 @@ def init_db() -> None:
         conn.executescript(schema_sql)
         _ensure_video_columns(conn)
         _ensure_daily_analytics_columns(conn)
+        _ensure_video_insights_tables(conn)
         _ensure_channel_daily_columns(conn)
         _ensure_sync_run_columns(conn)
         _ensure_comment_columns(conn)
@@ -66,7 +67,7 @@ def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
-    """Add new columns to channel_daily_analytics table if missing (idempotent)."""
+    """Add new columns to channel_analytics table if missing (idempotent)."""
     columns = [
         ("engaged_views", "INTEGER"),
         ("estimated_ad_revenue", "REAL"),
@@ -88,13 +89,13 @@ def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
     ]
     for name, col_type in columns:
         try:
-            conn.execute(f"ALTER TABLE channel_daily_analytics ADD COLUMN {name} {col_type}")
+            conn.execute(f"ALTER TABLE channel_analytics ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
 
 
 def _ensure_daily_analytics_columns(conn: sqlite3.Connection) -> None:
-    """Add new columns to daily_analytics table if missing (idempotent)."""
+    """Add new columns to video_analytics table if missing (idempotent)."""
     columns = [
         ("engaged_views", "INTEGER"),
         ("estimated_ad_revenue", "REAL"),
@@ -108,9 +109,45 @@ def _ensure_daily_analytics_columns(conn: sqlite3.Connection) -> None:
     ]
     for name, col_type in columns:
         try:
-            conn.execute(f"ALTER TABLE daily_analytics ADD COLUMN {name} {col_type}")
+            conn.execute(f"ALTER TABLE video_analytics ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
+
+
+def _ensure_video_insights_tables(conn: sqlite3.Connection) -> None:
+    """Create per-video traffic/search insight tables and indexes if missing."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS video_traffic_source (
+            video_id TEXT NOT NULL,
+            date TEXT NOT NULL,
+            traffic_source TEXT NOT NULL,
+            views INTEGER,
+            watch_time_minutes REAL,
+            PRIMARY KEY (video_id, date, traffic_source),
+            FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_video_traffic_source_date ON video_traffic_source(date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_video_traffic_source_video ON video_traffic_source(video_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_video_traffic_source_type ON video_traffic_source(traffic_source)")
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS video_search_insights (
+            video_id TEXT NOT NULL,
+            date TEXT NOT NULL,
+            search_term TEXT NOT NULL,
+            views INTEGER,
+            watch_time_minutes REAL,
+            PRIMARY KEY (video_id, date, search_term),
+            FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_video_search_insights_date ON video_search_insights(date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_video_search_insights_video ON video_search_insights(video_id)")
 
 
 def _ensure_comment_columns(conn: sqlite3.Connection) -> None:
@@ -197,3 +234,4 @@ def _ensure_playlist_items_schema(conn: sqlite3.Connection) -> None:
         conn.commit()
     finally:
         conn.execute("PRAGMA foreign_keys = ON;")
+

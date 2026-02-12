@@ -50,6 +50,8 @@ function SyncSettings() {
     daily_analytics_rows: 0,
     channel_daily_rows: 0,
     traffic_sources_rows: 0,
+    video_traffic_source_rows: 0,
+    video_search_rows: 0,
     playlist_analytics_rows: 0,
     table_storage: [] as { table: string; bytes: number; percent: number }[],
   })
@@ -71,6 +73,7 @@ function SyncSettings() {
     { label: 'Traffic sources', value: 'traffic' },
     { label: 'Channel analytics', value: 'channel_analytics' },
     { label: 'Video analytics', value: 'video_analytics' },
+    { label: 'Video traffic source', value: 'video_traffic_source' },
   ]
   const [selectedPulls, setSelectedPulls] = useState(
     storedSync?.selectedPulls?.length ? storedSync.selectedPulls : pullOptions.map((item) => item.value)
@@ -135,6 +138,8 @@ function SyncSettings() {
           daily_analytics_rows: data.daily_analytics_rows ?? 0,
           channel_daily_rows: data.channel_daily_rows ?? 0,
           traffic_sources_rows: data.traffic_sources_rows ?? 0,
+          video_traffic_source_rows: data.video_traffic_source_rows ?? 0,
+          video_search_rows: data.video_search_rows ?? 0,
           playlist_analytics_rows: data.playlist_analytics_rows ?? 0,
           table_storage: Array.isArray(data.table_storage)
             ? data.table_storage
@@ -546,6 +551,26 @@ function SyncSettings() {
                     </span>
                   </div>
                   <div className="sync-stat-value">{overview.traffic_sources_rows.toLocaleString()}</div>
+                </div>
+              </div>
+              <div className="db-overview-rows db-overview-rows-half">
+                <div className="db-overview-row-metric">
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Video traffic source rows</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
+                      i
+                    </span>
+                  </div>
+                  <div className="sync-stat-value">{overview.video_traffic_source_rows.toLocaleString()}</div>
+                </div>
+                <div className="db-overview-row-metric">
+                  <div className="sync-stat-label-row">
+                    <div className="sync-stat-label">Video search rows</div>
+                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
+                      i
+                    </span>
+                  </div>
+                  <div className="sync-stat-value">{overview.video_search_rows.toLocaleString()}</div>
                 </div>
               </div>
             </div>
