@@ -159,6 +159,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Video detail description preserves line breaks and uses a fixed-height scrollable area when content overflows.
 - In video detail metadata card, stats (`Visibility`, `Published`, `Duration`, `Views`, `Likes`, `Comments`) are rendered as a separate row below thumbnail/title/description.
 - Video detail `Analytics` tab reuses `frontend/src/components/analytics/MetricChartCard.tsx` and is populated from existing `GET /analytics/daily?video_id=...` data (no extra backend route).
+- Video detail `Analytics` tab KPI chips are `Views`, `Watch time (hours)`, `Avg view duration`, and `Estimated revenue` (replacing the previous subscribers KPI).
 - Video detail `Analytics` tab includes range/granularity controls (no content-type selector): `Daily/7-days/28-days/90-days/Monthly/Yearly` + `Presets/Yearly/Custom range`.
 - Video detail analytics control state is shared across all video detail pages via storage keys `videoDetailGranularity` and `videoDetailRange`.
 - `GET /comments` supports optional `video_id` filtering, pagination (`limit`, `offset`), and sorting via `sort_by` (`published_at`, `likes`, or `reply_count`) plus `direction` (`asc`/`desc`), returning `{ items, total }`.
@@ -215,6 +216,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/components/videos/VideoListRow.tsx` videos row keeps only the `Open in YouTube` action button; clicking the title opens `/videos/:videoId`.
 - `frontend/src/pages/VideoDetail.tsx` tab selection (`Analytics`/`Monetization`/`Comments`) is local UI state only (not URL query params), and each navigation to a video detail page defaults to `Analytics`.
 - `frontend/src/pages/VideoDetail.tsx` monetization tab reuses `MetricChartCard` with the same range/granularity controls as analytics, showing `Estimated revenue`, `Ad impressions`, and `Monetized playbacks` for that video.
+- On `frontend/src/pages/VideoDetail.tsx`, monetization `CPM` uses an ad-impression-weighted average for both chart aggregation and KPI total (not a sum across days).
 - `frontend/src/components/playlists/PlaylistItemsTable.tsx`: Reusable playlist-items table (headers with sortable `Position`, `Added`, and `Views`).
 - `frontend/src/components/playlists/PlaylistItemRow.tsx`: Reusable playlist-item row mirroring video-row layout with added position cell.
 - Component barrels live in:

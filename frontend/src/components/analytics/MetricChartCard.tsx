@@ -251,9 +251,12 @@ function MetricChartCard({ metrics, series, publishedDates = {}, publishedBucket
     setHoverIndex(null)
   }
 
-  const formatChartValue = (value: number) => (
-    DECIMAL_METRICS.has(activeMetric) ? formatDecimalNumber(value) : formatWholeNumber(Math.round(value))
-  )
+  const formatChartValue = (value: number) => {
+    if (activeMetric === 'avg_duration') {
+      return `${formatDecimalNumber(value / 60)} min`
+    }
+    return DECIMAL_METRICS.has(activeMetric) ? formatDecimalNumber(value) : formatWholeNumber(Math.round(value))
+  }
 
   return (
     <div className="metric-chart-card" ref={containerRef}>

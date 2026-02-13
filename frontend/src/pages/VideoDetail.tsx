@@ -27,6 +27,7 @@ type VideoDailyRow = {
   date: string
   views: number | null
   watch_time_minutes: number | null
+  average_view_duration_seconds: number | null
   estimated_revenue: number | null
   ad_impressions: number | null
   monetized_playbacks: number | null
@@ -181,7 +182,7 @@ function VideoDetail() {
   const [totals, setTotals] = useState({
     views: 0,
     watch_time_minutes: 0,
-    subscribers_net: 0,
+    average_view_duration_seconds: 0,
     estimated_revenue: 0,
   })
   const [monetizationTotals, setMonetizationTotals] = useState({
@@ -311,8 +312,8 @@ function VideoDetail() {
       if (!videoId) {
         setDailyRows([])
         setYears([])
-        setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
-        setTotals({ views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0 })
+        setSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
+        setTotals({ views: 0, watch_time_minutes: 0, average_view_duration_seconds: 0, estimated_revenue: 0 })
         setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [] })
         setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
         setAnalyticsError('Missing video ID.')
@@ -341,8 +342,8 @@ function VideoDetail() {
           setYears([])
         }
         if (sorted.length === 0) {
-          setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
-          setTotals({ views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0 })
+          setSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
+          setTotals({ views: 0, watch_time_minutes: 0, average_view_duration_seconds: 0, estimated_revenue: 0 })
           setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [] })
           setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
           return
@@ -369,8 +370,8 @@ function VideoDetail() {
         .filter((item) => typeof item.date === 'string' && item.date >= range.start && item.date <= range.end)
         .sort((a, b) => a.date.localeCompare(b.date))
         if (sorted.length === 0) {
-          setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
-          setTotals({ views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0 })
+          setSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
+          setTotals({ views: 0, watch_time_minutes: 0, average_view_duration_seconds: 0, estimated_revenue: 0 })
           return
         }
         const byDay = new Map<string, VideoDailyRow>()
@@ -384,10 +385,7 @@ function VideoDetail() {
         }
         const viewsSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 }))
         const watchSeries = days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) }))
-        const subsSeries = days.map((day) => ({
-          date: day,
-          value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0),
-        }))
+        const avgDurationSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.average_view_duration_seconds ?? 0 }))
         const revenueSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 }))
         const adImpressionsSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.ad_impressions ?? 0 }))
         const monetizedPlaybacksSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.monetized_playbacks ?? 0 }))
@@ -395,25 +393,32 @@ function VideoDetail() {
 
         const totalViews = sorted.reduce((sum, item) => sum + (item.views ?? 0), 0)
         const totalWatchMinutes = sorted.reduce((sum, item) => sum + (item.watch_time_minutes ?? 0), 0)
-        const totalSubsNet = sorted.reduce(
-          (sum, item) => sum + (item.subscribers_gained ?? 0) - (item.subscribers_lost ?? 0),
+        const totalAverageViewDurationSeconds = sorted.reduce(
+          (sum, item) => sum + (item.average_view_duration_seconds ?? 0),
           0
-        )
+        ) / Math.max(sorted.length, 1)
         const totalRevenue = sorted.reduce((sum, item) => sum + (item.estimated_revenue ?? 0), 0)
         const totalAdImpressions = sorted.reduce((sum, item) => sum + (item.ad_impressions ?? 0), 0)
         const totalMonetizedPlaybacks = sorted.reduce((sum, item) => sum + (item.monetized_playbacks ?? 0), 0)
-        const totalCpm = sorted.reduce((sum, item) => sum + (item.cpm ?? 0), 0)
+        const totalCpmWeighted = sorted.reduce((sum, item) => {
+          const cpm = item.cpm ?? 0
+          const impressions = item.ad_impressions ?? 0
+          return sum + cpm * impressions
+        }, 0)
+        const totalCpm = totalAdImpressions > 0
+          ? totalCpmWeighted / totalAdImpressions
+          : (sorted.reduce((sum, item) => sum + (item.cpm ?? 0), 0) / Math.max(sorted.length, 1))
 
         setSeries({
           views: aggregatePoints(viewsSeries, granularity),
           watch_time: aggregatePoints(watchSeries, granularity),
-          subscribers: aggregatePoints(subsSeries, granularity),
+          avg_duration: aggregateWeightedPoints(avgDurationSeries, viewsSeries, granularity),
           revenue: aggregatePoints(revenueSeries, granularity),
         })
         setTotals({
           views: totalViews,
           watch_time_minutes: totalWatchMinutes,
-          subscribers_net: totalSubsNet,
+          average_view_duration_seconds: totalAverageViewDurationSeconds,
           estimated_revenue: totalRevenue,
         })
         setMonetizationSeries({
@@ -685,13 +690,13 @@ function VideoDetail() {
                   metrics={[
                     { key: 'views', label: 'Views', value: formatWholeNumber(totals.views) },
                     { key: 'watch_time', label: 'Watch time (hours)', value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)) },
-                    { key: 'subscribers', label: 'Subscribers', value: formatWholeNumber(totals.subscribers_net) },
+                    { key: 'avg_duration', label: 'Avg view duration', value: formatDuration(Math.round(totals.average_view_duration_seconds)) },
                     { key: 'revenue', label: 'Estimated revenue', value: formatCurrency(totals.estimated_revenue) },
                   ]}
                   series={{
                     views: series.views ?? [],
                     watch_time: series.watch_time ?? [],
-                    subscribers: series.subscribers ?? [],
+                    avg_duration: series.avg_duration ?? [],
                     revenue: series.revenue ?? [],
                   }}
                   publishedDates={{}}
