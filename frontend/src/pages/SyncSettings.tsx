@@ -14,6 +14,46 @@ import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../u
 import './Page.css'
 
 function SyncSettings() {
+  const formatTableMetricLabel = (table: string): string => {
+    const explicitLabels: Record<string, string> = {
+      video_analytics: 'Video analytics rows',
+      channel_analytics: 'Channel analytics rows',
+      playlist_daily_analytics: 'Playlist analytics rows',
+      traffic_sources_daily: 'Traffic source rows',
+      video_traffic_source: 'Video traffic source rows',
+      video_search_insights: 'Video search rows',
+      playlist_items: 'Playlist items',
+      playlists: 'Playlists',
+      videos: 'Videos',
+      comments: 'Comments',
+      audience: 'Audience',
+    }
+    if (explicitLabels[table]) {
+      return explicitLabels[table]
+    }
+    return table
+      .split('_')
+      .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+      .join(' ')
+  }
+  const getTableApiUsage = (table: string): string => {
+    const usage: Record<string, string[]> = {
+      videos: ['YouTube Data API v3'],
+      comments: ['YouTube Data API v3'],
+      audience: ['YouTube Data API v3'],
+      playlists: ['YouTube Data API v3'],
+      playlist_items: ['YouTube Data API v3'],
+      video_analytics: ['YouTube Analytics API v2'],
+      channel_analytics: ['YouTube Analytics API v2'],
+      playlist_daily_analytics: ['YouTube Analytics API v2'],
+      traffic_sources_daily: ['YouTube Analytics API v2'],
+      video_traffic_source: ['YouTube Analytics API v2'],
+      video_search_insights: ['YouTube Analytics API v2'],
+    }
+    const lines = usage[table] ?? ['Project database only']
+    return `This uses:\n${lines.map((line) => `- ${line}`).join('\n')}`
+  }
+
   const [isSyncing, setIsSyncing] = useState(false)
   const storedSync = getStored('syncSettings', null as {
     rangeMode?: string
@@ -55,6 +95,7 @@ function SyncSettings() {
     video_search_rows: 0,
     playlist_analytics_rows: 0,
     table_storage: [] as { table: string; bytes: number; percent: number }[],
+    table_row_counts: [] as { table: string; rows: number }[],
   })
   const [deepSync, setDeepSync] = useState(storedSync?.deepSync ?? false)
   const [progress, setProgress] = useState<{ is_syncing: boolean; current_step: number; max_steps: number; message: string; stop_requested?: boolean } | null>(null)
@@ -63,6 +104,23 @@ function SyncSettings() {
   const [stopRequestedByUser, setStopRequestedByUser] = useState(false)
   const [selectedRunError, setSelectedRunError] = useState<{ runId: number; text: string } | null>(null)
   const [hoveredStorageTable, setHoveredStorageTable] = useState<string | null>(null)
+  const [selectedOverviewTable, setSelectedOverviewTable] = useState('')
+  const [showTableColumns, setShowTableColumns] = useState(false)
+  const [tableDetailsLoading, setTableDetailsLoading] = useState(false)
+  const [tableDetailsError, setTableDetailsError] = useState<string | null>(null)
+  const [tableDetails, setTableDetails] = useState<{
+    table: string
+    date_column: string | null
+    oldest_item_date: string | null
+    newest_item_date: string | null
+    columns: { name: string; declared_type: string; expected_value: string }[]
+  } | null>(null)
+  const [tableApiCallsLoading, setTableApiCallsLoading] = useState(false)
+  const [tableApiCallsError, setTableApiCallsError] = useState<string | null>(null)
+  const [tableApiCalls, setTableApiCalls] = useState<{
+    minimum_api_calls: number
+    basis: string
+  } | null>(null)
   const today = new Date().toISOString().slice(0, 10)
   const [startDate, setStartDate] = useState(storedSync?.startDate ?? today)
   const [endDate, setEndDate] = useState(storedSync?.endDate ?? today)
@@ -128,6 +186,14 @@ function SyncSettings() {
               table: item.table ?? '',
               bytes: typeof item.bytes === 'number' ? item.bytes : 0,
               percent: typeof item.percent === 'number' ? item.percent : 0,
+            }))
+            .filter((item: { table: string }) => item.table.length > 0)
+          : [],
+        table_row_counts: Array.isArray(data.table_row_counts)
+          ? data.table_row_counts
+            .map((item: { table?: string; rows?: number }) => ({
+              table: item.table ?? '',
+              rows: typeof item.rows === 'number' ? item.rows : 0,
             }))
             .filter((item: { table: string }) => item.table.length > 0)
           : [],
@@ -224,6 +290,152 @@ function SyncSettings() {
     () => pieSegments.find((segment) => segment.table === hoveredStorageTable) ?? null,
     [pieSegments, hoveredStorageTable]
   )
+  const orderedTableRowCounts = useMemo(() => {
+    const order: Record<string, number> = {
+      videos: 1,
+      comments: 2,
+      audience: 3,
+      playlists: 4,
+      playlist_items: 5,
+      video_analytics: 6,
+      channel_analytics: 7,
+      playlist_daily_analytics: 8,
+      traffic_sources_daily: 9,
+      video_traffic_source: 10,
+      video_search_insights: 11,
+    }
+    return [...overview.table_row_counts].sort((a, b) => {
+      const aRank = order[a.table] ?? 999
+      const bRank = order[b.table] ?? 999
+      if (aRank !== bRank) {
+        return aRank - bRank
+      }
+      return formatTableMetricLabel(a.table).localeCompare(formatTableMetricLabel(b.table))
+    })
+  }, [overview.table_row_counts])
+  const overviewTableItems = useMemo(
+    () =>
+      orderedTableRowCounts.map((item) => ({
+        type: 'option' as const,
+        label: formatTableMetricLabel(item.table),
+        value: item.table,
+      })),
+    [orderedTableRowCounts]
+  )
+
+  useEffect(() => {
+    if (overviewTableItems.length === 0) {
+      if (selectedOverviewTable) {
+        setSelectedOverviewTable('')
+      }
+      return
+    }
+    const stillExists = overviewTableItems.some((item) => item.value === selectedOverviewTable)
+    if (!selectedOverviewTable || !stillExists) {
+      setSelectedOverviewTable(overviewTableItems[0].value)
+    }
+  }, [overviewTableItems, selectedOverviewTable])
+
+  useEffect(() => {
+    async function loadTableDetails() {
+      if (!selectedOverviewTable) {
+        setTableDetails(null)
+        return
+      }
+      setTableDetailsLoading(true)
+      setTableDetailsError(null)
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8000/stats/table-details?table=${encodeURIComponent(selectedOverviewTable)}`
+        )
+        if (!response.ok) {
+          throw new Error(`Failed to load table details (${response.status})`)
+        }
+        const data = await response.json()
+        setTableDetails({
+          table: data.table ?? selectedOverviewTable,
+          date_column: data.date_column ?? null,
+          oldest_item_date: data.oldest_item_date ?? null,
+          newest_item_date: data.newest_item_date ?? null,
+          columns: Array.isArray(data.columns)
+            ? data.columns.map((item: { name?: string; declared_type?: string; expected_value?: string }) => ({
+              name: item.name ?? '',
+              declared_type: item.declared_type ?? 'TEXT',
+              expected_value: item.expected_value ?? '',
+            }))
+            : [],
+        })
+      } catch (error) {
+        console.error('Failed to load table details', error)
+        setTableDetailsError(error instanceof Error ? error.message : 'Failed to load table details')
+        setTableDetails(null)
+      } finally {
+        setTableDetailsLoading(false)
+      }
+    }
+
+    loadTableDetails()
+  }, [selectedOverviewTable])
+
+  const selectedSyncPeriod = useMemo(() => {
+    if (rangeMode === 'year' && year) {
+      return { start: `${year}-01-01`, end: `${year}-12-31` }
+    }
+    if (rangeMode === 'latest' && overview.latest_date) {
+      return { start: overview.latest_date, end: today }
+    }
+    if (rangeMode === 'custom') {
+      return { start: startDate || null, end: endDate || null }
+    }
+    return { start: null, end: null }
+  }, [rangeMode, year, overview.latest_date, today, startDate, endDate])
+
+  useEffect(() => {
+    let timer: number | null = null
+    async function loadTableApiCalls() {
+      if (!selectedOverviewTable) {
+        setTableApiCalls(null)
+        return
+      }
+      setTableApiCallsLoading(true)
+      setTableApiCallsError(null)
+      try {
+        const params = new URLSearchParams({ table: selectedOverviewTable })
+        if (selectedSyncPeriod.start) {
+          params.set('start_date', selectedSyncPeriod.start)
+        }
+        if (selectedSyncPeriod.end) {
+          params.set('end_date', selectedSyncPeriod.end)
+        }
+        if (deepSync) {
+          params.set('deep_sync', 'true')
+        }
+        const response = await fetch(`http://127.0.0.1:8000/stats/table-api-calls?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load API call estimate (${response.status})`)
+        }
+        const data = await response.json()
+        setTableApiCalls({
+          minimum_api_calls: typeof data.minimum_api_calls === 'number' ? data.minimum_api_calls : 0,
+          basis: data.basis ?? '',
+        })
+      } catch (error) {
+        console.error('Failed to load API call estimate', error)
+        setTableApiCallsError(error instanceof Error ? error.message : 'Failed to load API call estimate')
+        setTableApiCalls(null)
+      } finally {
+        setTableApiCallsLoading(false)
+      }
+    }
+
+    loadTableApiCalls()
+    timer = window.setInterval(loadTableApiCalls, 8000)
+    return () => {
+      if (timer) {
+        window.clearInterval(timer)
+      }
+    }
+  }, [selectedOverviewTable, selectedSyncPeriod.start, selectedSyncPeriod.end, deepSync])
 
   const runsTotalPages = useMemo(
     () => Math.max(1, Math.ceil(runsTotal / runsPageSize)),
@@ -464,7 +676,7 @@ function SyncSettings() {
               />
             </div>
             <div className="db-overview-grid">
-              <div className="db-overview-size">
+              <div className="db-overview-size db-overview-pane">
                 <div className="db-overview-pie-wrap">
                   <div className="db-overview-pie-chart">
                     <svg className="db-overview-pie" viewBox="0 0 140 140" role="img" aria-label="Table storage distribution">
@@ -510,112 +722,95 @@ function SyncSettings() {
                   </div>
                 )}
               </div>
-              <div className="db-overview-col">
-                <div className="db-overview-metric">
-                  <div className="sync-stat-label">Earliest data</div>
-                  <div className="sync-stat-value">{formatDisplayDate(overview.earliest_date)}</div>
+              <div className="db-overview-table-metrics db-overview-pane">
+                {orderedTableRowCounts.map((item) => (
+                  <div key={item.table} className="db-overview-table-metric">
+                    <div className="sync-stat-label-row">
+                      <div className="sync-stat-label">{formatTableMetricLabel(item.table)}</div>
+                      <span className="sync-help sync-metric-help" title={getTableApiUsage(item.table)}>
+                        i
+                      </span>
+                    </div>
+                    <div className="sync-stat-value">{item.rows.toLocaleString()}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="db-overview-selector-row">
+              <ActionButton
+                label={showTableColumns ? 'Hide Table Columns' : 'See Table Columns'}
+                onClick={() => setShowTableColumns((prev) => !prev)}
+                variant="soft"
+                className="db-overview-toggle-button"
+              />
+              <div className="db-overview-selector-label">Database table:</div>
+              <div className="db-overview-selector-control">
+                <Dropdown
+                  value={selectedOverviewTable}
+                  onChange={setSelectedOverviewTable}
+                  placeholder="Select table"
+                  items={overviewTableItems}
+                />
+              </div>
+            </div>
+            <div className="db-overview-details">
+              <div className="db-overview-date-grid">
+                <div className="db-overview-detail-card">
+                  <div className="sync-stat-label">Oldest item</div>
+                  <div className="sync-stat-value">
+                    {tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.oldest_item_date ?? null)}
+                  </div>
                 </div>
-                <div className="db-overview-metric">
-                  <div className="sync-stat-label">Latest data</div>
-                  <div className="sync-stat-value">{formatDisplayDate(overview.latest_date)}</div>
+                <div className="db-overview-detail-card">
+                  <div className="sync-stat-label">Newest item</div>
+                  <div className="sync-stat-value">
+                    {tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.newest_item_date ?? null)}
+                  </div>
                 </div>
               </div>
-              <div className="db-overview-col">
-                <div className="db-overview-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Total videos</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.total_uploads.toLocaleString()}</div>
+              <div className="db-overview-api-calls">
+                <div className="sync-stat-label-row">
+                  <div className="sync-stat-label">Minimum API calls for selected period</div>
+                  <span
+                    className="sync-help"
+                    title={tableApiCalls?.basis || 'Selected table and current sync settings'}
+                  >
+                    i
+                  </span>
                 </div>
-                <div className="db-overview-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Total comments</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.total_comments.toLocaleString()}</div>
+                <div className="db-overview-api-calls-value">
+                  {tableApiCallsLoading ? 'Loading...' : tableApiCallsError ? 'Error' : (tableApiCalls?.minimum_api_calls ?? 0).toLocaleString()}
                 </div>
-                <div className="db-overview-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Total audience</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3\n- YouTube comments data'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.total_audience.toLocaleString()}</div>
-                </div>
-                <div className="db-overview-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Total playlists</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Data API v3'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.total_playlists.toLocaleString()}</div>
-                </div>
+                {tableApiCallsError ? <div className="db-overview-api-calls-meta">{tableApiCallsError}</div> : null}
               </div>
-              <div className="db-overview-rows">
-                <div className="db-overview-row-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Channel analytics rows</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.channel_daily_rows.toLocaleString()}</div>
+              {showTableColumns ? (
+                <div className="db-overview-columns-wrap">
+                  {tableDetailsError ? (
+                    <div className="sync-empty">{tableDetailsError}</div>
+                  ) : tableDetailsLoading ? (
+                    <div className="sync-empty">Loading columns...</div>
+                  ) : (
+                    <div className="db-overview-columns-table">
+                      <div className="db-overview-columns-header">
+                        <span>Column</span>
+                        <span>Type</span>
+                        <span>Expected values</span>
+                      </div>
+                      {tableDetails?.columns.length ? (
+                        tableDetails.columns.map((column) => (
+                          <div key={column.name} className="db-overview-columns-row">
+                            <span>{column.name}</span>
+                            <span>{column.declared_type}</span>
+                            <span>{column.expected_value}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="sync-empty">No columns found.</div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="db-overview-row-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Video analytics rows</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.daily_analytics_rows.toLocaleString()}</div>
-                </div>
-                <div className="db-overview-row-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Playlist analytics rows</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.playlist_analytics_rows.toLocaleString()}</div>
-                </div>
-                <div className="db-overview-row-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Traffic source rows</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.traffic_sources_rows.toLocaleString()}</div>
-                </div>
-              </div>
-              <div className="db-overview-rows db-overview-rows-half">
-                <div className="db-overview-row-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Video traffic source rows</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.video_traffic_source_rows.toLocaleString()}</div>
-                </div>
-                <div className="db-overview-row-metric">
-                  <div className="sync-stat-label-row">
-                    <div className="sync-stat-label">Video search rows</div>
-                    <span className="sync-help sync-metric-help" title={'API Used:\n- YouTube Analytics API v2'}>
-                      i
-                    </span>
-                  </div>
-                  <div className="sync-stat-value">{overview.video_search_rows.toLocaleString()}</div>
-                </div>
-              </div>
+              ) : null}
             </div>
           </div>
         </div>

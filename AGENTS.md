@@ -14,6 +14,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Config is `.env`-driven via `backend/config.py`.
 - SQLite DB file path is `backend/data/youtube.db` (from `DB_PATH=data/youtube.db` in `backend/.env`).
 - Database schema and helpers live in `backend/src/database/`.
+- `updated_at` is not persisted on `videos`, `playlists`, `playlist_items`, or `comments`; sync writes only API/source fields needed by UI and analytics.
 - Playlist persistence uses `playlists` and `playlist_items` tables in `backend/src/database/schema.sql`.
 - Playlist analytics persistence uses `playlist_daily_analytics` in `backend/src/database/schema.sql` (daily `playlist_views` by `playlist_id` + `date`).
 - `playlist_daily_analytics` stores playlist daily metrics: `playlist_views`, `playlist_estimated_minutes_watched`, `playlist_average_view_duration_seconds`, `playlist_starts`, `views_per_playlist_start`, and `average_time_in_playlist_seconds`.
@@ -77,20 +78,21 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlist Analytics` (`pull=playlist_analytics`) as its own pull option.
 - `frontend/src/pages/SyncSettings.tsx` uses analytics pull keys `channel_analytics`, `video_analytics`, `video_traffic_source`, and `video_search_insights` (labels: `Channel analytics`, `Video analytics`, `Video traffic source`, `Video search insights`); backend accepts legacy aliases `channel_daily` and `daily_analytics`.
 - `frontend/src/pages/SyncSettings.tsx` treats unknown/legacy pull keys in saved settings as invalid on the client: sync is blocked and a visible error is shown; no `/sync` request is sent until selection is corrected.
-- `frontend/src/pages/SyncSettings.tsx` Database Overview metric cards include an info icon per metric (total videos/playlists/comments + channel/video/playlist analytics rows + traffic source rows + video traffic source rows + video search rows); each tooltip uses `API Used:` with bullet lines and shows the API family for that metric.
 - `frontend/src/pages/SyncSettings.tsx` Database Overview header includes a `Refresh` button that re-fetches `GET /stats/overview` on demand.
-- `GET /stats/overview` includes `total_playlists` and `total_audience`, and `frontend/src/pages/SyncSettings.tsx` Database Overview metric stack shows `Total videos`, `Total comments`, `Total audience`, and `Total playlists` in that order.
-- In `frontend/src/pages/Page.css`, Sync Database Overview metric cards use stretch/flex distribution (no fixed card heights) so each metric column fills available height and its cards split that height evenly.
 - `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
 - `GET /stats/overview` `table_storage.percent` is normalized against tracked table bytes only (tables + their indexes), so donut slices sum to 100% of table storage rather than total SQLite file size.
-- `frontend/src/pages/SyncSettings.tsx` uses a 5-column Database Overview layout:
-  - Column 1: Database size + donut chart (ring only) with total size in the center.
-  - Column 2: Earliest data (top), Latest data (bottom).
-  - Column 3: Total videos (top), Total comments, Total audience, Total playlists (bottom).
-  - Column 4: Channel analytics rows, Video analytics rows, Playlist analytics rows, Traffic source rows.
-  - Column 5: Video traffic source rows, Video search rows.
-  - Donut slices show table size and percent on hover; no persistent table list below the chart.
-- `GET /stats/overview` includes `playlist_analytics_rows` (`COUNT(*)` from `playlist_daily_analytics`), `video_traffic_source_rows` (`COUNT(*)` from `video_traffic_source`), and `video_search_rows` (`COUNT(*)` from `video_search_insights`) for Sync Database Overview.
+- `frontend/src/pages/SyncSettings.tsx` Database Overview uses a 2-pane layout: left pane is the table-storage donut chart (with total DB size in the center + hover bytes/percent), right pane lists per-table row counts for all project tables returned by backend (excluding `sync_runs`).
+- On `frontend/src/pages/SyncSettings.tsx`, right-pane table-row metric headers are human-readable labels (not raw table names), using explicit friendly names with title-cased fallback.
+- On `frontend/src/pages/SyncSettings.tsx`, each right-pane table-row metric card includes an info tooltip in the format `This uses:` listing the relevant Google API family for that table.
+- On `frontend/src/pages/SyncSettings.tsx`, right-pane table-row metrics are displayed in a fixed logical order: `Videos`, `Comments`, `Audience`, `Playlists`, `Playlist items`, `Video analytics rows`, `Channel analytics rows`, `Playlist analytics rows`, `Traffic source rows`, `Video traffic source rows`, `Video search rows`; unknown tables are shown after these in label-sorted order.
+- `frontend/src/pages/SyncSettings.tsx` Database Overview includes a second section below the pie/metrics row with a `Database table` dropdown listing all existing non-`sync_runs` tables from overview data; selection state is kept locally for follow-on detail UI.
+- On `frontend/src/pages/SyncSettings.tsx`, selecting a table in the Database Overview dropdown calls `GET /stats/table-details?table=...` and renders: `Oldest item` date, `Newest item` date, and a columns table (`Column`, `Type`, `Expected values`).
+- On `frontend/src/pages/SyncSettings.tsx`, the Database Overview table-detail section also polls `GET /stats/table-api-calls` for the selected table and current sync period controls (`Full/Latest/Year/Custom` + `Deep sync`), and shows a numeric `Minimum API calls for selected period` block above the columns table; calculation details are shown via tooltip (not inline text).
+- `GET /stats/table-details` returns `{ table, date_column, oldest_item_date, newest_item_date, columns[] }`, where `columns[]` includes `name`, `declared_type`, and backend-generated human-readable `expected_value`.
+- `GET /stats/table-api-calls` returns `{ table, deep_sync, minimum_api_calls, basis }`; Sync UI uses current period controls only as estimator inputs and does not display period bounds in this card.
+- `GET /stats/table-api-calls` mirrors backend sync semantics: period controls affect only period-based analytics stages (`channel_analytics`, `traffic_sources_daily`, `playlist_daily_analytics`, `video_analytics`, `video_traffic_source`, `video_search_insights`), while non-period stages (`videos`, `comments`, `playlists`, `playlist_items`, `audience`) ignore selected period in estimation.
+- `GET /stats/table-api-calls` `basis` is dynamic for analytics tables and includes actual counts used in the estimate (e.g., X videos/playlists and X segments/video-days), and the Sync tooltip renders this text directly (no hardcoded prefix).
+- `GET /stats/overview` includes `table_row_counts` as `{ table, rows }[]` for all non-`sync_runs` user tables.
 - `frontend` includes playlist routes/pages:
   - `frontend` route `/playlists` -> `frontend/src/pages/Playlists.tsx` (playlist list with filters/sort/pagination; no actions column, title click opens details; recency column shows `last_item_added_at`).
   - `frontend` route `/playlists/:playlistId` -> `frontend/src/pages/PlaylistDetail.tsx` (playlist metadata + paginated item list).

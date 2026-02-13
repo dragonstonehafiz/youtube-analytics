@@ -17,8 +17,7 @@ CREATE TABLE IF NOT EXISTS videos (
     thumbnail_url TEXT,
     video_width INTEGER,
     video_height INTEGER,
-    content_type TEXT,
-    updated_at TEXT NOT NULL
+    content_type TEXT
 );
 
 CREATE TABLE IF NOT EXISTS playlists (
@@ -30,8 +29,7 @@ CREATE TABLE IF NOT EXISTS playlists (
     channel_title TEXT,
     privacy_status TEXT,
     item_count INTEGER,
-    thumbnail_url TEXT,
-    updated_at TEXT NOT NULL
+    thumbnail_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS playlist_items (
@@ -47,7 +45,6 @@ CREATE TABLE IF NOT EXISTS playlist_items (
     channel_title TEXT,
     privacy_status TEXT,
     thumbnail_url TEXT,
-    updated_at TEXT NOT NULL,
     FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
 );
 
@@ -185,7 +182,6 @@ CREATE TABLE IF NOT EXISTS comments (
     text_display TEXT,
     like_count INTEGER,
     published_at TEXT,
-    updated_at TEXT,
     FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
 );
 

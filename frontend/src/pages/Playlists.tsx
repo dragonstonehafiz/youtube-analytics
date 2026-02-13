@@ -14,7 +14,6 @@ type PlaylistRow = {
   privacy_status: string | null
   item_count: number | null
   thumbnail_url: string | null
-  updated_at: string | null
   last_item_added_at: string | null
   total_playlist_views: number | null
   total_content_views: number | null

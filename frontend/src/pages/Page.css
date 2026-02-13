@@ -497,10 +497,14 @@
 
 .db-overview-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1.2fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr) minmax(200px, 0.9fr) minmax(200px, 0.9fr);
-  align-items: stretch;
+  grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr);
+  align-items: center;
   gap: 16px;
   margin-top: 10px;
+}
+
+.db-overview-pane {
+  min-width: 0;
 }
 
 .db-overview-size {
@@ -509,6 +513,151 @@
   justify-content: center;
   align-items: center;
   text-align: center;
+}
+
+.db-overview-table-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.db-overview-table-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  padding: 14px;
+  text-align: center;
+  min-height: 94px;
+}
+
+.db-overview-table-metric .sync-stat-label {
+  margin-bottom: 6px;
+  text-transform: none;
+}
+
+.db-overview-selector-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.db-overview-selector-label {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.db-overview-selector-control {
+  min-width: 240px;
+  max-width: 320px;
+}
+
+.db-overview-toggle-button {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+}
+
+.db-overview-details {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.db-overview-date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.db-overview-detail-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  padding: 14px;
+  text-align: center;
+  min-height: 94px;
+}
+
+.db-overview-api-calls {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  padding: 14px;
+  text-align: center;
+  min-height: 94px;
+  gap: 4px;
+}
+
+.db-overview-api-calls-value {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.db-overview-api-calls-meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.db-overview-columns-wrap {
+  padding: 0;
+}
+
+.db-overview-columns-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.db-overview-columns-header,
+.db-overview-columns-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1.4fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.db-overview-columns-header {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.db-overview-columns-row {
+  font-size: 13px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.db-overview-columns-row:last-child {
+  border-bottom: none;
+}
+
+.db-overview-columns-header > span,
+.db-overview-columns-row > span {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .db-overview-pie-wrap {
@@ -640,7 +789,20 @@
   }
 
   .db-overview-grid {
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .db-overview-table-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .db-overview-selector-row {
+    justify-content: flex-start;
+  }
+
+  .db-overview-columns-header,
+  .db-overview-columns-row {
+    grid-template-columns: minmax(0, 1fr) 120px minmax(0, 1.2fr);
   }
 }
 
@@ -651,6 +813,34 @@
 
   .db-overview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .db-overview-table-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .db-overview-selector-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .db-overview-selector-control {
+    min-width: 0;
+  }
+
+  .db-overview-date-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .db-overview-columns-header,
+  .db-overview-columns-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .db-overview-columns-header > span,
+  .db-overview-columns-row > span {
+    white-space: normal;
   }
 
   .db-overview-pie-chart {

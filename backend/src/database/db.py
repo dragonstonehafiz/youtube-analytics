@@ -215,7 +215,6 @@ def _ensure_playlist_items_schema(conn: sqlite3.Connection) -> None:
                 channel_title TEXT,
                 privacy_status TEXT,
                 thumbnail_url TEXT,
-                updated_at TEXT NOT NULL,
                 FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
             )
             """
@@ -225,12 +224,12 @@ def _ensure_playlist_items_schema(conn: sqlite3.Connection) -> None:
             INSERT INTO playlist_items_new (
                 id, playlist_id, video_id, position, title, description,
                 published_at, video_published_at, channel_id, channel_title,
-                privacy_status, thumbnail_url, updated_at
+                privacy_status, thumbnail_url
             )
             SELECT
                 id, playlist_id, video_id, position, title, description,
                 published_at, video_published_at, channel_id, channel_title,
-                privacy_status, thumbnail_url, updated_at
+                privacy_status, thumbnail_url
             FROM playlist_items
             """
         )
