@@ -272,6 +272,13 @@
   gap: 16px;
 }
 
+.analytics-traffic-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
 .analytics-side-cards {
   display: flex;
   flex-direction: column;
@@ -1993,4 +2000,10 @@
     max-width: 480px;
   }
 
+}
+
+@media (max-width: 980px) {
+  .analytics-traffic-row {
+    grid-template-columns: 1fr;
+  }
 }

@@ -6,7 +6,11 @@ import {
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
   TopContentTable,
+  TrafficSourceShareCard,
+  TrafficSourceTopVideosCard,
   VideoDetailListCard,
+  type TopTrafficVideo,
+  type TrafficSourceShareItem,
 } from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { formatDisplayDate } from '../utils/date'
@@ -18,16 +22,11 @@ type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 
 type SeriesPoint = { date: string; value: number }
 type BucketMeta = { startDate: string; endDate: string; dayCount: number }
-type MetricKey = 'views' | 'watch_time' | 'subscribers' | 'revenue'
 type TotalsState = {
   views: number
   watch_time_minutes: number
   subscribers_net: number
   estimated_revenue: number
-}
-type MetricComparison = {
-  direction: 'up' | 'down' | 'flat'
-  percentText: string
 }
 type LatestContentItem = {
   video_id: string
@@ -39,16 +38,34 @@ type LatestContentItem = {
   avg_view_duration_seconds: number
   avg_view_pct: number
 }
-type AnalyticsTab = 'metrics' | 'monetization'
+type AnalyticsTab = 'metrics' | 'monetization' | 'discovery'
+type DiscoveryMetric = 'views' | 'watch_time'
+type TrafficSourceRow = {
+  day: string
+  traffic_source: string
+  views: number
+  watch_time_minutes: number
+}
+type DiscoveryMultiSeries = {
+  key: string
+  label: string
+  color: string
+  points: SeriesPoint[]
+}
+type TopVideosBySourceResponseItem = {
+  video_id: string
+  title: string
+  thumbnail_url: string
+  published_at: string
+  views: number
+  watch_time_minutes: number
+}
 type MonetizationTotalsState = {
   estimated_revenue: number
   ad_impressions: number
   monetized_playbacks: number
   cpm: number
 }
-type MonetizationComparisonState = Partial<
-  Record<'estimated_revenue' | 'ad_impressions' | 'monetized_playbacks' | 'cpm', MetricComparison>
->
 type MonetizationContentType = 'video' | 'short'
 type MonetizationMonthly = {
   monthKey: string
@@ -265,7 +282,10 @@ function Analytics() {
     customEnd?: string
   } | null)
   const [mode, setMode] = useState<'presets' | 'year' | 'custom'>(storedRange?.mode ?? 'presets')
-  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>(getStored('analyticsTab', 'metrics'))
+  const initialAnalyticsTab = getStored('analyticsTab', 'metrics') as string
+  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>(
+    initialAnalyticsTab === 'monetization' || initialAnalyticsTab === 'discovery' ? initialAnalyticsTab : 'metrics'
+  )
   const [presetSelection, setPresetSelection] = useState(storedRange?.presetSelection ?? 'range:28d')
   const [yearSelection, setYearSelection] = useState(storedRange?.yearSelection ?? '')
   const [monthSelection, setMonthSelection] = useState(storedRange?.monthSelection ?? 'all')
@@ -275,8 +295,10 @@ function Analytics() {
   const [customStart, setCustomStart] = useState(storedRange?.customStart ?? today)
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
+  const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [summaryDays, setSummaryDays] = useState<string[]>([])
   const [publishedDates, setPublishedDates] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
+  const [publishedDatesDaily, setPublishedDatesDaily] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
   const [publishBucketMeta, setPublishBucketMeta] = useState<Record<string, BucketMeta>>({})
   const [totals, setTotals] = useState<TotalsState>({
     views: 0,
@@ -284,8 +306,6 @@ function Analytics() {
     subscribers_net: 0,
     estimated_revenue: 0,
   })
-  const [comparisons, setComparisons] = useState<Partial<Record<MetricKey, MetricComparison>>>({})
-  const [monetizationComparisons, setMonetizationComparisons] = useState<MonetizationComparisonState>({})
   const [latestLongform, setLatestLongform] = useState<LatestContentItem[]>([])
   const [latestShorts, setLatestShorts] = useState<LatestContentItem[]>([])
   const [topContent, setTopContent] = useState<
@@ -319,6 +339,19 @@ function Analytics() {
     monetized_playbacks: [],
     cpm: [],
   })
+  const [previousMonetizationSeries, setPreviousMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({
+    estimated_revenue: [],
+    ad_impressions: [],
+    monetized_playbacks: [],
+    cpm: [],
+  })
+  const [discoveryMetric, setDiscoveryMetric] = useState<DiscoveryMetric>(getStored('analyticsDiscoveryMetric', 'views'))
+  const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
+  const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
+  const [trafficTopSource, setTrafficTopSource] = useState('')
+  const [trafficTopVideos, setTrafficTopVideos] = useState<TopTrafficVideo[]>([])
+  const [trafficTopLoading, setTrafficTopLoading] = useState(false)
+  const [trafficTopError, setTrafficTopError] = useState<string | null>(null)
 
   const range = useMemo(() => {
     const now = new Date()
@@ -377,18 +410,21 @@ function Analytics() {
     }
   }, [range.start, range.end])
 
-  const buildComparison = (currentValue: number, previousValue: number, windowLabel: string): MetricComparison => {
-    const rawDelta = currentValue - previousValue
-    if (rawDelta === 0) {
-      return { direction: 'flat', percentText: `No change vs previous ${windowLabel}` }
+  const fullRangeDays = useMemo(() => {
+    const start = new Date(`${range.start}T00:00:00Z`)
+    const end = new Date(`${range.end}T00:00:00Z`)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      return [] as string[]
     }
-    const base = previousValue === 0 ? 1 : Math.abs(previousValue)
-    const percent = Math.abs((rawDelta / base) * 100)
-    return {
-      direction: rawDelta > 0 ? 'up' : 'down',
-      percentText: `${percent.toFixed(1)}% ${rawDelta > 0 ? 'more' : 'less'} than previous ${windowLabel}`,
+    const days: string[] = []
+    const cursor = new Date(start)
+    while (cursor <= end) {
+      days.push(cursor.toISOString().slice(0, 10))
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
     }
-  }
+    return days
+  }, [range.start, range.end])
+
   useEffect(() => {
     async function loadYears() {
       try {
@@ -434,6 +470,9 @@ function Analytics() {
   useEffect(() => {
     setStored('analyticsTab', analyticsTab)
   }, [analyticsTab])
+  useEffect(() => {
+    setStored('analyticsDiscoveryMetric', discoveryMetric)
+  }, [discoveryMetric])
 
   useEffect(() => {
     async function loadSummary() {
@@ -459,31 +498,7 @@ function Analytics() {
         setTotals(nextTotals)
         const previousGained = previousData.totals?.subscribers_gained ?? 0
         const previousLost = previousData.totals?.subscribers_lost ?? 0
-        const previousTotals: TotalsState = {
-          views: previousData.totals?.views ?? 0,
-          watch_time_minutes: previousData.totals?.watch_time_minutes ?? 0,
-          subscribers_net: previousGained - previousLost,
-          estimated_revenue: previousData.totals?.estimated_revenue ?? 0,
-        }
-        const windowLabel = previousRange.daySpan === 1 ? '1 day' : `${previousRange.daySpan} days`
-        const buildComparison = (currentValue: number, previousValue: number): MetricComparison => {
-          const rawDelta = currentValue - previousValue
-          if (rawDelta === 0) {
-            return { direction: 'flat', percentText: `No change vs previous ${windowLabel}` }
-          }
-          const base = previousValue === 0 ? 1 : Math.abs(previousValue)
-          const percent = Math.abs((rawDelta / base) * 100)
-          return {
-            direction: rawDelta > 0 ? 'up' : 'down',
-            percentText: `${percent.toFixed(1)}% ${rawDelta > 0 ? 'more' : 'less'} than previous ${windowLabel}`,
-          }
-        }
-        setComparisons({
-          views: buildComparison(nextTotals.views, previousTotals.views),
-          watch_time: buildComparison(Math.round(nextTotals.watch_time_minutes / 60), Math.round(previousTotals.watch_time_minutes / 60)),
-          subscribers: buildComparison(nextTotals.subscribers_net, previousTotals.subscribers_net),
-          revenue: buildComparison(nextTotals.estimated_revenue, previousTotals.estimated_revenue),
-        })
+        const previousItems = Array.isArray(previousData.items) ? previousData.items : []
         const byDay = new Map<string, any>()
         items.forEach((item: any) => {
           byDay.set(item.day, item)
@@ -499,6 +514,12 @@ function Analytics() {
           setSummaryDays([])
           setPublishBucketMeta({})
           setSeries({
+            views: [],
+            watch_time: [],
+            subscribers: [],
+            revenue: [],
+          })
+          setPreviousSeries({
             views: [],
             watch_time: [],
             subscribers: [],
@@ -531,9 +552,44 @@ function Analytics() {
           subscribers: aggregatePoints(dailySubscribers, granularity),
           revenue: aggregatePoints(dailyRevenue, granularity),
         })
+        const previousByDay = new Map<string, any>()
+        previousItems.forEach((item: any) => {
+          previousByDay.set(item.day, item)
+        })
+        const previousSortedDays = Array.from(
+          new Set<string>(
+            previousItems
+              .map((item: any) => item.day)
+              .filter((day: unknown): day is string => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day))
+          )
+        ).sort((a, b) => a.localeCompare(b))
+        const previousDays: string[] = []
+        if (previousSortedDays.length > 0) {
+          const previousCursor = new Date(`${previousSortedDays[0]}T00:00:00Z`)
+          const previousEnd = new Date(`${previousSortedDays[previousSortedDays.length - 1]}T00:00:00Z`)
+          while (previousCursor <= previousEnd) {
+            previousDays.push(previousCursor.toISOString().slice(0, 10))
+            previousCursor.setUTCDate(previousCursor.getUTCDate() + 1)
+          }
+        }
+        const previousDailyViews = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.views ?? 0 }))
+        const previousDailyWatchTime = previousDays.map((day) => ({
+          date: day,
+          value: Math.round((previousByDay.get(day)?.watch_time_minutes ?? 0) / 60),
+        }))
+        const previousDailySubscribers = previousDays.map((day) => ({
+          date: day,
+          value: (previousByDay.get(day)?.subscribers_gained ?? 0) - (previousByDay.get(day)?.subscribers_lost ?? 0),
+        }))
+        const previousDailyRevenue = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.estimated_revenue ?? 0 }))
+        setPreviousSeries({
+          views: aggregatePoints(previousDailyViews, granularity),
+          watch_time: aggregatePoints(previousDailyWatchTime, granularity),
+          subscribers: aggregatePoints(previousDailySubscribers, granularity),
+          revenue: aggregatePoints(previousDailyRevenue, granularity),
+        })
       } catch (error) {
         console.error('Failed to load analytics summary', error)
-        setComparisons({})
       }
     }
 
@@ -555,6 +611,7 @@ function Analytics() {
             map[item.day] = Array.isArray(item.items) ? item.items : []
           }
         })
+        setPublishedDatesDaily(map)
         if (granularity === 'daily') {
           setPublishedDates(map)
           return
@@ -583,6 +640,35 @@ function Analytics() {
 
     loadPublished()
   }, [range.start, range.end, contentSelection, granularity, summaryDays])
+
+  const discoveryPublishedDates = useMemo(() => {
+    if (granularity === 'daily') {
+      return publishedDatesDaily
+    }
+    if (fullRangeDays.length === 0) {
+      return {}
+    }
+    const dayToBucket = buildDayBucketMap(fullRangeDays, granularity)
+    const rebucketed: Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]> = {}
+    Object.entries(publishedDatesDaily).forEach(([day, dayItems]) => {
+      const bucket = dayToBucket.get(day)
+      if (!bucket) {
+        return
+      }
+      if (!rebucketed[bucket]) {
+        rebucketed[bucket] = []
+      }
+      rebucketed[bucket].push(...dayItems)
+    })
+    return rebucketed
+  }, [publishedDatesDaily, fullRangeDays, granularity])
+
+  const discoveryPublishBucketMeta = useMemo(() => {
+    if (fullRangeDays.length === 0) {
+      return {}
+    }
+    return buildBucketMeta(fullRangeDays, granularity)
+  }, [fullRangeDays, granularity])
 
   useEffect(() => {
     async function loadTopContent() {
@@ -712,6 +798,7 @@ function Analytics() {
         ).sort((a, b) => a.localeCompare(b))
         if (sortedUniqueDays.length === 0) {
           setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
+          setPreviousMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
           setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
           return
         }
@@ -741,35 +828,41 @@ function Analytics() {
           monetized_playbacks: Number(payload?.totals?.monetized_playbacks ?? 0),
           cpm: Number(payload?.totals?.cpm ?? 0),
         })
-
-        const previousTotals = {
-          estimated_revenue: Number(previousPayload?.totals?.estimated_revenue ?? 0),
-          ad_impressions: Number(previousPayload?.totals?.ad_impressions ?? 0),
-          monetized_playbacks: Number(previousPayload?.totals?.monetized_playbacks ?? 0),
-          cpm: Number(previousPayload?.totals?.cpm ?? 0),
+        const previousItems = Array.isArray(previousPayload?.items) ? previousPayload.items : []
+        const previousByDay = new Map<string, any>()
+        previousItems.forEach((item: any) => {
+          if (typeof item?.day === 'string') {
+            previousByDay.set(item.day, item)
+          }
+        })
+        const previousSortedDays = Array.from(
+          new Set<string>(
+            previousItems
+              .map((item: any) => item.day)
+              .filter((day: unknown): day is string => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day))
+          )
+        ).sort((a, b) => a.localeCompare(b))
+        const previousDays: string[] = []
+        if (previousSortedDays.length > 0) {
+          const previousCursor = new Date(`${previousSortedDays[0]}T00:00:00Z`)
+          const previousEnd = new Date(`${previousSortedDays[previousSortedDays.length - 1]}T00:00:00Z`)
+          while (previousCursor <= previousEnd) {
+            previousDays.push(previousCursor.toISOString().slice(0, 10))
+            previousCursor.setUTCDate(previousCursor.getUTCDate() + 1)
+          }
         }
-        const windowLabel = previousRange.daySpan === 1 ? '1 day' : `${previousRange.daySpan} days`
-        setMonetizationComparisons({
-          estimated_revenue: buildComparison(
-            Number(payload?.totals?.estimated_revenue ?? 0),
-            previousTotals.estimated_revenue,
-            windowLabel
-          ),
-          ad_impressions: buildComparison(
-            Number(payload?.totals?.ad_impressions ?? 0),
-            previousTotals.ad_impressions,
-            windowLabel
-          ),
-          monetized_playbacks: buildComparison(
-            Number(payload?.totals?.monetized_playbacks ?? 0),
-            previousTotals.monetized_playbacks,
-            windowLabel
-          ),
-          cpm: buildComparison(
-            Number(payload?.totals?.cpm ?? 0),
-            previousTotals.cpm,
-            windowLabel
-          ),
+        const previousDailyRevenue = previousDays.map((day) => ({ date: day, value: Number(previousByDay.get(day)?.estimated_revenue ?? 0) }))
+        const previousDailyAdImpressions = previousDays.map((day) => ({ date: day, value: Number(previousByDay.get(day)?.ad_impressions ?? 0) }))
+        const previousDailyMonetizedPlaybacks = previousDays.map((day) => ({
+          date: day,
+          value: Number(previousByDay.get(day)?.monetized_playbacks ?? 0),
+        }))
+        const previousDailyCpm = previousDays.map((day) => ({ date: day, value: Number(previousByDay.get(day)?.cpm ?? 0) }))
+        setPreviousMonetizationSeries({
+          estimated_revenue: aggregatePoints(previousDailyRevenue, granularity),
+          ad_impressions: aggregatePoints(previousDailyAdImpressions, granularity),
+          monetized_playbacks: aggregatePoints(previousDailyMonetizedPlaybacks, granularity),
+          cpm: aggregateWeightedPoints(previousDailyCpm, previousDailyAdImpressions, granularity),
         })
 
         const monthTotals = new Map<string, number>()
@@ -815,8 +908,8 @@ function Analytics() {
       } catch (error) {
         console.error('Failed to load monetization data', error)
         setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
+        setPreviousMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
         setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
-        setMonetizationComparisons({})
         setMonthlyEarnings([])
         setContentPerformance({
           video: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
@@ -827,6 +920,186 @@ function Analytics() {
 
     loadMonetizationData()
   }, [range.start, range.end, granularity, previousRange.start, previousRange.end, previousRange.daySpan, contentSelection])
+
+  useEffect(() => {
+    async function loadDiscoveryData() {
+      try {
+        const currentUrl =
+          contentSelection === 'all'
+            ? `http://127.0.0.1:8000/analytics/traffic-sources?start_date=${range.start}&end_date=${range.end}`
+            : `http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
+        const previousUrl =
+          contentSelection === 'all'
+            ? `http://127.0.0.1:8000/analytics/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}`
+            : `http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentSelection}`
+        const [currentResponse, previousResponse] = await Promise.all([fetch(currentUrl), fetch(previousUrl)])
+        const [currentPayload, previousPayload] = await Promise.all([currentResponse.json(), previousResponse.json()])
+        const toRows = (items: any[]): TrafficSourceRow[] =>
+          items.map((item) => ({
+            day: String(item?.day ?? ''),
+            traffic_source: String(item?.traffic_source ?? ''),
+            views: Number(item?.views ?? 0),
+            watch_time_minutes: Number(item?.watch_time_minutes ?? 0),
+          }))
+        setDiscoveryTrafficRows(Array.isArray(currentPayload?.items) ? toRows(currentPayload.items) : [])
+        setDiscoveryPreviousTrafficRows(Array.isArray(previousPayload?.items) ? toRows(previousPayload.items) : [])
+      } catch (error) {
+        console.error('Failed to load discovery traffic data', error)
+        setDiscoveryTrafficRows([])
+        setDiscoveryPreviousTrafficRows([])
+      }
+    }
+    loadDiscoveryData()
+  }, [range.start, range.end, previousRange.start, previousRange.end, contentSelection])
+
+  useEffect(() => {
+    async function loadTopVideosBySource() {
+      if (!trafficTopSource) {
+        setTrafficTopVideos([])
+        setTrafficTopError(null)
+        return
+      }
+      setTrafficTopLoading(true)
+      setTrafficTopError(null)
+      try {
+        const params = new URLSearchParams({
+          start_date: range.start,
+          end_date: range.end,
+          traffic_source: trafficTopSource,
+          limit: '5',
+        })
+        if (contentSelection !== 'all') {
+          params.set('content_type', contentSelection)
+        }
+        const response = await fetch(`http://127.0.0.1:8000/analytics/video-traffic-source-top-videos?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load top traffic-source videos (${response.status})`)
+        }
+        const payload = await response.json()
+        const items = (Array.isArray(payload?.items) ? payload.items : []) as TopVideosBySourceResponseItem[]
+        setTrafficTopVideos(items.map((item) => ({
+          video_id: String(item.video_id ?? ''),
+          title: String(item.title ?? '(untitled)'),
+          thumbnail_url: String(item.thumbnail_url ?? ''),
+          views: Number(item.views ?? 0),
+          watch_time_minutes: Number(item.watch_time_minutes ?? 0),
+        })))
+      } catch (error) {
+        setTrafficTopVideos([])
+        setTrafficTopError(error instanceof Error ? error.message : 'Failed to load top traffic-source videos.')
+      } finally {
+        setTrafficTopLoading(false)
+      }
+    }
+
+    loadTopVideosBySource()
+  }, [range.start, range.end, contentSelection, trafficTopSource])
+
+  const buildTrafficSeries = (
+    rows: TrafficSourceRow[],
+    metric: DiscoveryMetric,
+    startDate: string,
+    endDate: string
+  ): DiscoveryMultiSeries[] => {
+    const start = new Date(`${startDate}T00:00:00Z`)
+    const end = new Date(`${endDate}T00:00:00Z`)
+    const allDays: string[] = []
+    const cursor = new Date(start)
+    while (cursor <= end) {
+      allDays.push(cursor.toISOString().slice(0, 10))
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    }
+    const totalsBySource = new Map<string, number>()
+    rows.forEach((row) => {
+      const source = row.traffic_source
+      if (!source) {
+        return
+      }
+      const value = metric === 'views' ? row.views : row.watch_time_minutes
+      totalsBySource.set(source, (totalsBySource.get(source) ?? 0) + value)
+    })
+    const topSources = Array.from(totalsBySource.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([source]) => source)
+    const colorPalette = ['#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#ef4444']
+    const seriesItems: DiscoveryMultiSeries[] = topSources.map((source, index) => {
+      const grouped = new Map<string, number>()
+      rows.forEach((row) => {
+        if (row.traffic_source !== source || !row.day) {
+          return
+        }
+        const value = metric === 'views' ? row.views : row.watch_time_minutes
+        grouped.set(row.day, (grouped.get(row.day) ?? 0) + value)
+      })
+      const points = allDays.map((date) => ({ date, value: grouped.get(date) ?? 0 }))
+      const aggregated = aggregatePoints(points, granularity)
+      return {
+        key: source,
+        label: source.replace(/_/g, ' '),
+        color: colorPalette[index % colorPalette.length],
+        points: aggregated,
+      }
+    })
+    return seriesItems
+  }
+  const discoverySeriesByMetric = useMemo(
+    () => ({
+      views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end),
+      watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end),
+    }),
+    [discoveryTrafficRows, granularity, range.start, range.end]
+  )
+  const discoveryMetrics = useMemo(() => {
+    const totalViews = discoverySeriesByMetric.views.reduce(
+      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0),
+      0
+    )
+    const totalWatch = discoverySeriesByMetric.watch_time.reduce(
+      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0),
+      0
+    )
+    return [
+      { key: 'views', label: 'Views', value: formatWholeNumber(Math.round(totalViews)) },
+      { key: 'watch_time', label: 'Watch time', value: formatWholeNumber(Math.round(totalWatch)) },
+    ]
+  }, [discoverySeriesByMetric])
+
+  const trafficShareItems = useMemo<TrafficSourceShareItem[]>(() => {
+    const totals = new Map<string, number>()
+    discoveryTrafficRows.forEach((row) => {
+      if (!row.traffic_source) {
+        return
+      }
+      totals.set(row.traffic_source, (totals.get(row.traffic_source) ?? 0) + (row.views ?? 0))
+    })
+    return Array.from(totals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([source, views]) => ({ key: source, label: source.replace(/_/g, ' '), views }))
+  }, [discoveryTrafficRows])
+
+  const trafficSourceOptions = useMemo(() => {
+    return trafficShareItems.map((item) => ({ label: item.label, value: item.key }))
+  }, [trafficShareItems])
+
+  useEffect(() => {
+    if (!trafficTopSource && trafficSourceOptions.length > 0) {
+      setTrafficTopSource(trafficSourceOptions[0].value)
+      return
+    }
+    if (trafficTopSource && !trafficSourceOptions.some((option) => option.value === trafficTopSource)) {
+      setTrafficTopSource(trafficSourceOptions[0]?.value ?? '')
+    }
+  }, [trafficTopSource, trafficSourceOptions])
+
+  const previousDiscoverySeriesByMetric = useMemo(
+    () => ({
+      views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end),
+      watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end),
+    }),
+    [discoveryPreviousTrafficRows, granularity, previousRange.start, previousRange.end]
+  )
 
   return (
     <section className="page">
@@ -933,6 +1206,13 @@ function Analytics() {
         >
           Monetization
         </button>
+        <button
+          type="button"
+          className={analyticsTab === 'discovery' ? 'analytics-tab active' : 'analytics-tab'}
+          onClick={() => setAnalyticsTab('discovery')}
+        >
+          Discovery
+        </button>
       </div>
       <div className="page-body">
         <div className="page-row">
@@ -942,26 +1222,32 @@ function Analytics() {
                 <PageCard>
                   <MetricChartCard
                     metrics={[
-                      { key: 'views', label: 'Views', value: formatWholeNumber(totals.views), comparison: comparisons.views },
+                      { key: 'views', label: 'Views', value: formatWholeNumber(totals.views) },
                       {
                         key: 'watch_time',
                         label: 'Watch time (hours)',
                         value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
-                        comparison: comparisons.watch_time,
                       },
-                      { key: 'subscribers', label: 'Subscribers', value: formatWholeNumber(totals.subscribers_net), comparison: comparisons.subscribers },
+                      { key: 'subscribers', label: 'Subscribers', value: formatWholeNumber(totals.subscribers_net) },
                       {
                         key: 'revenue',
                         label: 'Estimated revenue',
                         value: formatCurrency(totals.estimated_revenue),
-                        comparison: comparisons.revenue,
                       },
                     ]}
+                    startDate={range.start}
+                    endDate={range.end}
                     series={{
                       views: series.views ?? [],
                       watch_time: series.watch_time ?? [],
                       subscribers: series.subscribers ?? [],
                       revenue: series.revenue ?? [],
+                    }}
+                    previousSeries={{
+                      views: previousSeries.views ?? [],
+                      watch_time: previousSeries.watch_time ?? [],
+                      subscribers: previousSeries.subscribers ?? [],
+                      revenue: previousSeries.revenue ?? [],
                     }}
                     publishedDates={publishedDates}
                     publishedBucketMeta={publishBucketMeta}
@@ -988,7 +1274,7 @@ function Analytics() {
                 </PageCard>
               </div>
             </div>
-          ) : (
+          ) : analyticsTab === 'monetization' ? (
             <div className="analytics-monetization-layout">
               <PageCard>
                 <MetricChartCard
@@ -997,33 +1283,38 @@ function Analytics() {
                       key: 'estimated_revenue',
                       label: 'Estimated revenue',
                       value: formatCurrency(monetizationTotals.estimated_revenue),
-                      comparison: monetizationComparisons.estimated_revenue,
                     },
                     {
                       key: 'ad_impressions',
                       label: 'Ad impressions',
                       value: formatWholeNumber(monetizationTotals.ad_impressions),
-                      comparison: monetizationComparisons.ad_impressions,
                     },
                     {
                       key: 'monetized_playbacks',
                       label: 'Monetized playbacks',
                       value: formatWholeNumber(monetizationTotals.monetized_playbacks),
-                      comparison: monetizationComparisons.monetized_playbacks,
                     },
                     {
                       key: 'cpm',
                       label: 'CPM',
                       value: formatCurrency(monetizationTotals.cpm),
-                      comparison: monetizationComparisons.cpm,
                     },
                   ]}
+                  startDate={range.start}
+                  endDate={range.end}
                   series={{
                     estimated_revenue: monetizationSeries.estimated_revenue ?? [],
                     ad_impressions: monetizationSeries.ad_impressions ?? [],
                     monetized_playbacks: monetizationSeries.monetized_playbacks ?? [],
                     cpm: monetizationSeries.cpm ?? [],
                   }}
+                  previousSeries={{
+                    estimated_revenue: previousMonetizationSeries.estimated_revenue ?? [],
+                    ad_impressions: previousMonetizationSeries.ad_impressions ?? [],
+                    monetized_playbacks: previousMonetizationSeries.monetized_playbacks ?? [],
+                    cpm: previousMonetizationSeries.cpm ?? [],
+                  }}
+                  comparisonAggregation={{ cpm: 'avg' }}
                   publishedDates={publishedDates}
                   publishedBucketMeta={publishBucketMeta}
                 />
@@ -1038,6 +1329,40 @@ function Analytics() {
                     onContentTypeChange={setMonetizationContentType}
                     performance={contentPerformance}
                     itemCount={7}
+                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                  />
+                </PageCard>
+              </div>
+            </div>
+          ) : (
+            <div className="analytics-monetization-layout">
+              <PageCard>
+                <MetricChartCard
+                  metrics={discoveryMetrics}
+                  series={{}}
+                  multiSeriesByMetric={discoverySeriesByMetric}
+                  previousMultiSeriesByMetric={previousDiscoverySeriesByMetric}
+                  activeMetricKey={discoveryMetric}
+                  onActiveMetricChange={(key) => setDiscoveryMetric(key as DiscoveryMetric)}
+                  startDate={range.start}
+                  endDate={range.end}
+                  useRangeAsDailyAxis={granularity === 'daily'}
+                  publishedDates={discoveryPublishedDates}
+                  publishedBucketMeta={discoveryPublishBucketMeta}
+                />
+              </PageCard>
+              <div className="analytics-traffic-row">
+                <PageCard>
+                  <TrafficSourceShareCard items={trafficShareItems} />
+                </PageCard>
+                <PageCard>
+                  <TrafficSourceTopVideosCard
+                    source={trafficTopSource}
+                    sourceOptions={trafficSourceOptions}
+                    items={trafficTopVideos}
+                    loading={trafficTopLoading}
+                    error={trafficTopError}
+                    onSourceChange={setTrafficTopSource}
                     onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
                   />
                 </PageCard>

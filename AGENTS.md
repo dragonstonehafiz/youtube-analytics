@@ -128,12 +128,19 @@ Use this file to understand where to make changes and which conventions to follo
 - `sync_video_traffic_source` is a separate stage that syncs only per-video daily traffic-source rows into `video_traffic_source`.
 - `sync_video_search_insights` is a separate stage that syncs per-video daily YouTube-search term rows into `video_search_insights`.
 - `GET /analytics/channel-daily` returns the single combined channel-daily series.
+- `GET /analytics/traffic-sources` returns channel-level daily traffic-source rows (`day`, `traffic_source`, `views`, `watch_time_minutes`) from `traffic_sources_daily`.
+- `GET /analytics/video-traffic-sources` returns video-level daily traffic-source rows aggregated by day/source from `video_traffic_source` (optional `content_type` filter via join to `videos`).
+- `GET /analytics/video-traffic-source-top-videos` returns top videos for a selected traffic source in a date range (`views`, `watch_time_minutes`, video metadata), with optional `content_type` and `limit` (default `10`).
 - `frontend/src/pages/Analytics.tsx` chart range is trimmed to the first/last day that has channel-daily data within the selected range, while still rendering zero-value gaps for missing days inside that trimmed span.
 - `GET /analytics/daily/summary` supports optional `content_type` (`video` or `short`) and aggregates from `video_analytics` joined to `videos`, including `cpm` as an ad-impression-weighted average.
 - `GET /analytics/daily/summary` includes `ad_impressions` and `monetized_playbacks` in per-day items and totals.
 - `frontend/src/pages/Analytics.tsx` includes a content dropdown with `All Videos`, `Longform`, `Shortform`; `All Videos` uses `/analytics/channel-daily`, while `Longform`/`Shortform` use `/analytics/daily/summary?content_type=...` for the same chart component.
 - `frontend/src/pages/Analytics.tsx` includes a granularity dropdown for chart aggregation: `Daily`, `7-days`, `28-days`, `90-days`, `Monthly`, `Yearly`. Aggregation is done in frontend from daily series data.
 - `frontend/src/pages/Analytics.tsx` includes a top tab switch between `Metrics` and `Monetization`; the date/content/granularity/range controls are shared and drive data on both tabs.
+- `frontend/src/pages/Analytics.tsx` includes a top tab switch between `Metrics`, `Monetization`, and `Discovery`; the date/content/granularity/range controls are shared above the tab row.
+- `Discovery` tab uses one `MetricChartCard` in multi-series mode (`multiSeriesByMetric`) with an in-card metric selector (`Views`, `Watch time`) and renders a single `Traffic sources (Top 5)` multi-line comparison over the selected range/granularity; data source switches by content filter (`All videos` -> `traffic_sources_daily`, `Longform/Shortform` -> `video_traffic_source` with `content_type` filter).
+- On `frontend/src/pages/Analytics.tsx`, all three chart cards (`Metrics`, `Monetization`, `Discovery`) pass previous-period series data into `MetricChartCard` so trend indicators are derived inside the card with consistent `previous N days` labels from the active date range.
+- In `frontend/src/pages/Analytics.tsx` `Discovery` tab, a row below the main multi-line chart renders two reusable cards: `TrafficSourceShareCard` (traffic-source views share pie) and `TrafficSourceTopVideosCard` (top 5 videos for selected traffic source).
 - `frontend/src/pages/Analytics.tsx` keeps the shared date/content/granularity/range controls in the page header row (above the Metrics/Monetization tab row).
 - `frontend/src/pages/Analytics.tsx` monetization view renders a top `MetricChartCard` sourced from `GET /analytics/channel-daily`, plus a second row with `How much you're earning` and `Content performance` cards.
 - CPM chart aggregation uses ad-impression-weighted averages when grouping multiple days (7-day, 28-day, monthly, yearly) instead of summing CPM values.
@@ -162,6 +169,7 @@ Use this file to understand where to make changes and which conventions to follo
 - In video detail metadata card, stats (`Visibility`, `Published`, `Duration`, `Views`, `Likes`, `Comments`) are rendered as a separate row below thumbnail/title/description.
 - Video detail `Analytics` tab reuses `frontend/src/components/analytics/MetricChartCard.tsx` and is populated from existing `GET /analytics/daily?video_id=...` data (no extra backend route).
 - Video detail `Analytics` tab KPI chips are `Views`, `Watch time (hours)`, `Avg view duration`, and `Estimated revenue` (replacing the previous subscribers KPI).
+- `frontend/src/pages/VideoDetail.tsx` passes previous-period series and active `startDate`/`endDate` into both analytics and monetization `MetricChartCard` instances so KPI trend indicators render with `previous N days` text.
 - Video detail `Analytics` tab includes range/granularity controls (no content-type selector): `Daily/7-days/28-days/90-days/Monthly/Yearly` + `Presets/Yearly/Custom range`.
 - Video detail analytics control state is shared across all video detail pages via storage keys `videoDetailGranularity` and `videoDetailRange`.
 - `GET /comments` supports optional `video_id` filtering, pagination (`limit`, `offset`), and sorting via `sort_by` (`published_at`, `likes`, or `reply_count`) plus `direction` (`asc`/`desc`), returning `{ items, total }`.
@@ -212,6 +220,11 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/components/ui/ProgressBar.tsx`: Horizontal progress bar with optional step text.
 - `frontend/src/components/layout/PageCard.tsx`: Generic card wrapper for consistent layout blocks.
 - `frontend/src/components/analytics/MetricChartCard.tsx`: Analytics KPI + chart card for the Analytics page.
+- `frontend/src/components/analytics/MetricChartCard.tsx` supports both single-series (`series`) and multi-series (`multiSeriesByMetric`) rendering paths, with optional controlled metric state via `activeMetricKey` / `onActiveMetricChange`.
+- `frontend/src/components/analytics/MetricChartCard.tsx` auto-renders KPI trend indicators from chart data: it compares current-series totals/averages vs previous-series totals/averages (`previousSeries` or `previousMultiSeriesByMetric`) and derives `previous N days` text from `startDate`/`endDate`.
+- `frontend/src/components/analytics/TrafficSourceShareCard.tsx`: Traffic-source share card (pie/donut by percentage of views).
+- `frontend/src/components/analytics/TrafficSourceTopVideosCard.tsx`: Top-videos-by-traffic-source card (source selector + ranked rows, fixed top 5).
+- Upload-marker rendering and publish tooltip for analytics charts are extracted into reusable components: `frontend/src/components/analytics/UploadPublishMarkers.tsx` and `frontend/src/components/analytics/UploadPublishTooltip.tsx` (consumed by `MetricChartCard`).
 - `frontend/src/components/analytics/TopContentTable.tsx`: Top content table for analytics summaries.
 - `frontend/src/components/videos/VideoListTable.tsx`: Reusable videos table (headers, sort controls, empty state).
 - `frontend/src/components/videos/VideoListRow.tsx`: Reusable videos table row (thumbnail/title/description + action buttons + metrics cells).

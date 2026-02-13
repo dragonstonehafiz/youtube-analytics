@@ -1,0 +1,81 @@
+.traffic-share-card {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.traffic-share-chart-wrap {
+  position: relative;
+  width: 220px;
+  height: 220px;
+}
+
+.traffic-share-chart {
+  display: block;
+}
+
+.traffic-share-total {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.traffic-share-total strong {
+  color: #0f172a;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.traffic-share-legend {
+  display: grid;
+  gap: 8px;
+}
+
+.traffic-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+}
+
+.traffic-share-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.traffic-share-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.traffic-share-value {
+  color: #0f172a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 860px) {
+  .traffic-share-card {
+    grid-template-columns: 1fr;
+  }
+
+  .traffic-share-chart-wrap {
+    margin: 0 auto;
+  }
+}

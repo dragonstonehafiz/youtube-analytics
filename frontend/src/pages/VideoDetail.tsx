@@ -178,7 +178,9 @@ function VideoDetail() {
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
   const [granularity, setGranularity] = useState<Granularity>(getStored('videoDetailGranularity', 'daily'))
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
+  const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [monetizationSeries, setMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({})
+  const [previousMonetizationSeries, setPreviousMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [totals, setTotals] = useState({
     views: 0,
     watch_time_minutes: 0,
@@ -254,6 +256,20 @@ function VideoDetail() {
     return { start: format(utcToday), end: format(utcToday) }
   }, [mode, presetSelection, yearSelection, monthSelection, customStart, customEnd, years])
 
+  const previousRange = useMemo(() => {
+    const start = new Date(`${range.start}T00:00:00Z`)
+    const end = new Date(`${range.end}T00:00:00Z`)
+    const daySpan = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1)
+    const previousEnd = new Date(start)
+    previousEnd.setUTCDate(previousEnd.getUTCDate() - 1)
+    const previousStart = new Date(previousEnd)
+    previousStart.setUTCDate(previousStart.getUTCDate() - (daySpan - 1))
+    return {
+      start: previousStart.toISOString().slice(0, 10),
+      end: previousEnd.toISOString().slice(0, 10),
+    }
+  }, [range.start, range.end])
+
   useEffect(() => {
     async function loadVideo() {
       if (!videoId) {
@@ -313,8 +329,10 @@ function VideoDetail() {
         setDailyRows([])
         setYears([])
         setSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
+        setPreviousSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
         setTotals({ views: 0, watch_time_minutes: 0, average_view_duration_seconds: 0, estimated_revenue: 0 })
         setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [] })
+        setPreviousMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
         setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
         setAnalyticsError('Missing video ID.')
         return
@@ -344,7 +362,9 @@ function VideoDetail() {
         if (sorted.length === 0) {
           setSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
           setTotals({ views: 0, watch_time_minutes: 0, average_view_duration_seconds: 0, estimated_revenue: 0 })
+          setPreviousSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
           setMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [] })
+          setPreviousMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
           setMonetizationTotals({ estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 })
           return
         }
@@ -369,9 +389,14 @@ function VideoDetail() {
       const sorted = [...dailyRows]
         .filter((item) => typeof item.date === 'string' && item.date >= range.start && item.date <= range.end)
         .sort((a, b) => a.date.localeCompare(b.date))
+      const previousSorted = [...dailyRows]
+        .filter((item) => typeof item.date === 'string' && item.date >= previousRange.start && item.date <= previousRange.end)
+        .sort((a, b) => a.date.localeCompare(b.date))
         if (sorted.length === 0) {
           setSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
+          setPreviousSeries({ views: [], watch_time: [], avg_duration: [], revenue: [] })
           setTotals({ views: 0, watch_time_minutes: 0, average_view_duration_seconds: 0, estimated_revenue: 0 })
+          setPreviousMonetizationSeries({ estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] })
           return
         }
         const byDay = new Map<string, VideoDailyRow>()
@@ -409,6 +434,25 @@ function VideoDetail() {
           ? totalCpmWeighted / totalAdImpressions
           : (sorted.reduce((sum, item) => sum + (item.cpm ?? 0), 0) / Math.max(sorted.length, 1))
 
+        const previousByDay = new Map<string, VideoDailyRow>()
+        previousSorted.forEach((item) => previousByDay.set(item.date, item))
+        const previousDays: string[] = []
+        if (previousSorted.length > 0) {
+          const previousCursor = new Date(`${previousSorted[0].date}T00:00:00Z`)
+          const previousEnd = new Date(`${previousSorted[previousSorted.length - 1].date}T00:00:00Z`)
+          while (previousCursor <= previousEnd) {
+            previousDays.push(previousCursor.toISOString().slice(0, 10))
+            previousCursor.setUTCDate(previousCursor.getUTCDate() + 1)
+          }
+        }
+        const previousViewsSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.views ?? 0 }))
+        const previousWatchSeries = previousDays.map((day) => ({ date: day, value: Math.round((previousByDay.get(day)?.watch_time_minutes ?? 0) / 60) }))
+        const previousAvgDurationSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.average_view_duration_seconds ?? 0 }))
+        const previousRevenueSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.estimated_revenue ?? 0 }))
+        const previousAdImpressionsSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.ad_impressions ?? 0 }))
+        const previousMonetizedPlaybacksSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.monetized_playbacks ?? 0 }))
+        const previousCpmSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.cpm ?? 0 }))
+
         setSeries({
           views: aggregatePoints(viewsSeries, granularity),
           watch_time: aggregatePoints(watchSeries, granularity),
@@ -420,6 +464,12 @@ function VideoDetail() {
           watch_time_minutes: totalWatchMinutes,
           average_view_duration_seconds: totalAverageViewDurationSeconds,
           estimated_revenue: totalRevenue,
+        })
+        setPreviousSeries({
+          views: aggregatePoints(previousViewsSeries, granularity),
+          watch_time: aggregatePoints(previousWatchSeries, granularity),
+          avg_duration: aggregateWeightedPoints(previousAvgDurationSeries, previousViewsSeries, granularity),
+          revenue: aggregatePoints(previousRevenueSeries, granularity),
         })
         setMonetizationSeries({
           estimated_revenue: aggregatePoints(revenueSeries, granularity),
@@ -433,10 +483,16 @@ function VideoDetail() {
           monetized_playbacks: totalMonetizedPlaybacks,
           cpm: totalCpm,
         })
+        setPreviousMonetizationSeries({
+          estimated_revenue: aggregatePoints(previousRevenueSeries, granularity),
+          ad_impressions: aggregatePoints(previousAdImpressionsSeries, granularity),
+          monetized_playbacks: aggregatePoints(previousMonetizedPlaybacksSeries, granularity),
+          cpm: aggregateWeightedPoints(previousCpmSeries, previousAdImpressionsSeries, granularity),
+        })
     } catch (err) {
       setAnalyticsError(err instanceof Error ? err.message : 'Failed to process analytics.')
     }
-  }, [dailyRows, range.start, range.end, granularity])
+  }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end, granularity])
 
   useEffect(() => {
     async function loadComments() {
@@ -699,6 +755,15 @@ function VideoDetail() {
                     avg_duration: series.avg_duration ?? [],
                     revenue: series.revenue ?? [],
                   }}
+                  previousSeries={{
+                    views: previousSeries.views ?? [],
+                    watch_time: previousSeries.watch_time ?? [],
+                    avg_duration: previousSeries.avg_duration ?? [],
+                    revenue: previousSeries.revenue ?? [],
+                  }}
+                  comparisonAggregation={{ avg_duration: 'avg' }}
+                  startDate={range.start}
+                  endDate={range.end}
                   publishedDates={{}}
                 />
               ) : (
@@ -731,6 +796,15 @@ function VideoDetail() {
                     monetized_playbacks: monetizationSeries.monetized_playbacks ?? [],
                     cpm: monetizationSeries.cpm ?? [],
                   }}
+                  previousSeries={{
+                    estimated_revenue: previousMonetizationSeries.estimated_revenue ?? [],
+                    ad_impressions: previousMonetizationSeries.ad_impressions ?? [],
+                    monetized_playbacks: previousMonetizationSeries.monetized_playbacks ?? [],
+                    cpm: previousMonetizationSeries.cpm ?? [],
+                  }}
+                  comparisonAggregation={{ cpm: 'avg' }}
+                  startDate={range.start}
+                  endDate={range.end}
                 />
               )
             )}

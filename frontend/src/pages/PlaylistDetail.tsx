@@ -34,11 +34,6 @@ type PlaylistDailyRow = {
   subscribers_lost?: number | null
   average_time_in_playlist_seconds?: number | null
 }
-type MetricKey = 'views' | 'watch_time' | 'subscribers' | 'revenue'
-type MetricComparison = {
-  direction: 'up' | 'down' | 'flat'
-  percentText: string
-}
 
 function formatDurationSeconds(seconds: number | null | undefined): string {
   const value = Number(seconds ?? 0)
@@ -199,7 +194,9 @@ function PlaylistDetail() {
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(getStored('playlistDetailViewMode', 'playlist_views'))
   const [granularity, setGranularity] = useState<Granularity>(getStored('playlistDetailGranularity', 'daily'))
   const [dailyRows, setDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [previousDailyRows, setPreviousDailyRows] = useState<PlaylistDailyRow[]>([])
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
+  const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [summaryDays, setSummaryDays] = useState<string[]>([])
   const [publishedDates, setPublishedDates] = useState<Record<string, PublishedItem[]>>({})
   const [publishBucketMeta, setPublishBucketMeta] = useState<Record<string, BucketMeta>>({})
@@ -211,7 +208,6 @@ function PlaylistDetail() {
     average_view_duration_seconds: 0,
     average_time_in_playlist_seconds: 0,
   })
-  const [comparisons, setComparisons] = useState<Partial<Record<MetricKey, MetricComparison>>>({})
   const [topPerformingItems, setTopPerformingItems] = useState<VideoDetailListItem[]>([])
   const [topPerformingError, setTopPerformingError] = useState<string | null>(null)
   const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
@@ -473,6 +469,7 @@ function PlaylistDetail() {
     async function loadPlaylistAnalytics() {
       if (!playlistId) {
         setDailyRows([])
+        setPreviousDailyRows([])
         setTotals({
           views: 0,
           watch_time_minutes: 0,
@@ -481,8 +478,8 @@ function PlaylistDetail() {
           average_view_duration_seconds: 0,
           average_time_in_playlist_seconds: 0,
         })
-        setComparisons({})
         setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
+        setPreviousSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
         setAnalyticsError('Missing playlist ID.')
         return
       }
@@ -524,54 +521,11 @@ function PlaylistDetail() {
           average_time_in_playlist_seconds: data.totals?.average_time_in_playlist_seconds ?? 0,
         }
         setTotals(nextTotals)
-        const previousGained = previousData.totals?.subscribers_gained ?? 0
-        const previousLost = previousData.totals?.subscribers_lost ?? 0
-        const previousTotals = {
-          views: previousData.totals?.views ?? 0,
-          watch_time_minutes: previousData.totals?.watch_time_minutes ?? 0,
-          subscribers_net: previousGained - previousLost,
-          estimated_revenue: previousData.totals?.estimated_revenue ?? 0,
-          average_view_duration_seconds: previousData.totals?.average_view_duration_seconds ?? 0,
-          average_time_in_playlist_seconds: previousData.totals?.average_time_in_playlist_seconds ?? 0,
-        }
-        const windowLabel = previousRange.daySpan === 1 ? '1 day' : `${previousRange.daySpan} days`
-        const buildComparison = (currentValue: number, previousValue: number): MetricComparison => {
-          const rawDelta = currentValue - previousValue
-          if (rawDelta === 0) {
-            return { direction: 'flat', percentText: `No change vs previous ${windowLabel}` }
-          }
-          const base = previousValue === 0 ? 1 : Math.abs(previousValue)
-          const percent = Math.abs((rawDelta / base) * 100)
-          return {
-            direction: rawDelta > 0 ? 'up' : 'down',
-            percentText: `${percent.toFixed(1)}% ${rawDelta > 0 ? 'more' : 'less'} than previous ${windowLabel}`,
-          }
-        }
-        const nextComparisons: Partial<Record<MetricKey, MetricComparison>> = {
-          views: buildComparison(nextTotals.views, previousTotals.views),
-        }
-        if (viewMode === 'video_views') {
-          nextComparisons.watch_time = buildComparison(
-            Math.round(nextTotals.watch_time_minutes / 60),
-            Math.round(previousTotals.watch_time_minutes / 60),
-          )
-          nextComparisons.subscribers = buildComparison(nextTotals.subscribers_net, previousTotals.subscribers_net)
-          nextComparisons.revenue = buildComparison(nextTotals.estimated_revenue, previousTotals.estimated_revenue)
-        } else {
-          nextComparisons.watch_time = buildComparison(
-            Math.round(nextTotals.watch_time_minutes / 60),
-            Math.round(previousTotals.watch_time_minutes / 60),
-          )
-          nextComparisons.subscribers = buildComparison(
-            nextTotals.average_view_duration_seconds,
-            previousTotals.average_view_duration_seconds,
-          )
-          nextComparisons.revenue = buildComparison(
-            nextTotals.average_time_in_playlist_seconds,
-            previousTotals.average_time_in_playlist_seconds,
-          )
-        }
-        setComparisons(nextComparisons)
+        const previousItems = (Array.isArray(previousData.items) ? previousData.items : []) as PlaylistDailyRow[]
+        const previousSorted = [...previousItems]
+          .filter((item) => typeof item.day === 'string')
+          .sort((a, b) => a.day.localeCompare(b.day))
+        setPreviousDailyRows(previousSorted)
       } catch (err) {
         setAnalyticsError(err instanceof Error ? err.message : 'Failed to load playlist analytics.')
       } finally {
@@ -580,7 +534,7 @@ function PlaylistDetail() {
     }
 
     loadPlaylistAnalytics()
-  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end, previousRange.daySpan, viewMode])
+  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end, viewMode])
 
   useEffect(() => {
     try {
@@ -589,6 +543,7 @@ function PlaylistDetail() {
         .sort((a, b) => a.day.localeCompare(b.day))
       if (sorted.length === 0) {
         setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
+        setPreviousSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
         setSummaryDays([])
         setPublishBucketMeta({})
         setTotals({
@@ -603,6 +558,10 @@ function PlaylistDetail() {
       }
       const byDay = new Map<string, PlaylistDailyRow>()
       sorted.forEach((item) => byDay.set(item.day, item))
+      const previousByDay = new Map<string, PlaylistDailyRow>()
+      previousDailyRows
+        .filter((item) => typeof item.day === 'string' && item.day >= previousRange.start && item.day <= previousRange.end)
+        .forEach((item) => previousByDay.set(item.day, item))
       const days: string[] = []
       const cursor = new Date(`${sorted[0].day}T00:00:00Z`)
       const end = new Date(`${sorted[sorted.length - 1].day}T00:00:00Z`)
@@ -629,11 +588,48 @@ function PlaylistDetail() {
           ? byDay.get(day)?.average_time_in_playlist_seconds ?? 0
           : byDay.get(day)?.estimated_revenue ?? 0,
       }))
+      const previousDays: string[] = []
+      if (previousDailyRows.length > 0) {
+        const previousSortedRows = [...previousDailyRows]
+          .filter((item) => typeof item.day === 'string' && item.day >= previousRange.start && item.day <= previousRange.end)
+          .sort((a, b) => a.day.localeCompare(b.day))
+        if (previousSortedRows.length > 0) {
+          const previousCursor = new Date(`${previousSortedRows[0].day}T00:00:00Z`)
+          const previousEnd = new Date(`${previousSortedRows[previousSortedRows.length - 1].day}T00:00:00Z`)
+          while (previousCursor <= previousEnd) {
+            previousDays.push(previousCursor.toISOString().slice(0, 10))
+            previousCursor.setUTCDate(previousCursor.getUTCDate() + 1)
+          }
+        }
+      }
+      const previousViewsSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.views ?? 0 }))
+      const previousWatchSeries = previousDays.map((day) => ({ date: day, value: Math.round((previousByDay.get(day)?.watch_time_minutes ?? 0) / 60) }))
+      const previousSubsSeries = previousDays.map((day) => {
+        if (viewMode === 'playlist_views') {
+          return { date: day, value: previousByDay.get(day)?.average_view_duration_seconds ?? 0 }
+        }
+        return {
+          date: day,
+          value: (previousByDay.get(day)?.subscribers_gained ?? 0) - (previousByDay.get(day)?.subscribers_lost ?? 0),
+        }
+      })
+      const previousRevenueSeries = previousDays.map((day) => ({
+        date: day,
+        value: viewMode === 'playlist_views'
+          ? previousByDay.get(day)?.average_time_in_playlist_seconds ?? 0
+          : previousByDay.get(day)?.estimated_revenue ?? 0,
+      }))
       setSeries({
         views: aggregatePoints(viewsSeries, granularity),
         watch_time: aggregatePoints(watchSeries, granularity),
         subscribers: aggregatePoints(subsSeries, granularity),
         revenue: aggregatePoints(revenueSeries, granularity),
+      })
+      setPreviousSeries({
+        views: aggregatePoints(previousViewsSeries, granularity),
+        watch_time: aggregatePoints(previousWatchSeries, granularity),
+        subscribers: aggregatePoints(previousSubsSeries, granularity),
+        revenue: aggregatePoints(previousRevenueSeries, granularity),
       })
       setTotals({
         views: sorted.reduce((sum, item) => sum + (item.views ?? 0), 0),
@@ -649,7 +645,7 @@ function PlaylistDetail() {
     } catch (err) {
       setAnalyticsError(err instanceof Error ? err.message : 'Failed to process playlist analytics.')
     }
-  }, [dailyRows, range.start, range.end, granularity, viewMode])
+  }, [dailyRows, previousDailyRows, range.start, range.end, previousRange.start, previousRange.end, granularity, viewMode])
 
   useEffect(() => {
     async function loadPublished() {
@@ -857,13 +853,11 @@ function PlaylistDetail() {
                     key: 'views',
                     label: viewMode === 'playlist_views' ? 'Playlist Views' : 'Video Views',
                     value: formatWholeNumber(totals.views),
-                    comparison: comparisons.views,
                   },
                   {
                     key: 'watch_time',
                     label: 'Watch time (hours)',
                     value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
-                    comparison: comparisons.watch_time,
                   },
                   {
                     key: 'subscribers',
@@ -871,7 +865,6 @@ function PlaylistDetail() {
                     value: viewMode === 'video_views'
                       ? formatWholeNumber(totals.subscribers_net)
                       : formatDurationSeconds(totals.average_view_duration_seconds),
-                    comparison: comparisons.subscribers,
                   },
                   {
                     key: 'revenue',
@@ -879,7 +872,6 @@ function PlaylistDetail() {
                     value: viewMode === 'video_views'
                       ? formatCurrency(totals.estimated_revenue)
                       : formatDurationSeconds(totals.average_time_in_playlist_seconds),
-                    comparison: comparisons.revenue,
                   },
                 ]}
                 series={{
@@ -888,6 +880,14 @@ function PlaylistDetail() {
                   subscribers: series.subscribers ?? [],
                   revenue: series.revenue ?? [],
                 }}
+                previousSeries={{
+                  views: previousSeries.views ?? [],
+                  watch_time: previousSeries.watch_time ?? [],
+                  subscribers: previousSeries.subscribers ?? [],
+                  revenue: previousSeries.revenue ?? [],
+                }}
+                startDate={range.start}
+                endDate={range.end}
                 publishedDates={publishedDates}
                 publishedBucketMeta={publishBucketMeta}
               />
