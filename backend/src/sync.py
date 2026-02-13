@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from datetime import datetime, date as date_type, timedelta
 from threading import Lock
 
@@ -35,6 +36,11 @@ from src.youtube.videos import get_short_video_ids
 _progress_lock = Lock()
 _sync_progress: dict[str, object] = {}
 _logger = get_logger("sync", filename="sync.log", console=False)
+_stop_requested = False
+
+
+class SyncStopRequested(Exception):
+    """Raised when user requested stopping an in-progress sync."""
 
 
 def sync_videos() -> None:
@@ -258,6 +264,7 @@ def sync_video_analytics(
         segment_videos = segment_video_sets[segment_index - 1]
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
+            _raise_if_stop_requested("Stop requested. Ending after current API call.")
             processed_videos += 1
             _set_progress(
                 processed_videos,
@@ -290,7 +297,7 @@ def sync_video_traffic_source(
     deep_sync: bool = False,
     segments: list[DateRange] | None = None,
 ) -> None:
-    """Sync per-video daily traffic-source and search-term insight rows."""
+    """Sync per-video daily traffic-source rows."""
     video_ids = list_video_ids()
     if not video_ids:
         sync_videos()
@@ -309,7 +316,6 @@ def sync_video_traffic_source(
         return None
 
     latest_traffic_by_video = {} if deep_sync else get_latest_video_traffic_source_dates()
-    latest_search_by_video = {} if deep_sync else get_latest_video_search_insight_dates()
     if segments is None:
         segments = chunk_date_range(date_range)
     _logger.info(
@@ -329,8 +335,7 @@ def sync_video_traffic_source(
             if publish_date and publish_date > segment.end:
                 continue
             traffic_start = _next_table_sync_start(latest_traffic_by_video.get(video_id), segment.start)
-            search_start = _next_table_sync_start(latest_search_by_video.get(video_id), segment.start)
-            if traffic_start > segment.end and search_start > segment.end:
+            if traffic_start > segment.end:
                 continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
@@ -352,6 +357,7 @@ def sync_video_traffic_source(
         segment_videos = segment_video_sets[segment_index - 1]
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
+            _raise_if_stop_requested("Stop requested. Ending after current API call.")
             processed_videos += 1
             _set_progress(
                 processed_videos,
@@ -364,8 +370,6 @@ def sync_video_traffic_source(
             )
             publish_date = publish_map.get(video_id)
             traffic_start = _next_table_sync_start(latest_traffic_by_video.get(video_id), segment.start)
-            search_start = _next_table_sync_start(latest_search_by_video.get(video_id), segment.start)
-
             if traffic_start <= segment.end:
                 traffic_rows = fetch_video_traffic_source_metrics(
                     video_id,
@@ -376,6 +380,88 @@ def sync_video_traffic_source(
                 total_rows += upsert_video_traffic_source(video_id, traffic_rows)
                 latest_traffic_by_video[video_id] = segment.end
 
+    return None
+
+
+def sync_video_search_insights(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+    segments: list[DateRange] | None = None,
+) -> None:
+    """Sync per-video daily YouTube-search term insight rows."""
+    video_ids = list_video_ids()
+    if not video_ids:
+        sync_videos()
+        video_ids = list_video_ids()
+    earliest = get_earliest_upload_date()
+    if not earliest:
+        return None
+
+    date_range = determine_date_range(earliest)
+    if start_date:
+        date_range = DateRange(start=start_date, end=date_range.end)
+    if end_date:
+        date_range = DateRange(start=date_range.start, end=end_date)
+    date_range = _clamp_date_range_to_today(date_range)
+    if date_range is None:
+        return None
+
+    latest_search_by_video = {} if deep_sync else get_latest_video_search_insight_dates()
+    if segments is None:
+        segments = chunk_date_range(date_range)
+    _logger.info(
+        "Starting video search-insights sync for %s -> %s (%s segments)",
+        date_range.start,
+        date_range.end,
+        len(segments),
+    )
+    publish_map = build_video_publish_map()
+    total_rows = 0
+    segment_video_sets: list[list[str]] = []
+    total_videos = 0
+    for segment in segments:
+        segment_videos: list[str] = []
+        for video_id in video_ids:
+            publish_date = publish_map.get(video_id)
+            if publish_date and publish_date > segment.end:
+                continue
+            search_start = _next_table_sync_start(latest_search_by_video.get(video_id), segment.start)
+            if search_start > segment.end:
+                continue
+            segment_videos.append(video_id)
+        segment_video_sets.append(segment_videos)
+        total_videos += len(segment_videos)
+    if total_videos == 0:
+        _set_progress(0, 1, _format_video_search_progress(0, 0, "no videos to sync"))
+        return None
+    _set_progress(0, total_videos, _format_video_search_progress(0, total_videos, "starting"))
+    processed_videos = 0
+
+    for segment_index, segment in enumerate(segments, start=1):
+        _logger.info(
+            "Video search-insights segment %s/%s: %s -> %s",
+            segment_index,
+            len(segments),
+            segment.start,
+            segment.end,
+        )
+        segment_videos = segment_video_sets[segment_index - 1]
+        segment_total = max(len(segment_videos), 1)
+        for video_index, video_id in enumerate(segment_videos, start=1):
+            _raise_if_stop_requested("Stop requested. Ending after current API call.")
+            processed_videos += 1
+            _set_progress(
+                processed_videos,
+                total_videos,
+                _format_video_search_progress(
+                    processed_videos,
+                    total_videos,
+                    f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
+                ),
+            )
+            publish_date = publish_map.get(video_id)
+            search_start = _next_table_sync_start(latest_search_by_video.get(video_id), segment.start)
             if search_start <= segment.end:
                 search_rows = fetch_video_search_insight_metrics(
                     video_id,
@@ -422,6 +508,7 @@ def sync_channel_analytics(
     )
     total_rows = 0
     for index, segment in enumerate(segments, start=1):
+        _raise_if_stop_requested("Stop requested. Ending after current API call.")
         _set_progress(
             index,
             max(len(segments), 1),
@@ -472,6 +559,7 @@ def sync_traffic_sources(
     )
     total_rows = 0
     for index, segment in enumerate(segments, start=1):
+        _raise_if_stop_requested("Stop requested. Ending after current API call.")
         _set_progress(
             index,
             max(len(segments), 1),
@@ -506,6 +594,7 @@ def sync_comments() -> None:
     _set_progress(0, total_videos, _format_pull_progress("comments", 0, total_videos))
     total = 0
     for index, video_id in enumerate(video_ids, start=1):
+        _raise_if_stop_requested("Stop requested. Ending after current API call.")
         _logger.info("Comments video %s/%s", index, len(video_ids))
         rows = extract_comments(video_id)
         _set_progress(
@@ -533,6 +622,7 @@ def sync_playlists() -> None:
     total_playlists = max(len(playlists), 1)
     _set_progress(0, total_playlists, _format_playlist_progress(0, total_playlists))
     for index, playlist in enumerate(playlists, start=1):
+        _raise_if_stop_requested("Stop requested. Ending after current API call.")
         playlist_id = str(playlist["id"])
         playlist_title = str(playlist.get("snippet", {}).get("title") or playlist_id)
         rows = get_all_playlist_items(playlist_id=playlist_id)
@@ -598,6 +688,7 @@ def sync_playlist_analytics(
         segment_playlists = segment_playlist_sets[segment_index - 1]
         segment_total = max(len(segment_playlists), 1)
         for playlist_index, playlist_id in enumerate(segment_playlists, start=1):
+            _raise_if_stop_requested("Stop requested. Ending after current API call.")
             processed_playlists += 1
             _set_progress(
                 processed_playlists,
@@ -630,39 +721,91 @@ def sync_all(
 ) -> dict:
     """Sync videos and daily analytics, returning a summary payload."""
     _init_progress(1)
-    started_at = datetime.utcnow().isoformat() + "Z"
-    run_id = _create_sync_run(started_at, start_date, end_date, deep_sync, pulls)
     selected = {item.lower() for item in pulls} if pulls else None
     try:
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "videos"):
-            sync_videos()
+            _run_sync_stage("videos", start_date, end_date, deep_sync, sync_videos)
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "comments"):
-            sync_comments()
+            _run_sync_stage("comments", start_date, end_date, deep_sync, sync_comments)
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "audience"):
-            sync_audience()
+            _run_sync_stage("audience", start_date, end_date, deep_sync, sync_audience)
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "playlists"):
-            sync_playlists()
+            _run_sync_stage("playlists", start_date, end_date, deep_sync, sync_playlists)
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "traffic"):
-            sync_traffic_sources(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+            _run_sync_stage(
+                "traffic",
+                start_date,
+                end_date,
+                deep_sync,
+                lambda: sync_traffic_sources(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
+            )
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "channel_analytics"):
-            sync_channel_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+            _run_sync_stage(
+                "channel_analytics",
+                start_date,
+                end_date,
+                deep_sync,
+                lambda: sync_channel_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
+            )
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "playlist_analytics"):
-            sync_playlist_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+            _run_sync_stage(
+                "playlist_analytics",
+                start_date,
+                end_date,
+                deep_sync,
+                lambda: sync_playlist_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
+            )
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "video_analytics"):
-            sync_video_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+            _run_sync_stage(
+                "video_analytics",
+                start_date,
+                end_date,
+                deep_sync,
+                lambda: sync_video_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
+            )
+        _raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "video_traffic_source"):
-            sync_video_traffic_source(start_date=start_date, end_date=end_date, deep_sync=deep_sync)
+            _run_sync_stage(
+                "video_traffic_source",
+                start_date,
+                end_date,
+                deep_sync,
+                lambda: sync_video_traffic_source(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
+            )
+        _raise_if_stop_requested("Stop requested.")
+        if _should_run(selected, "video_search_insights"):
+            _run_sync_stage(
+                "video_search_insights",
+                start_date,
+                end_date,
+                deep_sync,
+                lambda: sync_video_search_insights(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
+            )
         _set_progress(1, 1, _format_pull_progress("sync complete", 1, 1))
         with _progress_lock:
             _sync_progress["status"] = "done"
             _sync_progress["is_syncing"] = False
-        _finish_sync_run(run_id, "success")
+            _sync_progress["stop_requested"] = False
+    except SyncStopRequested as stop_exc:
+        with _progress_lock:
+            _sync_progress["status"] = "stopped"
+            _sync_progress["is_syncing"] = False
+            _sync_progress["message"] = str(stop_exc)
+            _sync_progress["stop_requested"] = False
     except Exception as exc:
         with _progress_lock:
             _sync_progress["status"] = "failed"
             _sync_progress["is_syncing"] = False
             _sync_progress["message"] = "Sync failed"
-        _finish_sync_run(run_id, "failed", str(exc))
+            _sync_progress["stop_requested"] = False
         raise
     return None
 
@@ -684,11 +827,34 @@ def prune_missing_videos_task() -> None:
             _sync_progress["is_syncing"] = False
         _finish_sync_run(run_id, "success")
     except Exception as exc:
+        error_trace = traceback.format_exc()
         with _progress_lock:
             _sync_progress["status"] = "failed"
             _sync_progress["is_syncing"] = False
             _sync_progress["message"] = "Prune failed"
-        _finish_sync_run(run_id, "failed", str(exc))
+        _finish_sync_run(run_id, "failed", error_trace if error_trace else str(exc))
+        raise
+
+
+def _run_sync_stage(
+    stage_key: str,
+    start_date: str | None,
+    end_date: str | None,
+    deep_sync: bool,
+    stage_fn,
+) -> None:
+    """Create a sync run row for one stage, execute it, and finalize its status."""
+    started_at = datetime.utcnow().isoformat() + "Z"
+    run_id = _create_sync_run(started_at, start_date, end_date, deep_sync, [stage_key])
+    try:
+        stage_fn()
+        _finish_sync_run(run_id, "success")
+    except SyncStopRequested as stop_exc:
+        _finish_sync_run(run_id, "manual_stop", str(stop_exc))
+        raise
+    except Exception as exc:
+        error_trace = traceback.format_exc()
+        _finish_sync_run(run_id, "failed", error_trace if error_trace else str(exc))
         raise
 
 
@@ -702,13 +868,16 @@ def _should_run(selected: set[str] | None, key: str) -> bool:
         "channel_analytics": {"channel_daily"},
         "video_analytics": {"daily_analytics"},
         "video_traffic_source": {"video_traffic"},
+        "video_search_insights": {"video_search"},
     }
     return any(alias in selected for alias in aliases.get(key, set()))
 
 
 def _init_progress(max_steps: int) -> None:
     """Initialize in-memory sync progress state."""
+    global _stop_requested
     with _progress_lock:
+        _stop_requested = False
         _sync_progress.clear()
         _sync_progress.update(
             {
@@ -718,6 +887,7 @@ def _init_progress(max_steps: int) -> None:
                 "current_step": 0,
                 "max_steps": max_steps,
                 "message": "",
+                "stop_requested": False,
             }
         )
 
@@ -756,6 +926,14 @@ def _format_video_analytics_progress(current: int, total: int, detail: str | Non
 def _format_video_traffic_progress(current: int, total: int, detail: str | None = None) -> str:
     """Format video traffic-source progress with range detail."""
     base = f"Video traffic source [{current}/{total}]"
+    if detail:
+        return f"{base} {detail}"
+    return base
+
+
+def _format_video_search_progress(current: int, total: int, detail: str | None = None) -> str:
+    """Format video search-insights progress with range detail."""
+    base = f"Video search insights [{current}/{total}]"
     if detail:
         return f"{base} {detail}"
     return base
@@ -821,6 +999,26 @@ def get_sync_progress() -> dict:
         return dict(_sync_progress)
 
 
+def request_sync_stop() -> bool:
+    """Request graceful stop for current sync; returns True when accepted."""
+    global _stop_requested
+    with _progress_lock:
+        is_running = bool(_sync_progress.get("is_syncing"))
+        if not is_running:
+            return False
+        _stop_requested = True
+        _sync_progress["stop_requested"] = True
+        return True
+
+
+def _raise_if_stop_requested(message: str) -> None:
+    """Raise stop exception when a user requested sync stop."""
+    with _progress_lock:
+        should_stop = _stop_requested
+    if should_stop:
+        raise SyncStopRequested(message)
+
+
 def _create_sync_run(
     started_at: str,
     start_date: str | None,
@@ -846,8 +1044,8 @@ def _finish_sync_run(run_id: int, status: str, error_message: str | None = None)
     """Mark a sync run as finished."""
     with get_connection() as conn:
         conn.execute(
-            "UPDATE sync_runs SET finished_at = ?, status = ?, error_message = ? WHERE id = ?",
-            (datetime.utcnow().isoformat() + "Z", status, error_message, run_id),
+            "UPDATE sync_runs SET finished_at = ?, status = ?, error = ?, error_message = ? WHERE id = ?",
+            (datetime.utcnow().isoformat() + "Z", status, error_message, error_message, run_id),
         )
         conn.commit()
 

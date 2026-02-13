@@ -29,6 +29,7 @@ function SyncSettings() {
       started_at: string
       finished_at: string | null
       status: string
+      error: string | null
       start_date: string | null
       end_date: string | null
       deep_sync: number | null
@@ -56,8 +57,11 @@ function SyncSettings() {
     table_storage: [] as { table: string; bytes: number; percent: number }[],
   })
   const [deepSync, setDeepSync] = useState(storedSync?.deepSync ?? false)
-  const [progress, setProgress] = useState<{ is_syncing: boolean; current_step: number; max_steps: number; message: string } | null>(null)
+  const [progress, setProgress] = useState<{ is_syncing: boolean; current_step: number; max_steps: number; message: string; stop_requested?: boolean } | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncNotice, setSyncNotice] = useState<string | null>(null)
+  const [stopRequestedByUser, setStopRequestedByUser] = useState(false)
+  const [selectedRunError, setSelectedRunError] = useState<{ runId: number; text: string } | null>(null)
   const [hoveredStorageTable, setHoveredStorageTable] = useState<string | null>(null)
   const today = new Date().toISOString().slice(0, 10)
   const [startDate, setStartDate] = useState(storedSync?.startDate ?? today)
@@ -74,6 +78,7 @@ function SyncSettings() {
     { label: 'Channel analytics', value: 'channel_analytics' },
     { label: 'Video analytics', value: 'video_analytics' },
     { label: 'Video traffic source', value: 'video_traffic_source' },
+    { label: 'Video search insights', value: 'video_search_insights' },
   ]
   const [selectedPulls, setSelectedPulls] = useState(
     storedSync?.selectedPulls?.length ? storedSync.selectedPulls : pullOptions.map((item) => item.value)
@@ -95,6 +100,40 @@ function SyncSettings() {
       setRunsTotal(typeof data.total === 'number' ? data.total : 0)
     } catch (error) {
       console.error('Failed to load sync runs', error)
+    }
+  }
+
+  const loadOverview = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/stats/overview')
+      const data = await response.json()
+      setOverview({
+        db_size_bytes: data.db_size_bytes ?? 0,
+        total_uploads: data.total_uploads ?? 0,
+        total_comments: data.total_comments ?? 0,
+        total_audience: data.total_audience ?? 0,
+        total_playlists: data.total_playlists ?? 0,
+        total_views: data.total_views ?? 0,
+        earliest_date: data.earliest_date ?? null,
+        latest_date: data.latest_date ?? null,
+        daily_analytics_rows: data.daily_analytics_rows ?? 0,
+        channel_daily_rows: data.channel_daily_rows ?? 0,
+        traffic_sources_rows: data.traffic_sources_rows ?? 0,
+        video_traffic_source_rows: data.video_traffic_source_rows ?? 0,
+        video_search_rows: data.video_search_rows ?? 0,
+        playlist_analytics_rows: data.playlist_analytics_rows ?? 0,
+        table_storage: Array.isArray(data.table_storage)
+          ? data.table_storage
+            .map((item: { table?: string; bytes?: number; percent?: number }) => ({
+              table: item.table ?? '',
+              bytes: typeof item.bytes === 'number' ? item.bytes : 0,
+              percent: typeof item.percent === 'number' ? item.percent : 0,
+            }))
+            .filter((item: { table: string }) => item.table.length > 0)
+          : [],
+      })
+    } catch (error) {
+      console.error('Failed to load overview stats', error)
     }
   }
 
@@ -122,48 +161,23 @@ function SyncSettings() {
   }, [rangeMode, startDate, endDate, year, deepSync, selectedPulls])
 
   useEffect(() => {
-    async function loadOverview() {
-      try {
-        const response = await fetch('http://127.0.0.1:8000/stats/overview')
-        const data = await response.json()
-        setOverview({
-          db_size_bytes: data.db_size_bytes ?? 0,
-          total_uploads: data.total_uploads ?? 0,
-          total_comments: data.total_comments ?? 0,
-          total_audience: data.total_audience ?? 0,
-          total_playlists: data.total_playlists ?? 0,
-          total_views: data.total_views ?? 0,
-          earliest_date: data.earliest_date ?? null,
-          latest_date: data.latest_date ?? null,
-          daily_analytics_rows: data.daily_analytics_rows ?? 0,
-          channel_daily_rows: data.channel_daily_rows ?? 0,
-          traffic_sources_rows: data.traffic_sources_rows ?? 0,
-          video_traffic_source_rows: data.video_traffic_source_rows ?? 0,
-          video_search_rows: data.video_search_rows ?? 0,
-          playlist_analytics_rows: data.playlist_analytics_rows ?? 0,
-          table_storage: Array.isArray(data.table_storage)
-            ? data.table_storage
-              .map((item: { table?: string; bytes?: number; percent?: number }) => ({
-                table: item.table ?? '',
-                bytes: typeof item.bytes === 'number' ? item.bytes : 0,
-                percent: typeof item.percent === 'number' ? item.percent : 0,
-              }))
-              .filter((item: { table: string }) => item.table.length > 0)
-            : [],
-        })
-      } catch (error) {
-        console.error('Failed to load overview stats', error)
-      }
-    }
-
     loadOverview()
   }, [])
 
   const progressState =
     progress ??
     (isSyncing
-      ? { is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting sync…' }
+      ? { is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting sync…', stop_requested: false }
       : null)
+  const isSyncActive = Boolean(isSyncing || progressState?.is_syncing)
+  const isStopPending = Boolean(stopRequestedByUser || progressState?.stop_requested)
+
+  useEffect(() => {
+    if (!isSyncActive) {
+      setSyncNotice(null)
+      setStopRequestedByUser(false)
+    }
+  }, [isSyncActive])
 
   const computeProgress = () => {
     if (!progressState?.max_steps || progressState.max_steps === 0) {
@@ -246,8 +260,10 @@ function SyncSettings() {
       return
     }
     setSyncError(null)
+    setSyncNotice(null)
+    setStopRequestedByUser(false)
     setIsSyncing(true)
-    setProgress({ is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting sync…' })
+    setProgress({ is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting sync…', stop_requested: false })
     try {
       const params = new URLSearchParams()
       if (rangeMode === 'year' && year) {
@@ -277,6 +293,19 @@ function SyncSettings() {
       console.error('Failed to start sync', error)
     } finally {
       setIsSyncing(false)
+    }
+  }
+
+  const handleStopSync = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/sync/stop', { method: 'POST' })
+      const data = await response.json()
+      if (data?.accepted) {
+        setStopRequestedByUser(true)
+        setSyncNotice('Sync will stop at next API call.')
+      }
+    } catch (error) {
+      console.error('Failed to request sync stop', error)
     }
   }
 
@@ -403,13 +432,21 @@ function SyncSettings() {
             </label>
           </div>
           <div className="sync-control-col sync-control-action">
-            <ActionButton
-              label={isSyncing || progress?.is_syncing ? 'Syncing...' : 'Start sync'}
-              onClick={handleSync}
-              title={isSyncing || progress?.is_syncing ? 'Syncing...' : 'Start syncing'}
-              disabled={isSyncing || progress?.is_syncing || invalidSelectedPulls.length > 0}
-              variant="primary"
-            />
+            <div className="sync-action-wrap">
+              <ActionButton
+                label={isSyncActive ? (isStopPending ? 'Stopping...' : 'Stop sync') : 'Start sync'}
+                onClick={isSyncActive ? handleStopSync : handleSync}
+                title={isSyncActive ? 'Request stop sync' : 'Start syncing'}
+                disabled={(isSyncActive && isStopPending) || (!isSyncActive && invalidSelectedPulls.length > 0)}
+                variant={isSyncActive ? 'danger' : 'primary'}
+              />
+              {isSyncActive && syncNotice ? (
+                <span className="sync-stop-tooltip-wrap" aria-label={syncNotice}>
+                  <span className="sync-help sync-stop-tooltip-trigger">i</span>
+                  <span className="sync-stop-tooltip-bubble">{syncNotice}</span>
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         {syncError ? <div className="sync-error-text">{syncError}</div> : null}
@@ -419,6 +456,12 @@ function SyncSettings() {
           <div className="sync-table">
             <div className="sync-card-header-row">
               <div className="sync-card-header">Database Overview</div>
+              <ActionButton
+                label="Refresh"
+                onClick={loadOverview}
+                variant="soft"
+                className="sync-refresh-button"
+              />
             </div>
             <div className="db-overview-grid">
               <div className="db-overview-size">
@@ -601,12 +644,12 @@ function SyncSettings() {
             ) : null}
             <div className="sync-table-header">
               <span>Start</span>
-              <span>Complete</span>
               <span>Range</span>
               <span>Pulls</span>
               <span>Deep Sync</span>
               <span className="right">Duration</span>
               <span className="right">Status</span>
+              <span>Error</span>
             </div>
             {runs.length === 0 ? (
               <div className="sync-empty">No sync runs yet.</div>
@@ -615,12 +658,24 @@ function SyncSettings() {
                 {runs.map((run) => (
                   <div key={run.id} className="sync-table-row">
                     <span>{formatDisplayDate(run.started_at)}</span>
-                    <span>{run.finished_at ? formatDisplayDate(run.finished_at) : '—'}</span>
                     <span>{formatRange(run)}</span>
                     <span>{run.pulls ? run.pulls : 'All'}</span>
                     <span>{run.deep_sync ? 'Yes' : 'No'}</span>
                     <span className="right">{formatDuration(run.started_at, run.finished_at)}</span>
                     <span className="right">{run.status}</span>
+                    <span>
+                      {run.error ? (
+                        <button
+                          type="button"
+                          className="sync-error-link"
+                          onClick={() => setSelectedRunError({ runId: run.id, text: run.error as string })}
+                        >
+                          View
+                        </button>
+                      ) : (
+                        '—'
+                      )}
+                    </span>
                   </div>
                 ))}
               </>
@@ -638,6 +693,17 @@ function SyncSettings() {
           </div>
         </div>
       </div>
+      {selectedRunError ? (
+        <div className="sync-error-modal-overlay" onClick={() => setSelectedRunError(null)}>
+          <div className="sync-error-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="sync-error-modal-header">
+              <div className="sync-card-header">Sync Error</div>
+              <ActionButton label="Close" onClick={() => setSelectedRunError(null)} variant="soft" className="sync-refresh-button" />
+            </div>
+            <textarea className="sync-error-modal-textbox" value={selectedRunError.text} readOnly />
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

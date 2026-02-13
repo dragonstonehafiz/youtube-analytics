@@ -54,6 +54,7 @@ def _ensure_video_columns(conn: sqlite3.Connection) -> None:
 def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
     """Add new columns to sync_runs table if missing (idempotent)."""
     columns = [
+        ("error", "TEXT"),
         ("start_date", "TEXT"),
         ("end_date", "TEXT"),
         ("deep_sync", "INTEGER DEFAULT 0"),
@@ -64,6 +65,13 @@ def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE sync_runs ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
+    try:
+        conn.execute(
+            "UPDATE sync_runs SET error = error_message WHERE (error IS NULL OR error = '') AND error_message IS NOT NULL"
+        )
+    except sqlite3.OperationalError:
+        # Older DBs may not have both columns yet while migrating.
+        pass
 
 
 def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:

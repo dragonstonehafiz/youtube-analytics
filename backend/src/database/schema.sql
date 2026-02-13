@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS sync_runs (
     started_at TEXT NOT NULL,
     finished_at TEXT,
     status TEXT NOT NULL,
+    error TEXT,
     error_message TEXT,
     start_date TEXT,
     end_date TEXT,

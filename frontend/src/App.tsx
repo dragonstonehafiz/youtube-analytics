@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import './App.css'
 import { NavLink, Route, Routes } from 'react-router-dom'
+import { ActionButton } from './components/ui'
 import Analytics from './pages/Analytics'
 import Audience from './pages/Audience'
 import AudienceDetail from './pages/AudienceDetail'
@@ -12,10 +14,32 @@ import VideoDetail from './pages/VideoDetail'
 import Videos from './pages/Videos'
 
 function App() {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
   return (
-    <div className="app">
+    <div className={isSidebarCollapsed ? 'app sidebar-collapsed' : 'app'}>
+      {isSidebarCollapsed ? (
+        <ActionButton
+          label=">"
+          onClick={() => setIsSidebarCollapsed(false)}
+          variant="soft"
+          bordered={false}
+          className="sidebar-toggle-collapsed"
+          title="Expand sidebar"
+        />
+      ) : null}
       <aside className="sidebar">
-        <div className="brand">YouTube Analytics</div>
+        <div className="brand-row">
+          <div className="brand">YouTube Analytics</div>
+          <ActionButton
+            label="<"
+            onClick={() => setIsSidebarCollapsed(true)}
+            variant="soft"
+            bordered={false}
+            className="brand-collapse-toggle"
+            title="Collapse sidebar"
+          />
+        </div>
         <nav className="nav">
           <NavLink to="/" end>
             Dashboard

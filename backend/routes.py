@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from config import settings
 from src.database.db import get_connection, row_to_dict
-from src.sync import prune_missing_videos_task, sync_all, sync_videos
+from src.sync import prune_missing_videos_task, request_sync_stop, sync_all, sync_videos
 from src.youtube.videos import get_channel_info
 
 router = APIRouter()
@@ -83,6 +83,13 @@ def prune(background_tasks: BackgroundTasks) -> dict:
     """Remove videos that no longer exist and their related analytics."""
     background_tasks.add_task(prune_missing_videos_task)
     return {"queued": True}
+
+
+@router.post("/sync/stop")
+def stop_sync() -> dict:
+    """Request graceful stop for current sync (after current API call returns)."""
+    accepted = request_sync_stop()
+    return {"accepted": accepted}
 
 
 @router.get("/me")
@@ -965,7 +972,7 @@ def get_sync_status() -> dict:
     with get_connection() as conn:
         row = conn.execute(
             (
-                "SELECT id, started_at, finished_at, status, error_message, "
+                "SELECT id, started_at, finished_at, status, COALESCE(error, error_message) AS error, "
                 "start_date, end_date, deep_sync, pulls "
                 "FROM sync_runs ORDER BY id DESC LIMIT 1"
             )
@@ -982,7 +989,7 @@ def list_sync_runs(limit: int = 10, offset: int = 0) -> dict:
         total = conn.execute("SELECT COUNT(*) AS count FROM sync_runs").fetchone()[0]
         rows = conn.execute(
             (
-                "SELECT id, started_at, finished_at, status, error_message, "
+                "SELECT id, started_at, finished_at, status, COALESCE(error, error_message) AS error, "
                 "start_date, end_date, deep_sync, pulls "
                 "FROM sync_runs ORDER BY id DESC LIMIT ? OFFSET ?"
             ),
