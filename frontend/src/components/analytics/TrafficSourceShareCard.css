@@ -2,54 +2,52 @@
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 16px;
-  align-items: center;
+  align-items: start;
+}
+
+.traffic-share-chart-column {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
 }
 
 .traffic-share-chart-wrap {
-  position: relative;
   width: 220px;
   height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .traffic-share-chart {
   display: block;
 }
 
-.traffic-share-total {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  color: #64748b;
-  font-size: 12px;
-}
-
-.traffic-share-total strong {
-  color: #0f172a;
-  font-size: 26px;
-  font-weight: 700;
-}
-
 .traffic-share-legend {
   display: grid;
-  gap: 8px;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  column-gap: 12px;
+  row-gap: 8px;
+  align-items: center;
+}
+
+.traffic-share-hover {
+  color: #64748b;
+  font-size: 12px;
+  min-height: 18px;
+  text-align: center;
+  grid-column: 1 / -1;
 }
 
 .traffic-share-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 24px;
+  display: contents;
 }
 
 .traffic-share-label {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  grid-column: 1;
   color: #334155;
   font-size: 13px;
   white-space: nowrap;
@@ -57,17 +55,18 @@
   text-overflow: ellipsis;
 }
 
-.traffic-share-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-}
-
 .traffic-share-value {
   color: #0f172a;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  grid-column: 3;
+  justify-self: end;
+  text-align: right;
+}
+
+.traffic-share-bar-wrap {
+  grid-column: 2;
+  width: 100%;
 }
 
 @media (max-width: 860px) {
@@ -77,5 +76,24 @@
 
   .traffic-share-chart-wrap {
     margin: 0 auto;
+  }
+
+  .traffic-share-row {
+    display: contents;
+  }
+
+  .traffic-share-legend {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 6px;
+  }
+
+  .traffic-share-label,
+  .traffic-share-bar-wrap,
+  .traffic-share-value {
+    grid-column: 1;
+  }
+
+  .traffic-share-label {
+    width: 100%;
   }
 }

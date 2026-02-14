@@ -1249,6 +1249,7 @@ def list_video_traffic_sources(
     start_date: str,
     end_date: str,
     content_type: str | None = None,
+    video_id: str | None = None,
 ) -> dict:
     """Return video-level daily traffic-source rows for a range, optionally filtered by content type."""
     where_sql = "vts.date >= ? AND vts.date <= ?"
@@ -1256,6 +1257,9 @@ def list_video_traffic_sources(
     if content_type:
         where_sql += " AND v.content_type = ?"
         params.append(content_type)
+    if video_id:
+        where_sql += " AND vts.video_id = ?"
+        params.append(video_id)
     with get_connection() as conn:
         rows = conn.execute(
             f"""

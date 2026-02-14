@@ -1,0 +1,42 @@
+.donut-chart-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.donut-chart-svg {
+  display: block;
+}
+
+.donut-segment {
+  transition: opacity 0.14s ease;
+}
+
+.donut-segment.dimmed {
+  opacity: 0.35;
+}
+
+.donut-chart-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donut-chart-center-label {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.donut-chart-center-value {
+  color: #0f172a;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { MetricChartCard } from '../components/analytics'
+import { MetricChartCard, TrafficSourceShareCard, type TrafficSourceShareItem } from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { CommentThreadItem, type CommentRow } from '../components/comments'
 import { formatDisplayDate } from '../utils/date'
@@ -39,6 +39,19 @@ type VideoDailyRow = {
 type SeriesPoint = { date: string; value: number }
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type CommentSort = 'published_at' | 'likes' | 'reply_count'
+type DiscoveryMetric = 'views' | 'watch_time'
+type TrafficSourceRow = {
+  day: string
+  traffic_source: string
+  views: number
+  watch_time_minutes: number
+}
+type DiscoveryMultiSeries = {
+  key: string
+  label: string
+  color: string
+  points: SeriesPoint[]
+}
 
 function formatDuration(seconds: number | null): string {
   if (!seconds || seconds < 0) {
@@ -137,10 +150,57 @@ function aggregateWeightedPoints(
   return aggregated
 }
 
+function buildTrafficSeries(
+  rows: TrafficSourceRow[],
+  metric: DiscoveryMetric,
+  startDate: string,
+  endDate: string,
+  granularity: Granularity
+): DiscoveryMultiSeries[] {
+  const start = new Date(`${startDate}T00:00:00Z`)
+  const end = new Date(`${endDate}T00:00:00Z`)
+  const allDays: string[] = []
+  const cursor = new Date(start)
+  while (cursor <= end) {
+    allDays.push(cursor.toISOString().slice(0, 10))
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  const totalsBySource = new Map<string, number>()
+  rows.forEach((row) => {
+    if (!row.traffic_source) {
+      return
+    }
+    const value = metric === 'views' ? row.views : row.watch_time_minutes
+    totalsBySource.set(row.traffic_source, (totalsBySource.get(row.traffic_source) ?? 0) + value)
+  })
+  const topSources = Array.from(totalsBySource.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([source]) => source)
+  const colorPalette = ['#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#ef4444']
+  return topSources.map((source, index) => {
+    const grouped = new Map<string, number>()
+    rows.forEach((row) => {
+      if (row.traffic_source !== source || !row.day) {
+        return
+      }
+      const value = metric === 'views' ? row.views : row.watch_time_minutes
+      grouped.set(row.day, (grouped.get(row.day) ?? 0) + value)
+    })
+    const points = allDays.map((date) => ({ date, value: grouped.get(date) ?? 0 }))
+    return {
+      key: source,
+      label: source.replace(/_/g, ' '),
+      color: colorPalette[index % colorPalette.length],
+      points: aggregatePoints(points, granularity),
+    }
+  })
+}
+
 function VideoDetail() {
   const { videoId } = useParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'analytics' | 'monetization' | 'comments'>('analytics')
+  const [activeTab, setActiveTab] = useState<'analytics' | 'monetization' | 'discovery' | 'comments'>('analytics')
   const [video, setVideo] = useState<VideoMetadata | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -181,6 +241,9 @@ function VideoDetail() {
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [monetizationSeries, setMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [previousMonetizationSeries, setPreviousMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({})
+  const [discoveryMetric, setDiscoveryMetric] = useState<DiscoveryMetric>(getStored('videoDetailDiscoveryMetric', 'views'))
+  const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
+  const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
   const [totals, setTotals] = useState({
     views: 0,
     watch_time_minutes: 0,
@@ -322,6 +385,10 @@ function VideoDetail() {
   useEffect(() => {
     setStored('videoDetailCommentsSort', commentsSort)
   }, [commentsSort])
+
+  useEffect(() => {
+    setStored('videoDetailDiscoveryMetric', discoveryMetric)
+  }, [discoveryMetric])
 
   useEffect(() => {
     async function loadVideoAnalytics() {
@@ -495,6 +562,76 @@ function VideoDetail() {
   }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end, granularity])
 
   useEffect(() => {
+    async function loadDiscoveryTraffic() {
+      if (!videoId) {
+        setDiscoveryTrafficRows([])
+        setDiscoveryPreviousTrafficRows([])
+        return
+      }
+      try {
+        const [currentResponse, previousResponse] = await Promise.all([
+          fetch(`http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&video_id=${videoId}`),
+          fetch(`http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&video_id=${videoId}`),
+        ])
+        const [currentData, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
+        const toRows = (items: any[]): TrafficSourceRow[] =>
+          items.map((item) => ({
+            day: String(item?.day ?? ''),
+            traffic_source: String(item?.traffic_source ?? ''),
+            views: Number(item?.views ?? 0),
+            watch_time_minutes: Number(item?.watch_time_minutes ?? 0),
+          }))
+        setDiscoveryTrafficRows(Array.isArray(currentData?.items) ? toRows(currentData.items) : [])
+        setDiscoveryPreviousTrafficRows(Array.isArray(previousData?.items) ? toRows(previousData.items) : [])
+      } catch {
+        setDiscoveryTrafficRows([])
+        setDiscoveryPreviousTrafficRows([])
+      }
+    }
+
+    loadDiscoveryTraffic()
+  }, [videoId, range.start, range.end, previousRange.start, previousRange.end])
+
+  const discoverySeriesByMetric = useMemo<Record<DiscoveryMetric, DiscoveryMultiSeries[]>>(
+    () => ({
+      views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end, granularity),
+      watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end, granularity),
+    }),
+    [discoveryTrafficRows, range.start, range.end, granularity]
+  )
+
+  const previousDiscoverySeriesByMetric = useMemo<Record<DiscoveryMetric, DiscoveryMultiSeries[]>>(
+    () => ({
+      views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end, granularity),
+      watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end, granularity),
+    }),
+    [discoveryPreviousTrafficRows, previousRange.start, previousRange.end, granularity]
+  )
+
+  const discoveryMetrics = useMemo(() => {
+    const totalViews = discoverySeriesByMetric.views.reduce((sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0)
+    const totalWatch = discoverySeriesByMetric.watch_time.reduce((sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0)
+    return [
+      { key: 'views', label: 'Views', value: formatWholeNumber(Math.round(totalViews)) },
+      { key: 'watch_time', label: 'Watch time', value: formatWholeNumber(Math.round(totalWatch)) },
+    ]
+  }, [discoverySeriesByMetric])
+
+  const discoveryShareItems = useMemo<TrafficSourceShareItem[]>(() => {
+    const totals = new Map<string, number>()
+    discoveryTrafficRows.forEach((row) => {
+      if (!row.traffic_source) {
+        return
+      }
+      totals.set(row.traffic_source, (totals.get(row.traffic_source) ?? 0) + row.views)
+    })
+    return Array.from(totals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([source, views]) => ({ key: source, label: source.replace(/_/g, ' '), views }))
+  }, [discoveryTrafficRows])
+
+  useEffect(() => {
     async function loadComments() {
       if (!videoId || activeTab !== 'comments') {
         return
@@ -610,13 +747,19 @@ function VideoDetail() {
                 active={activeTab === 'monetization'}
               />
               <ActionButton
+                label="Discovery"
+                onClick={() => setActiveTab('discovery')}
+                variant="soft"
+                active={activeTab === 'discovery'}
+              />
+              <ActionButton
                 label="Comments"
                 onClick={() => setActiveTab('comments')}
                 variant="soft"
                 active={activeTab === 'comments'}
               />
             </div>
-            {activeTab === 'analytics' || activeTab === 'monetization' ? (
+            {activeTab === 'analytics' || activeTab === 'monetization' || activeTab === 'discovery' ? (
               <div className="analytics-range-controls">
               <Dropdown
                 value={granularity}
@@ -766,7 +909,7 @@ function VideoDetail() {
                   endDate={range.end}
                   publishedDates={{}}
                 />
-              ) : (
+              ) : activeTab === 'monetization' ? (
                 <MetricChartCard
                   metrics={[
                     {
@@ -806,10 +949,30 @@ function VideoDetail() {
                   startDate={range.start}
                   endDate={range.end}
                 />
+              ) : (
+                <MetricChartCard
+                  metrics={discoveryMetrics}
+                  series={{}}
+                  multiSeriesByMetric={discoverySeriesByMetric}
+                  previousMultiSeriesByMetric={previousDiscoverySeriesByMetric}
+                  activeMetricKey={discoveryMetric}
+                  onActiveMetricChange={(key) => setDiscoveryMetric(key as DiscoveryMetric)}
+                  startDate={range.start}
+                  endDate={range.end}
+                  useRangeAsDailyAxis={granularity === 'daily'}
+                  publishedDates={{}}
+                />
               )
             )}
           </PageCard>
         </div>
+        {activeTab === 'discovery' && !analyticsLoading && !analyticsError ? (
+          <div className="page-row">
+            <PageCard>
+              <TrafficSourceShareCard items={discoveryShareItems} />
+            </PageCard>
+          </div>
+        ) : null}
       </div>
     </section>
   )

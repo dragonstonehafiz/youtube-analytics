@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ActionButton,
   DateRangePicker,
+  DonutChart,
   Dropdown,
   MultiSelect,
   PageSizePicker,
   PageSwitcher,
   ProgressBar,
   YearInput,
+  type DonutSegmentResolved,
 } from '../components/ui'
 import { formatDisplayDate } from '../utils/date'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
@@ -103,7 +105,7 @@ function SyncSettings() {
   const [syncNotice, setSyncNotice] = useState<string | null>(null)
   const [stopRequestedByUser, setStopRequestedByUser] = useState(false)
   const [selectedRunError, setSelectedRunError] = useState<{ runId: number; text: string } | null>(null)
-  const [hoveredStorageTable, setHoveredStorageTable] = useState<string | null>(null)
+  const [hoveredStorageSegment, setHoveredStorageSegment] = useState<DonutSegmentResolved | null>(null)
   const [selectedOverviewTable, setSelectedOverviewTable] = useState('')
   const [showTableColumns, setShowTableColumns] = useState(false)
   const [tableDetailsLoading, setTableDetailsLoading] = useState(false)
@@ -271,25 +273,19 @@ function SyncSettings() {
   }
   const pieSegments = useMemo(() => {
     const colors = ['#0ea5e9', '#14b8a6', '#f59e0b', '#f97316', '#84cc16', '#22c55e', '#6366f1', '#e11d48']
-    let runningPercent = 0
     return overview.table_storage
       .filter((item) => item.percent > 0)
       .map((item, index) => {
-        const start = runningPercent
-        const end = runningPercent + item.percent
-        runningPercent = end
         return {
-          ...item,
-          start,
-          end,
+          key: item.table,
+          label: item.table,
+          value: item.bytes,
+          bytes: item.bytes,
+          percent: item.percent,
           color: colors[index % colors.length],
         }
       })
   }, [overview.table_storage])
-  const hoveredSegment = useMemo(
-    () => pieSegments.find((segment) => segment.table === hoveredStorageTable) ?? null,
-    [pieSegments, hoveredStorageTable]
-  )
   const orderedTableRowCounts = useMemo(() => {
     const order: Record<string, number> = {
       videos: 1,
@@ -679,43 +675,28 @@ function SyncSettings() {
               <div className="db-overview-size db-overview-pane">
                 <div className="db-overview-pie-wrap">
                   <div className="db-overview-pie-chart">
-                    <svg className="db-overview-pie" viewBox="0 0 140 140" role="img" aria-label="Table storage distribution">
-                      <circle cx="70" cy="70" r="52" fill="none" stroke="#e2e8f0" strokeWidth="18" />
-                      {pieSegments.map((segment) => {
-                        const circumference = 2 * Math.PI * 52
-                        const segmentLength = (segment.percent / 100) * circumference
-                        const segmentOffset = -((segment.start / 100) * circumference)
-                        return (
-                          <circle
-                            key={segment.table}
-                            cx="70"
-                            cy="70"
-                            r="52"
-                            fill="none"
-                            stroke={segment.color}
-                            strokeWidth="18"
-                            strokeLinecap="butt"
-                            strokeDasharray={`${segmentLength} ${circumference}`}
-                            strokeDashoffset={segmentOffset}
-                            transform="rotate(-90 70 70)"
-                            onMouseEnter={() => setHoveredStorageTable(segment.table)}
-                            onMouseLeave={() => setHoveredStorageTable(null)}
-                          />
-                        )
-                      })}
-                    </svg>
-                    <div className="db-overview-pie-center">
-                      <div className="db-overview-pie-center-label">Total size</div>
-                      <div className="db-overview-pie-center-value">{formatBytes(overview.db_size_bytes)}</div>
-                    </div>
+                    <DonutChart
+                      segments={pieSegments.map((segment) => ({
+                        key: segment.key,
+                        label: segment.label,
+                        value: segment.value,
+                        color: segment.color,
+                      }))}
+                      centerLabel="Total size"
+                      centerValue={formatBytes(overview.db_size_bytes)}
+                      ariaLabel="Table storage distribution"
+                      size={220}
+                      strokeWidth={24}
+                      onHoverChange={setHoveredStorageSegment}
+                    />
                   </div>
                 </div>
                 {pieSegments.length === 0 ? (
                   <div className="sync-storage-empty">No table storage data available.</div>
                 ) : (
                   <div className="db-overview-hover">
-                    {hoveredSegment ? (
-                      <span>{`${hoveredSegment.table}: ${formatBytes(hoveredSegment.bytes)} (${hoveredSegment.percent.toFixed(2)}%)`}</span>
+                    {hoveredStorageSegment ? (
+                      <span>{`${hoveredStorageSegment.label}: ${formatBytes(hoveredStorageSegment.value)} (${hoveredStorageSegment.percent.toFixed(2)}%)`}</span>
                     ) : (
                       <span>Hover a slice to see table size and percentage</span>
                     )}
