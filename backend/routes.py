@@ -1371,7 +1371,7 @@ def get_overview_stats() -> dict:
             if playlist_analytics_rows and playlist_analytics_rows["count"] is not None
             else 0
         )
-        table_storage = _get_table_storage(conn, db_size_bytes)
+        table_storage = _get_table_storage(conn)
         table_row_counts = _get_table_row_counts(conn)
     return {
         "db_size_bytes": db_size_bytes,
