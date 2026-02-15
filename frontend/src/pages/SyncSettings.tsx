@@ -8,6 +8,7 @@ import {
   PageSizePicker,
   PageSwitcher,
   ProgressBar,
+  RatioBar,
   YearInput,
   type DonutSegmentResolved,
 } from '../components/ui'
@@ -117,12 +118,9 @@ function SyncSettings() {
     newest_item_date: string | null
     columns: { name: string; declared_type: string; expected_value: string }[]
   } | null>(null)
-  const [tableApiCallsLoading, setTableApiCallsLoading] = useState(false)
-  const [tableApiCallsError, setTableApiCallsError] = useState<string | null>(null)
-  const [tableApiCalls, setTableApiCalls] = useState<{
-    minimum_api_calls: number
-    basis: string
-  } | null>(null)
+  const [pullApiCallsLoading, setPullApiCallsLoading] = useState(false)
+  const [pullApiCallsError, setPullApiCallsError] = useState<string | null>(null)
+  const [pullApiCallsByPull, setPullApiCallsByPull] = useState<Record<string, number>>({})
   const today = new Date().toISOString().slice(0, 10)
   const [startDate, setStartDate] = useState(storedSync?.startDate ?? today)
   const [endDate, setEndDate] = useState(storedSync?.endDate ?? today)
@@ -328,7 +326,8 @@ function SyncSettings() {
     }
     const stillExists = overviewTableItems.some((item) => item.value === selectedOverviewTable)
     if (!selectedOverviewTable || !stillExists) {
-      setSelectedOverviewTable(overviewTableItems[0].value)
+      const videosOption = overviewTableItems.find((item) => item.value === 'videos')
+      setSelectedOverviewTable(videosOption?.value ?? overviewTableItems[0].value)
     }
   }, [overviewTableItems, selectedOverviewTable])
 
@@ -386,52 +385,143 @@ function SyncSettings() {
     return { start: null, end: null }
   }, [rangeMode, year, overview.latest_date, today, startDate, endDate])
 
+  const selectedPullKeys = useMemo(() => {
+    if (selectedPulls.length === 0) {
+      return pullOptions.map((item) => item.value)
+    }
+    return selectedPulls
+  }, [selectedPulls, pullOptions])
+  const apiCallBarRows = useMemo(() => {
+    const apiMaxByFamily: Record<string, number> = {
+      'YouTube Data API v3': 10000,
+      'YouTube Analytics API v2': 100000,
+    }
+    const pullToApiFamily: Record<string, string> = {
+      videos: 'YouTube Data API v3',
+      comments: 'YouTube Data API v3',
+      audience: 'YouTube Data API v3',
+      playlists: 'YouTube Data API v3',
+      playlist_analytics: 'YouTube Analytics API v2',
+      traffic: 'YouTube Analytics API v2',
+      channel_analytics: 'YouTube Analytics API v2',
+      video_analytics: 'YouTube Analytics API v2',
+      video_traffic_source: 'YouTube Analytics API v2',
+      video_search_insights: 'YouTube Analytics API v2',
+    }
+    const pullLabelByKey = Object.fromEntries(pullOptions.map((item) => [item.value, item.label])) as Record<string, string>
+    const colorByPull: Record<string, string> = {
+      videos: '#0ea5e9',
+      comments: '#f97316',
+      audience: '#22c55e',
+      playlists: '#8b5cf6',
+      playlist_analytics: '#ef4444',
+      traffic: '#06b6d4',
+      channel_analytics: '#eab308',
+      video_analytics: '#f43f5e',
+      video_traffic_source: '#14b8a6',
+      video_search_insights: '#6366f1',
+    }
+    const rows = [
+      { label: 'YouTube Data API v3', segments: [] as { key: string; label: string; value: number; color: string }[] },
+      { label: 'YouTube Analytics API v2', segments: [] as { key: string; label: string; value: number; color: string }[] },
+    ]
+    for (const pullKey of selectedPullKeys) {
+      const family = pullToApiFamily[pullKey]
+      const value = pullApiCallsByPull[pullKey] ?? 0
+      if (!family) {
+        continue
+      }
+      const row = rows.find((item) => item.label === family)
+      if (!row) {
+        continue
+      }
+      row.segments.push({
+        key: pullKey,
+        label: pullLabelByKey[pullKey] ?? pullKey,
+        value,
+        color: colorByPull[pullKey] ?? '#64748b',
+      })
+    }
+    return rows.map((row) => {
+      const total = row.segments.reduce((sum, segment) => sum + segment.value, 0)
+      const max = apiMaxByFamily[row.label] ?? 1
+      return {
+        label: row.label,
+        value: total,
+        max,
+        segments: row.segments.map((segment) => ({
+          key: segment.key,
+          color: segment.color,
+          ratio: max > 0 ? (segment.value / max) * 100 : 0,
+          title: `${segment.label}: ${segment.value.toLocaleString()}`,
+        })),
+        legendItems: row.segments.map((segment) => ({
+          key: segment.key,
+          label: segment.label,
+          value: segment.value,
+          color: segment.color,
+        })),
+      }
+    })
+  }, [pullApiCallsByPull, pullOptions, selectedPullKeys])
+
   useEffect(() => {
-    let timer: number | null = null
-    async function loadTableApiCalls() {
-      if (!selectedOverviewTable) {
-        setTableApiCalls(null)
+    async function loadPullApiCalls() {
+      if (selectedPullKeys.length === 0) {
+        setPullApiCallsByPull({})
         return
       }
-      setTableApiCallsLoading(true)
-      setTableApiCallsError(null)
+      setPullApiCallsLoading(true)
+      setPullApiCallsError(null)
       try {
-        const params = new URLSearchParams({ table: selectedOverviewTable })
-        if (selectedSyncPeriod.start) {
-          params.set('start_date', selectedSyncPeriod.start)
+        const pullToTable: Record<string, string> = {
+          videos: 'videos',
+          comments: 'comments',
+          audience: 'audience',
+          playlists: 'playlists',
+          playlist_analytics: 'playlist_daily_analytics',
+          traffic: 'traffic_sources_daily',
+          channel_analytics: 'channel_analytics',
+          video_analytics: 'video_analytics',
+          video_traffic_source: 'video_traffic_source',
+          video_search_insights: 'video_search_insights',
         }
-        if (selectedSyncPeriod.end) {
-          params.set('end_date', selectedSyncPeriod.end)
+        const callsByPull: Record<string, number> = {}
+        for (const pullKey of selectedPullKeys) {
+          const table = pullToTable[pullKey]
+          if (!table) {
+            continue
+          }
+          const params = new URLSearchParams({ table })
+          if (selectedSyncPeriod.start) {
+            params.set('start_date', selectedSyncPeriod.start)
+          }
+          if (selectedSyncPeriod.end) {
+            params.set('end_date', selectedSyncPeriod.end)
+          }
+          if (deepSync) {
+            params.set('deep_sync', 'true')
+          }
+          const response = await fetch(`http://127.0.0.1:8000/stats/table-api-calls?${params.toString()}`)
+          if (!response.ok) {
+            throw new Error(`Failed to load API call estimate (${response.status})`)
+          }
+          const data = await response.json()
+          const count = typeof data.minimum_api_calls === 'number' ? data.minimum_api_calls : 0
+          callsByPull[pullKey] = count
         }
-        if (deepSync) {
-          params.set('deep_sync', 'true')
-        }
-        const response = await fetch(`http://127.0.0.1:8000/stats/table-api-calls?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error(`Failed to load API call estimate (${response.status})`)
-        }
-        const data = await response.json()
-        setTableApiCalls({
-          minimum_api_calls: typeof data.minimum_api_calls === 'number' ? data.minimum_api_calls : 0,
-          basis: data.basis ?? '',
-        })
+        setPullApiCallsByPull(callsByPull)
       } catch (error) {
         console.error('Failed to load API call estimate', error)
-        setTableApiCallsError(error instanceof Error ? error.message : 'Failed to load API call estimate')
-        setTableApiCalls(null)
+        setPullApiCallsError(error instanceof Error ? error.message : 'Failed to load API call estimate')
+        setPullApiCallsByPull({})
       } finally {
-        setTableApiCallsLoading(false)
+        setPullApiCallsLoading(false)
       }
     }
 
-    loadTableApiCalls()
-    timer = window.setInterval(loadTableApiCalls, 8000)
-    return () => {
-      if (timer) {
-        window.clearInterval(timer)
-      }
-    }
-  }, [selectedOverviewTable, selectedSyncPeriod.start, selectedSyncPeriod.end, deepSync])
+    loadPullApiCalls()
+  }, [selectedPullKeys, selectedSyncPeriod.start, selectedSyncPeriod.end, deepSync])
 
   const runsTotalPages = useMemo(
     () => Math.max(1, Math.ceil(runsTotal / runsPageSize)),
@@ -692,6 +782,39 @@ function SyncSettings() {
                 ))}
               </div>
             </div>
+            <div className="db-overview-estimate-section">
+              <div className="db-overview-api-calls-plain">
+                <div className="sync-stat-label">Minimum API calls for selected pulls</div>
+                {pullApiCallsLoading ? (
+                  <div className="db-overview-api-calls-meta">Loading...</div>
+                ) : pullApiCallsError ? (
+                  <div className="db-overview-api-calls-meta">{pullApiCallsError}</div>
+                ) : (
+                  <div className="db-overview-api-calls-breakdown">
+                    {apiCallBarRows.map((row) => (
+                      <div key={row.label} className="db-overview-api-calls-bar-row">
+                        <div className="db-overview-api-calls-row">
+                          <span>{row.label}</span>
+                          <span>{`${row.value.toLocaleString()} / ${row.max.toLocaleString()}`}</span>
+                        </div>
+                        <RatioBar length="100%" ratio={100} color="#94a3b8" segments={row.segments} />
+                        <div className="db-overview-api-calls-legend">
+                          {row.legendItems
+                            .filter((item) => item.value > 0)
+                            .map((item) => (
+                              <div key={item.key} className="db-overview-api-calls-legend-item">
+                                <span className="db-overview-api-calls-legend-dot" style={{ backgroundColor: item.color }} />
+                                <span className="db-overview-api-calls-legend-label">{item.label}</span>
+                                <span className="db-overview-api-calls-legend-value">{item.value.toLocaleString()}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="db-overview-selector-row">
               <ActionButton
                 label={showTableColumns ? 'Hide Table Columns' : 'See Table Columns'}
@@ -723,21 +846,6 @@ function SyncSettings() {
                     {tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.newest_item_date ?? null)}
                   </div>
                 </div>
-              </div>
-              <div className="db-overview-api-calls">
-                <div className="sync-stat-label-row">
-                  <div className="sync-stat-label">Minimum API calls for selected period</div>
-                  <span
-                    className="sync-help"
-                    title={tableApiCalls?.basis || 'Selected table and current sync settings'}
-                  >
-                    i
-                  </span>
-                </div>
-                <div className="db-overview-api-calls-value">
-                  {tableApiCallsLoading ? 'Loading...' : tableApiCallsError ? 'Error' : (tableApiCalls?.minimum_api_calls ?? 0).toLocaleString()}
-                </div>
-                {tableApiCallsError ? <div className="db-overview-api-calls-meta">{tableApiCallsError}</div> : null}
               </div>
               {showTableColumns ? (
                 <div className="db-overview-columns-wrap">

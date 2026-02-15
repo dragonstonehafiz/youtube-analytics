@@ -1,21 +1,30 @@
 from __future__ import annotations
 
 import sqlite3
-from math import ceil
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
-from config import settings
 from src.database.db import get_connection, row_to_dict
-from src.sync import sync_all, sync_progress, sync_videos
-from src.youtube.analytics import DateRange, chunk_date_range
+from src.helper.estimates import (
+    estimate_audience_api_calls,
+    estimate_channel_analytics_api_calls,
+    estimate_comments_api_calls,
+    estimate_playlist_analytics_api_calls,
+    estimate_playlists_api_calls,
+    estimate_traffic_sources_api_calls,
+    estimate_video_analytics_api_calls,
+    estimate_video_search_insights_api_calls,
+    estimate_video_traffic_source_api_calls,
+    estimate_videos_api_calls,
+)
+from src.sync import sync_all, sync_progress
 from src.youtube.videos import get_channel_info
 
 router = APIRouter()
 
 
-def _get_table_storage(conn: sqlite3.Connection, db_size_bytes: int) -> list[dict]:
+def _get_table_storage(conn: sqlite3.Connection) -> list[dict]:
     """Return per-table storage usage in bytes with percent normalized to tracked tables only."""
     table_rows = conn.execute(
         "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
@@ -65,57 +74,21 @@ def _get_table_row_counts(conn: sqlite3.Connection) -> list[dict]:
     return output
 
 
-def _to_date(value: str | None) -> datetime.date | None:
-    """Parse YYYY-MM-DD into date object, returning None for invalid values."""
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value).date()
-    except ValueError:
-        return None
-
-
-def _get_video_rows(conn: sqlite3.Connection) -> list[dict]:
-    """Return video ids with normalized publish dates."""
-    rows = conn.execute("SELECT id, date(published_at) AS published_date FROM videos").fetchall()
-    return [{"id": str(row["id"]), "published_date": str(row["published_date"]) if row["published_date"] else None} for row in rows]
-
-
-def _get_playlist_rows(conn: sqlite3.Connection) -> list[dict]:
-    """Return playlist ids with normalized publish dates."""
-    rows = conn.execute("SELECT id, date(published_at) AS published_date FROM playlists").fetchall()
-    return [{"id": str(row["id"]), "published_date": str(row["published_date"]) if row["published_date"] else None} for row in rows]
-
-
-def _filter_rows_by_period(rows: list[dict], start_date: str | None, end_date: str | None) -> list[dict]:
-    """Filter entity rows by selected period using published_date when available."""
-    start = _to_date(start_date)
-    end = _to_date(end_date)
-    if not start and not end:
-        return rows
-    filtered: list[dict] = []
-    for item in rows:
-        published = _to_date(item.get("published_date"))
-        if not published:
-            continue
-        if start and published < start:
-            continue
-        if end and published > end:
-            continue
-        filtered.append(item)
-    return filtered
-
-
-def _row_bounds(rows: list[dict]) -> tuple[str | None, str | None]:
-    """Return min/max published_date bounds from normalized entity rows."""
-    dates = [str(item["published_date"]) for item in rows if item.get("published_date")]
-    if not dates:
-        return None, None
-    return min(dates), max(dates)
+def _get_ids_with_published_map(conn: sqlite3.Connection, table_name: str) -> tuple[list[str], dict[str, str]]:
+    """Return entity ids and publish-date map (YYYY-MM-DD) for a table."""
+    rows = conn.execute(f'SELECT id, date(published_at) AS published_date FROM "{table_name}"').fetchall()
+    ids: list[str] = []
+    published_by_id: dict[str, str] = {}
+    for row in rows:
+        entity_id = str(row["id"])
+        ids.append(entity_id)
+        if row["published_date"]:
+            published_by_id[entity_id] = str(row["published_date"])
+    return ids, published_by_id
 
 
 def _get_latest_by_id(conn: sqlite3.Connection, table_name: str, id_column: str) -> dict[str, str]:
-    """Return max(date) map by id for a table."""
+    """Return grouped MAX(date) values for a table keyed by id column."""
     rows = conn.execute(
         f'SELECT "{id_column}" AS item_id, MAX(date) AS latest FROM "{table_name}" GROUP BY "{id_column}"'
     ).fetchall()
@@ -126,95 +99,20 @@ def _get_latest_by_id(conn: sqlite3.Connection, table_name: str, id_column: str)
     return output
 
 
-def _effective_range(
-    conn: sqlite3.Connection,
-    start_date: str | None,
-    end_date: str | None,
-    earliest_sql: str,
-) -> tuple[str, str] | None:
-    """Resolve effective sync range using selected period and DB earliest fallback."""
-    earliest_row = conn.execute(earliest_sql).fetchone()
-    earliest = str(earliest_row["earliest"]) if earliest_row and earliest_row["earliest"] else None
-    if not earliest:
+def _get_latest_date(conn: sqlite3.Connection, table_name: str) -> str | None:
+    """Return MAX(date) for a table."""
+    row = conn.execute(f'SELECT MAX(date) AS latest FROM "{table_name}"').fetchone()
+    if not row or not row["latest"]:
         return None
-    default_start = datetime.fromisoformat(earliest).date()
-    default_end = datetime.now(UTC).date() - timedelta(days=1)
-    if default_end < default_start:
-        default_end = default_start
-    resolved_start = _to_date(start_date) or default_start
-    resolved_end = _to_date(end_date) or default_end
-    today = datetime.now(UTC).date()
-    if resolved_end > today:
-        resolved_end = today
-    if resolved_start > resolved_end:
+    return str(row["latest"])
+
+
+def _get_earliest_published_date(conn: sqlite3.Connection, table_name: str) -> str | None:
+    """Return MIN(date(published_at)) for a table."""
+    row = conn.execute(f'SELECT MIN(date(published_at)) AS earliest FROM "{table_name}"').fetchone()
+    if not row or not row["earliest"]:
         return None
-    return resolved_start.isoformat(), resolved_end.isoformat()
-
-
-def _estimate_segment_calls_with_context(
-    rows: list[dict],
-    latest_by_id: dict[str, str],
-    start: str,
-    end: str,
-    months_per_chunk: int,
-) -> tuple[int, int, int]:
-    """Estimate segment-based calls with entity and segment counts."""
-    start_date = _to_date(start)
-    end_date = _to_date(end)
-    if not start_date or not end_date:
-        return 0, 0, 0
-    segments = chunk_date_range(DateRange(start=start_date.isoformat(), end=end_date.isoformat()), months_per_chunk=months_per_chunk)
-    calls = 0
-    active_ids: set[str] = set()
-    for segment in segments:
-        seg_start = _to_date(segment.start)
-        seg_end = _to_date(segment.end)
-        if not seg_start or not seg_end:
-            continue
-        for item in rows:
-            published = _to_date(item.get("published_date"))
-            if published and published > seg_end:
-                continue
-            latest = _to_date(latest_by_id.get(item["id"]))
-            next_start = (latest + timedelta(days=1)) if latest else seg_start
-            if next_start > seg_end:
-                continue
-            calls += 1
-            active_ids.add(item["id"])
-    return calls, len(active_ids), len(segments)
-
-
-def _estimate_search_calls_with_context(
-    rows: list[dict],
-    latest_by_id: dict[str, str],
-    start: str,
-    end: str,
-) -> tuple[int, int, int]:
-    """Estimate video-search calls with active video count and covered days."""
-    range_start = _to_date(start)
-    range_end = _to_date(end)
-    if not range_start or not range_end:
-        return 0, 0, 0
-    calls = 0
-    active_videos = 0
-    total_days = 0
-    for item in rows:
-        effective_start = range_start
-        published = _to_date(item.get("published_date"))
-        if published and published > range_end:
-            continue
-        if published and published > effective_start:
-            effective_start = published
-        latest = _to_date(latest_by_id.get(item["id"]))
-        if latest and (latest + timedelta(days=1)) > effective_start:
-            effective_start = latest + timedelta(days=1)
-        if effective_start > range_end:
-            continue
-        active_videos += 1
-        day_count = (range_end - effective_start).days + 1
-        total_days += day_count
-        calls += day_count
-    return calls, active_videos, total_days
+    return str(row["earliest"])
 
 
 def _estimate_min_api_calls_for_table(
@@ -224,183 +122,109 @@ def _estimate_min_api_calls_for_table(
     end_date: str | None,
     deep_sync: bool,
 ) -> dict:
-    """Estimate minimum API calls for one selected table under current sync period."""
-    video_rows = _get_video_rows(conn)
-    playlist_rows = _get_playlist_rows(conn)
-    all_video_count = len(video_rows)
-    all_playlist_count = len(playlist_rows)
-    videos_period_start, videos_period_end = _row_bounds(video_rows)
-    playlists_period_start, playlists_period_end = _row_bounds(playlist_rows)
-    range_videos = _effective_range(conn, start_date, end_date, "SELECT MIN(date(published_at)) AS earliest FROM videos")
-    range_playlists = _effective_range(conn, start_date, end_date, "SELECT MIN(date(published_at)) AS earliest FROM playlists")
+    """Estimate minimum API calls for one selected table using shared estimator helpers."""
+    video_ids, published_by_video = _get_ids_with_published_map(conn, "videos")
+    playlist_ids, published_by_playlist = _get_ids_with_published_map(conn, "playlists")
+    earliest_video_date = _get_earliest_published_date(conn, "videos")
+    earliest_playlist_date = _get_earliest_published_date(conn, "playlists")
 
     if table == "videos":
-        # Matches sync_videos(): period is ignored; full uploads are fetched.
-        upload_playlist_calls = max(1, ceil(max(all_video_count, 1) / 50))
-        video_detail_calls = max(1, ceil(max(all_video_count, 1) / 50))
-        source_rows = video_rows
-        source_ids = [str(row["id"]) for row in source_rows]
-        if source_ids:
-            placeholders = ",".join("?" for _ in source_ids)
-            shorts_count_row = conn.execute(
-                f"SELECT COUNT(*) AS count FROM videos WHERE content_type = 'short' AND id IN ({placeholders})",
-                tuple(source_ids),
-            ).fetchone()
-            shorts_count = int(shorts_count_row["count"] or 0) if shorts_count_row else 0
-        else:
-            shorts_count = 0
-        short_playlist_calls = max(1, ceil(max(shorts_count, 1) / 50))
-        return {
-            "minimum_api_calls": upload_playlist_calls + video_detail_calls + short_playlist_calls,
-            "basis": "uploads playlistItems.list + videos.list + shorts playlistItems.list",
-            "effective_start_date": videos_period_start,
-            "effective_end_date": videos_period_end,
-            "uses_period": False,
-        }
+        shorts_row = conn.execute("SELECT COUNT(*) AS count FROM videos WHERE content_type = 'short'").fetchone()
+        shorts_count = int(shorts_row["count"] or 0) if shorts_row else 0
+        result = estimate_videos_api_calls(video_count=len(video_ids), shorts_count=shorts_count)
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table in {"playlists", "playlist_items"}:
-        # Matches sync_playlists(): period is ignored; all playlists/items are fetched.
-        target_playlist_ids = {row["id"] for row in playlist_rows}
-        playlist_item_rows = conn.execute("SELECT id, item_count FROM playlists").fetchall()
-        per_playlist_item_calls = 0
-        for row in playlist_item_rows:
-            playlist_id = str(row["id"] or "")
-            if playlist_id not in target_playlist_ids:
-                continue
-            item_count = int(row["item_count"] or 0)
-            per_playlist_item_calls += max(1, ceil(max(item_count, 1) / 50))
-        playlist_list_calls = max(1, ceil(max(all_playlist_count, 1) / 50))
-        return {
-            "minimum_api_calls": playlist_list_calls + per_playlist_item_calls,
-            "basis": "playlists.list + playlistItems.list per playlist (minimum paging)",
-            "effective_start_date": playlists_period_start,
-            "effective_end_date": playlists_period_end,
-            "uses_period": False,
-        }
+        item_rows = conn.execute("SELECT item_count FROM playlists").fetchall()
+        item_counts = [int(row["item_count"] or 0) for row in item_rows]
+        result = estimate_playlists_api_calls(playlist_count=len(playlist_ids), playlist_item_counts=item_counts)
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "comments":
-        # Matches sync_comments(): period is ignored; runs per current videos set.
-        return {
-            "minimum_api_calls": max(all_video_count, 1),
-            "basis": "commentThreads.list per video (minimum one call each, no pagination)",
-            "effective_start_date": videos_period_start,
-            "effective_end_date": videos_period_end,
-            "uses_period": False,
-        }
+        result = estimate_comments_api_calls(video_count=len(video_ids))
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "audience":
-        # Matches sync_audience(): period is ignored.
-        subscriber_row = conn.execute(
-            "SELECT COUNT(*) AS count FROM audience WHERE is_public_subscriber = 1"
-        ).fetchone()
+        subscriber_row = conn.execute("SELECT COUNT(*) AS count FROM audience WHERE is_public_subscriber = 1").fetchone()
         public_subscribers = int(subscriber_row["count"] or 0) if subscriber_row else 0
-        return {
-            "minimum_api_calls": max(1, ceil(max(public_subscribers, 1) / 50)),
-            "basis": "subscriptions.list (minimum paging); commenter backfill is DB-only",
-            "effective_start_date": None,
-            "effective_end_date": None,
-            "uses_period": False,
-        }
+        result = estimate_audience_api_calls(public_subscriber_count=public_subscribers)
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "channel_analytics":
-        if not range_videos:
-            return {"minimum_api_calls": 0, "basis": "no videos/date range", "effective_start_date": None, "effective_end_date": None, "uses_period": True}
-        start, end = range_videos
-        if not deep_sync:
-            latest_row = conn.execute("SELECT MAX(date) AS latest FROM channel_analytics").fetchone()
-            latest = str(latest_row["latest"]) if latest_row and latest_row["latest"] else None
-            latest_date = _to_date(latest)
-            if latest_date:
-                next_day = (latest_date + timedelta(days=1)).isoformat()
-                if next_day > start:
-                    start = next_day
-        if _to_date(start) and _to_date(end) and _to_date(start) <= _to_date(end):
-            segments = chunk_date_range(DateRange(start=start, end=end), months_per_chunk=4)
-            return {
-                "minimum_api_calls": len(segments),
-                "basis": f"1 channel over {len(segments)} segments (1 call per 4-month segment)",
-                "effective_start_date": start,
-                "effective_end_date": end,
-                "uses_period": True,
-            }
-        return {"minimum_api_calls": 0, "basis": "up to date", "effective_start_date": start, "effective_end_date": end, "uses_period": True}
+        latest = None if deep_sync else _get_latest_date(conn, "channel_analytics")
+        result = estimate_channel_analytics_api_calls(
+            earliest_video_date=earliest_video_date,
+            latest_channel_analytics_date=latest,
+            start_date=start_date,
+            end_date=end_date,
+            deep_sync=deep_sync,
+        )
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "traffic_sources_daily":
-        if not range_videos:
-            return {"minimum_api_calls": 0, "basis": "no videos/date range", "effective_start_date": None, "effective_end_date": None, "uses_period": True}
-        start, end = range_videos
-        if not deep_sync:
-            latest_row = conn.execute("SELECT MAX(date) AS latest FROM traffic_sources_daily").fetchone()
-            latest = str(latest_row["latest"]) if latest_row and latest_row["latest"] else None
-            latest_date = _to_date(latest)
-            if latest_date:
-                next_day = (latest_date + timedelta(days=1)).isoformat()
-                if next_day > start:
-                    start = next_day
-        if _to_date(start) and _to_date(end) and _to_date(start) <= _to_date(end):
-            segments = chunk_date_range(DateRange(start=start, end=end), months_per_chunk=12)
-            return {
-                "minimum_api_calls": len(segments),
-                "basis": f"1 channel over {len(segments)} segments (1 call per 12-month segment)",
-                "effective_start_date": start,
-                "effective_end_date": end,
-                "uses_period": True,
-            }
-        return {"minimum_api_calls": 0, "basis": "up to date", "effective_start_date": start, "effective_end_date": end, "uses_period": True}
+        latest = None if deep_sync else _get_latest_date(conn, "traffic_sources_daily")
+        result = estimate_traffic_sources_api_calls(
+            earliest_video_date=earliest_video_date,
+            latest_traffic_sources_date=latest,
+            start_date=start_date,
+            end_date=end_date,
+            deep_sync=deep_sync,
+        )
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "playlist_daily_analytics":
-        if not range_playlists:
-            return {"minimum_api_calls": 0, "basis": "no playlists/date range", "effective_start_date": None, "effective_end_date": None, "uses_period": True}
-        start, end = range_playlists
         latest_map = {} if deep_sync else _get_latest_by_id(conn, "playlist_daily_analytics", "playlist_id")
-        calls, playlist_count, segment_count = _estimate_segment_calls_with_context(playlist_rows, latest_map, start, end, 4)
-        return {
-            "minimum_api_calls": calls,
-            "basis": f"{playlist_count} playlists over {segment_count} segments (1 call per playlist per 4-month segment)",
-            "effective_start_date": start,
-            "effective_end_date": end,
-            "uses_period": True,
-        }
+        result = estimate_playlist_analytics_api_calls(
+            playlist_ids=playlist_ids,
+            published_by_playlist=published_by_playlist,
+            latest_by_playlist=latest_map,
+            earliest_playlist_date=earliest_playlist_date,
+            start_date=start_date,
+            end_date=end_date,
+            deep_sync=deep_sync,
+        )
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "video_analytics":
-        if not range_videos:
-            return {"minimum_api_calls": 0, "basis": "no videos/date range", "effective_start_date": None, "effective_end_date": None, "uses_period": True}
-        start, end = range_videos
         latest_map = {} if deep_sync else _get_latest_by_id(conn, "video_analytics", "video_id")
-        calls, video_count, segment_count = _estimate_segment_calls_with_context(video_rows, latest_map, start, end, 4)
-        return {
-            "minimum_api_calls": calls,
-            "basis": f"{video_count} videos over {segment_count} segments (1 call per video per 4-month segment)",
-            "effective_start_date": start,
-            "effective_end_date": end,
-            "uses_period": True,
-        }
+        result = estimate_video_analytics_api_calls(
+            video_ids=video_ids,
+            published_by_video=published_by_video,
+            latest_by_video=latest_map,
+            earliest_video_date=earliest_video_date,
+            start_date=start_date,
+            end_date=end_date,
+            deep_sync=deep_sync,
+        )
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "video_traffic_source":
-        if not range_videos:
-            return {"minimum_api_calls": 0, "basis": "no videos/date range", "effective_start_date": None, "effective_end_date": None, "uses_period": True}
-        start, end = range_videos
         latest_map = {} if deep_sync else _get_latest_by_id(conn, "video_traffic_source", "video_id")
-        calls, video_count, segment_count = _estimate_segment_calls_with_context(video_rows, latest_map, start, end, 4)
-        return {
-            "minimum_api_calls": calls,
-            "basis": f"{video_count} videos over {segment_count} segments (1 call per video per 4-month segment)",
-            "effective_start_date": start,
-            "effective_end_date": end,
-            "uses_period": True,
-        }
+        result = estimate_video_traffic_source_api_calls(
+            video_ids=video_ids,
+            published_by_video=published_by_video,
+            latest_by_video=latest_map,
+            earliest_video_date=earliest_video_date,
+            start_date=start_date,
+            end_date=end_date,
+            deep_sync=deep_sync,
+        )
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
     if table == "video_search_insights":
-        if not range_videos:
-            return {"minimum_api_calls": 0, "basis": "no videos/date range", "effective_start_date": None, "effective_end_date": None, "uses_period": True}
-        start, end = range_videos
         latest_map = {} if deep_sync else _get_latest_by_id(conn, "video_search_insights", "video_id")
-        calls, video_count, day_count = _estimate_search_calls_with_context(video_rows, latest_map, start, end)
-        return {
-            "minimum_api_calls": calls,
-            "basis": f"{video_count} videos across {day_count} video-days (1 call per video-day, minimum, no pagination)",
-            "effective_start_date": start,
-            "effective_end_date": end,
-            "uses_period": True,
-        }
-    return {
-        "minimum_api_calls": 0,
-        "basis": "table is DB-only / no direct Google API sync stage",
-        "effective_start_date": None,
-        "effective_end_date": None,
-        "uses_period": False,
-    }
+        result = estimate_video_search_insights_api_calls(
+            video_ids=video_ids,
+            published_by_video=published_by_video,
+            latest_by_video=latest_map,
+            earliest_video_date=earliest_video_date,
+            start_date=start_date,
+            end_date=end_date,
+            deep_sync=deep_sync,
+        )
+        return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
+
+    return {"minimum_api_calls": 0, "basis": "table is DB-only / no direct Google API sync stage"}
 
 
 def _resolve_table_date_bounds(conn: sqlite3.Connection, table_name: str) -> dict:
