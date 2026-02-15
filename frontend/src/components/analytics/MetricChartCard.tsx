@@ -24,7 +24,7 @@ type MultiSeries = {
   points: SeriesPoint[]
 }
 
-type PublishedItem = { title: string; published_at: string; thumbnail_url: string; content_type: string }
+type PublishedItem = { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }
 type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 
 type AggregatedSeries = {

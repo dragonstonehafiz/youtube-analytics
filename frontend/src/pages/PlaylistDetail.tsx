@@ -35,7 +35,7 @@ type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery'
 type SeriesPoint = { date: string; value: number }
 type DiscoveryMultiSeries = { key: string; label: string; color: string; points: SeriesPoint[] }
 type TrafficSourceRow = { day: string; traffic_source: string; views: number; watch_time_minutes: number }
-type PublishedItem = { title: string; published_at: string; thumbnail_url: string; content_type: string }
+type PublishedItem = { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }
 type PlaylistDailyRow = {
   day: string
   views: number | null

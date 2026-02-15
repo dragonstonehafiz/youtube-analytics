@@ -1,4 +1,6 @@
-type PublishedItem = { title: string; published_at: string; thumbnail_url: string; content_type: string }
+import { Link } from 'react-router-dom'
+
+type PublishedItem = { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }
 
 export type UploadHoverState = {
   x: number
@@ -43,7 +45,13 @@ function UploadPublishTooltip({ hover, onMouseEnter, onMouseLeave }: UploadPubli
               <div className="publish-thumb" />
             )}
             <div>
-              <div className="publish-title">{item.title}</div>
+              {item.video_id ? (
+                <Link className="publish-title publish-title-link" to={`/videos/${item.video_id}`}>
+                  {item.title}
+                </Link>
+              ) : (
+                <div className="publish-title">{item.title}</div>
+              )}
               <div className="publish-date">{item.published_at?.split('T')[0] || ''}</div>
             </div>
           </li>

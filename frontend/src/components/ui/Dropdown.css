@@ -46,7 +46,6 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  z-index: 20;
 }
 
 .dropdown-menu.top {

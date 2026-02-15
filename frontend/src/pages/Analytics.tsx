@@ -116,7 +116,7 @@ function Analytics() {
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
-  const [publishedDatesDaily, setPublishedDatesDaily] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
+  const [publishedDatesDaily, setPublishedDatesDaily] = useState<Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
   const [totals, setTotals] = useState<TotalsState>({
     views: 0,
     watch_time_minutes: 0,

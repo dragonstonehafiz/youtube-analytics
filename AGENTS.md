@@ -156,6 +156,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Discovery side cards (`TrafficSourceShareCard`, `TrafficSourceTopVideosCard`) include explicit card headers with responsive typography matching monetization card title sizing (`30px` normal, `20px` compact).
 - On `frontend/src/pages/PlaylistDetail.tsx` `Discovery` tab, two reusable discovery cards are rendered in the right-side card rail: `TrafficSourceShareCard` and `TrafficSourceTopVideosCard`.
 - `frontend/src/components/ui/RatioBar.tsx` is the reusable standalone bar used in traffic-source rows and Sync estimate breakdowns; it supports single-fill mode (`length`, `color`, `ratio`) and segmented mode via `segments` (`ratio`, `color`, optional `title` for hover text).
+- `frontend/src/components/ui/Dropdown.css` no longer hardcodes menu `z-index`; chart/marker tooltips define their own explicit layering when needed.
 - `frontend/src/pages/Analytics.tsx` keeps the shared date/content/granularity/range controls in the page header row (above the Metrics/Monetization tab row).
 - `frontend/src/pages/Analytics.tsx` monetization view renders a top `MetricChartCard` sourced from `GET /analytics/channel-daily`, plus a second row with `How much you're earning` and `Content performance` cards.
 - CPM chart aggregation uses ad-impression-weighted averages when grouping multiple days (7-day, 28-day, monthly, yearly) instead of summing CPM values.
@@ -176,8 +177,10 @@ Use this file to understand where to make changes and which conventions to follo
 - Upload indicators on the Analytics chart are rebucketed to match selected granularity (`Daily`, `7-days`, `28-days`, `90-days`, `Monthly`, `Yearly`) using the same day-bucket mapping as the graph.
 - Grouped upload-indicator tooltip headers show bucket start date, end date, and window length (days), plus published count.
 - `frontend/src/components/analytics/TopContentTable.tsx` includes an `Upload date` column for top-content rows, shown as `day month year` (e.g., `3 February 2026`).
-- `GET /videos/published` includes `content_type` per published item, and `frontend/src/components/analytics/MetricChartCard.tsx` uses it for upload indicators: both shorts and normal videos use the play marker icon, with type-specific marker color. When a clustered bucket contains both types, it renders two adjacent markers (short + video) instead of one mixed marker.
+- `GET /videos/published` includes `video_id` and `content_type` per published item, and `frontend/src/components/analytics/MetricChartCard.tsx` uses it for upload indicators: both shorts and normal videos use the play marker icon, with type-specific marker color. When a clustered bucket contains both types, it renders two adjacent markers (short + video) instead of one mixed marker.
+- `GET /playlists/{playlist_id}/published` includes `video_id` per published item when available.
 - Upload-marker tooltips in `frontend/src/components/analytics/MetricChartCard.css` use a fixed width (`260px`) so tooltip width stays consistent regardless of title length.
+- Upload-marker tooltip titles are clickable links to `/videos/:videoId` when `video_id` is present.
 - `frontend/src/pages/VideoDetail.tsx` renders a metadata card above the Analytics/Comments tab selector and includes video thumbnail + key metadata fields.
 - `frontend/src/pages/VideoDetail.tsx` metadata and analytics/comments cards render without section title headers (no `Video Metadata` / `Analytics` card titles).
 - `frontend/src/pages/VideoDetail.tsx` and `frontend/src/pages/PlaylistDetail.tsx` main headers include an `ActionButton` back control labeled `<` positioned to the left of the title that navigates to the previous page (`navigate(-1)`).

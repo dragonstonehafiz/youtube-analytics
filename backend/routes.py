@@ -1238,7 +1238,7 @@ def list_published_dates(start_date: str, end_date: str, content_type: str | Non
     with get_connection() as conn:
         rows = conn.execute(
             f"""
-            SELECT date(published_at) AS day, title, published_at, thumbnail_url, content_type
+            SELECT id AS video_id, date(published_at) AS day, title, published_at, thumbnail_url, content_type
             FROM videos
             {where_sql}
             ORDER BY day ASC, published_at ASC
@@ -1253,7 +1253,13 @@ def list_published_dates(start_date: str, end_date: str, content_type: str | Non
         thumbnail_url = row["thumbnail_url"] or ""
         content_type = row["content_type"] or ""
         grouped.setdefault(day, []).append(
-            {"title": title, "published_at": published_at, "thumbnail_url": thumbnail_url, "content_type": content_type}
+            {
+                "video_id": row["video_id"] or "",
+                "title": title,
+                "published_at": published_at,
+                "thumbnail_url": thumbnail_url,
+                "content_type": content_type,
+            }
         )
     items = [{"day": day, "items": items, "count": len(items)} for day, items in grouped.items()]
     return {"items": items}
@@ -1269,6 +1275,7 @@ def list_playlist_published_dates(playlist_id: str, start_date: str, end_date: s
         rows = conn.execute(
             """
             SELECT
+                COALESCE(v.id, pi.video_id, '') AS video_id,
                 date(COALESCE(v.published_at, pi.video_published_at)) AS day,
                 COALESCE(v.title, pi.title, '(untitled)') AS title,
                 COALESCE(v.published_at, pi.video_published_at, '') AS published_at,
@@ -1291,6 +1298,7 @@ def list_playlist_published_dates(playlist_id: str, start_date: str, end_date: s
             continue
         grouped.setdefault(day, []).append(
             {
+                "video_id": row["video_id"] or "",
                 "title": row["title"] or "(untitled)",
                 "published_at": row["published_at"] or "",
                 "thumbnail_url": row["thumbnail_url"] or "",

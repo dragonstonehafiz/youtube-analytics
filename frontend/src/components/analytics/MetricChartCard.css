@@ -103,6 +103,7 @@
   font-size: 12px;
   pointer-events: none;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
+  z-index: 40;
 }
 
 .publish-tooltip {
@@ -143,6 +144,15 @@
 .publish-title {
   font-weight: 600;
   color: #ffffff;
+}
+
+.publish-title-link {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.publish-title-link:hover {
+  text-decoration: underline;
 }
 
 .publish-date {
