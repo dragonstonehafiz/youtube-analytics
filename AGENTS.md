@@ -114,7 +114,7 @@ Use this file to understand where to make changes and which conventions to follo
 - Sync Runs table on `frontend/src/pages/SyncSettings.tsx` shows `Start`, `Range`, `Pulls`, `Deep Sync`, `Duration`, `Status`, and `Error` columns (no `Complete` column).
 - In Sync Runs, `Error` cells are clickable (`View`) and open a modal textbox showing the full stored error message.
 - `sync_runs` persistence stores stage failures in `error` (with legacy `error_message` kept for compatibility); one row is created per stage execution.
-- Stage/prune sync failures persist full Python traceback text in `sync_runs.error` (and legacy `error_message`) for troubleshooting, not only the exception message.
+- Stage sync failures persist full Python traceback text in `sync_runs.error` (and legacy `error_message`) for troubleshooting, not only the exception message.
 - `frontend/src/pages/Videos.tsx` includes a separate filter section/card above the videos table section with search, visibility, type (`All videos`, `Longform`, `Shorts`), and published date range inputs. Filters auto-apply on change, are sent to `GET /videos` query params, and are persisted in local storage.
 - Videos and Comments pages share the same filter layout class pattern in `frontend/src/pages/Page.css` using `filter-*` class names (`filter-section`, `filter-title`, `filter-grid`, `filter-field`, `filter-date`, `filter-actions`, `filter-action`).
 - `frontend/src/pages/Videos.tsx` filter controls use shared UI components where applicable: `Dropdown` for visibility/type and `DateRangePicker` for the published range.

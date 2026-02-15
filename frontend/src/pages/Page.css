@@ -386,11 +386,6 @@
   transform: translateY(0);
 }
 
-.sync-prune-button {
-  height: 44px;
-  padding: 0 14px;
-}
-
 .sync-control-col .dropdown-field,
 .sync-control-col .multi-select,
 .sync-control-col .date-range,

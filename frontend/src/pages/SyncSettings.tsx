@@ -517,21 +517,6 @@ function SyncSettings() {
     }
   }
 
-  const handlePrune = async () => {
-    if (!confirm('Prune videos that no longer exist? This will remove related analytics.')) {
-      return
-    }
-    setIsSyncing(true)
-    setProgress({ is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting prune…' })
-    try {
-      await fetch('http://127.0.0.1:8000/sync/prune', { method: 'POST' })
-    } catch (error) {
-      console.error('Failed to start prune', error)
-    } finally {
-      setIsSyncing(false)
-    }
-  }
-
   const formatDuration = (started: string, finished: string | null) => {
     if (!finished) {
       return '—'
@@ -572,16 +557,6 @@ function SyncSettings() {
           <h1>Sync</h1>
         </div>
         <div className="sync-header-controls">
-          <div className="sync-control-col">
-            <ActionButton
-              label="Prune"
-              onClick={handlePrune}
-              title="Remove videos that no longer exist and their analytics"
-              disabled={isSyncing || progress?.is_syncing}
-              variant="danger"
-              className="sync-prune-button"
-            />
-          </div>
           <div className="sync-control-col">
             <Dropdown
               value={rangeMode}

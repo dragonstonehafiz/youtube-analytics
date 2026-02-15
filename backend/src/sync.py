@@ -59,26 +59,6 @@ def sync_videos() -> None:
     return None
 
 
-def prune_missing_videos(current_ids: set[str]) -> int:
-    """Remove videos (and dependent rows) not present in the current API response."""
-    if not current_ids:
-        return 0
-    with get_connection() as conn:
-        existing_rows = conn.execute("SELECT id FROM videos").fetchall()
-        existing_ids = {row["id"] for row in existing_rows}
-        stale_ids = sorted(existing_ids - current_ids)
-        if not stale_ids:
-            return 0
-        stale_placeholders = ",".join("?" for _ in stale_ids)
-        conn.execute(
-            f"DELETE FROM video_analytics WHERE video_id IN ({stale_placeholders})",
-            tuple(stale_ids),
-        )
-        conn.execute(f"DELETE FROM videos WHERE id IN ({stale_placeholders})", tuple(stale_ids))
-        conn.commit()
-    return len(stale_ids)
-
-
 def list_video_ids() -> list[str]:
     """Return all video IDs from the videos table."""
     with get_connection() as conn:
@@ -690,29 +670,6 @@ def sync_all(
         sync_progress.mark_failed("Sync failed")
         raise
     return None
-
-
-def prune_missing_videos_task() -> None:
-    """Run a prune-only sync to remove missing videos."""
-    sync_progress.init(1)
-    started_at = datetime.utcnow().isoformat() + "Z"
-    run_id = _create_sync_run(started_at, None, None, False, ["prune"])
-    try:
-        sync_progress.set_total(1)
-        sync_progress.set_current(0)
-        sync_progress.set_message("Pruning missing videos... [0/1]")
-        videos = safe_get_videos()
-        current_ids = {video.get("id") for video in videos if video.get("id")}
-        pruned = prune_missing_videos(current_ids)
-        _logger.info("Pruned %s missing videos", pruned)
-        sync_progress.set_current(1)
-        sync_progress.mark_done(message="Pruning missing videos... [1/1]")
-        _finish_sync_run(run_id, "success")
-    except Exception as exc:
-        error_trace = traceback.format_exc()
-        sync_progress.mark_failed("Prune failed")
-        _finish_sync_run(run_id, "failed", error_trace if error_trace else str(exc))
-        raise
 
 
 def _run_sync_stage(

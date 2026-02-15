@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from config import settings
 from src.database.db import get_connection, row_to_dict
-from src.sync import prune_missing_videos_task, sync_all, sync_progress, sync_videos
+from src.sync import sync_all, sync_progress, sync_videos
 from src.youtube.analytics import DateRange, chunk_date_range
 from src.youtube.videos import get_channel_info
 
@@ -493,13 +493,6 @@ def sync(
         deep_sync=deep_sync,
         pulls=pulls,
     )
-    return {"queued": True}
-
-
-@router.post("/sync/prune")
-def prune(background_tasks: BackgroundTasks) -> dict:
-    """Remove videos that no longer exist and their related analytics."""
-    background_tasks.add_task(prune_missing_videos_task)
     return {"queued": True}
 
 
