@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from config import settings
 from src.database.db import get_connection, row_to_dict
-from src.sync import prune_missing_videos_task, request_sync_stop, sync_all, sync_videos
+from src.sync import prune_missing_videos_task, sync_all, sync_progress, sync_videos
 from src.youtube.analytics import DateRange, chunk_date_range
 from src.youtube.videos import get_channel_info
 
@@ -506,7 +506,7 @@ def prune(background_tasks: BackgroundTasks) -> dict:
 @router.post("/sync/stop")
 def stop_sync() -> dict:
     """Request graceful stop for current sync (after current API call returns)."""
-    accepted = request_sync_stop()
+    accepted = sync_progress.request_stop()
     return {"accepted": accepted}
 
 
@@ -1513,9 +1513,7 @@ def list_sync_runs(limit: int = 10, offset: int = 0) -> dict:
 @router.get("/sync/progress")
 def get_sync_progress_state() -> dict:
     """Return in-memory sync progress state."""
-    from src.sync import get_sync_progress
-
-    return get_sync_progress()
+    return sync_progress.to_dict()
 
 
 @router.get("/stats/overview")

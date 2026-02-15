@@ -43,6 +43,8 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /audience/active` returns top active audience members over a rolling `days` window, with `comments_count`, `likes_count`, `replies_count`, and subscriber flag.
 - `GET /audience/{channel_id}` returns one audience row plus aggregated comment stats for that channel ID.
 - Sync orchestration lives in `backend/src/sync.py`.
+- In-memory sync progress/stop state is managed by `backend/src/helper/sync_progress.py` (`SyncProgress`); `backend/src/sync.py` owns sync stage orchestration and `sync_runs` table writes.
+- Shared sync date helpers live in `backend/src/helper/sync_dates.py` (range build/clamp, next-day date math, ISO datetime->date normalization, and generic earliest/latest date DB lookups).
 - `POST /sync/stop` requests graceful early stop for in-progress syncs; stop is cooperative and takes effect before the next API call.
 - `sync_all` resets stop-request state on start; while running, stage loops check the shared stop flag and terminate with status `manual_stop` once the current API call finishes.
 - Logs should use `backend/utils/logger.py` and write to `backend/outputs/`.
@@ -76,7 +78,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlists` (`pull=playlists`) in addition to videos/comments/analytics pulls.
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Audience` (`pull=audience`) immediately after `Comments`.
 - `frontend/src/pages/SyncSettings.tsx` sync pull multiselect includes `Playlist Analytics` (`pull=playlist_analytics`) as its own pull option.
-- `frontend/src/pages/SyncSettings.tsx` uses analytics pull keys `channel_analytics`, `video_analytics`, `video_traffic_source`, and `video_search_insights` (labels: `Channel analytics`, `Video analytics`, `Video traffic source`, `Video search insights`); backend accepts legacy aliases `channel_daily` and `daily_analytics`.
+- `frontend/src/pages/SyncSettings.tsx` uses analytics pull keys `channel_analytics`, `video_analytics`, `video_traffic_source`, and `video_search_insights` (labels: `Channel analytics`, `Video analytics`, `Video traffic source`, `Video search insights`); backend requires these canonical keys and does not map legacy aliases.
 - `frontend/src/pages/SyncSettings.tsx` treats unknown/legacy pull keys in saved settings as invalid on the client: sync is blocked and a visible error is shown; no `/sync` request is sent until selection is corrected.
 - `frontend/src/pages/SyncSettings.tsx` Database Overview header includes a `Refresh` button that re-fetches `GET /stats/overview` on demand.
 - `GET /stats/overview` now includes `table_storage` with per-table `{table, bytes, percent}` values, where bytes include table + index pages from SQLite `dbstat`.
