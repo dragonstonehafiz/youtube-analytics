@@ -43,6 +43,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /audience/active` returns top active audience members over a rolling `days` window, with `comments_count`, `likes_count`, `replies_count`, and subscriber flag.
 - `GET /audience/{channel_id}` returns one audience row plus aggregated comment stats for that channel ID.
 - Sync orchestration lives in `backend/src/sync.py`.
+- API call estimation helpers live in `backend/src/helper/estimates.py` (`estimate_*_api_calls`).
 - In-memory sync progress/stop state is managed by `backend/src/helper/sync_progress.py` (`SyncProgress`); `backend/src/sync.py` owns sync stage orchestration and `sync_runs` table writes.
 - Shared sync date helpers live in `backend/src/helper/sync_dates.py` (range build/clamp, next-day date math, ISO datetime->date normalization, and generic earliest/latest date DB lookups).
 - `POST /sync/stop` requests graceful early stop for in-progress syncs; stop is cooperative and takes effect before the next API call.
@@ -125,6 +126,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `GET /videos/{video_id}` returns a single video row for video detail metadata.
 - Video `content_type` classification in `backend/src/database/videos.py` uses short-video IDs from the `UUSH...`-derived playlist (`backend/src/youtube/videos.py`) instead of stream dimensions/thumbnail heuristics.
 - `sync_videos` (and the videos pull inside `sync_all`) fetches shorts IDs via `get_short_video_ids()` and passes them to `upsert_videos(..., short_video_ids=...)`; if shorts ID retrieval fails, videos sync fails (fail-fast behavior).
+- `sync_videos` progress now reports 2 internal API stages in order: uploads fetch and shorts-ID fetch.
 - `sync_channel_analytics` writes a single combined channel-daily series to `channel_analytics` (one row per day) and stores expanded channel metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `likes`, `dislikes`, `comments`, `shares`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
 - `sync_video_analytics` writes per-video daily series to `video_analytics` (one row per `video_id` + day) and stores expanded video metrics including `engaged_views`, `estimated_ad_revenue`, `gross_revenue`, `estimated_red_partner_revenue`, `average_view_percentage`, `monetized_playbacks`, `playback_based_cpm`, `ad_impressions`, and `cpm`.
 - `sync_video_traffic_source` is a separate stage that syncs only per-video daily traffic-source rows into `video_traffic_source`.
@@ -171,7 +173,7 @@ Use this file to understand where to make changes and which conventions to follo
 - `frontend/src/pages/VideoDetail.tsx` and `frontend/src/pages/PlaylistDetail.tsx` main headers include an `ActionButton` back control labeled `<` positioned to the left of the title that navigates to the previous page (`navigate(-1)`).
 - Video detail description preserves line breaks and uses a fixed-height scrollable area when content overflows.
 - In video detail metadata card, stats (`Visibility`, `Published`, `Duration`, `Views`, `Likes`, `Comments`) are rendered as a separate row below thumbnail/title/description.
-- Video detail `Analytics` tab reuses `frontend/src/components/analytics/MetricChartCard.tsx` and is populated from existing `GET /analytics/daily?video_id=...` data (no extra backend route).
+- Video detail `Analytics` tab reuses `frontend/src/components/analytics/MetricChartCard.tsx` and is populated from existing `GET /analytics/video-daily?video_id=...` data (no extra backend route).
 - Video detail `Analytics` tab KPI chips are `Views`, `Watch time (hours)`, `Avg view duration`, and `Estimated revenue` (replacing the previous subscribers KPI).
 - `frontend/src/pages/VideoDetail.tsx` passes previous-period series and active `startDate`/`endDate` into both analytics and monetization `MetricChartCard` instances so KPI trend indicators render with `previous N days` text.
 - Video detail includes a `Discovery` tab that reuses `MetricChartCard` in multi-series mode (`Views`/`Watch time` by top traffic sources for the selected video); `TrafficSourceShareCard` is rendered in its own separate `PageCard` below the chart card.

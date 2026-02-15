@@ -47,15 +47,19 @@ _logger = get_logger("sync", filename="sync.log", console=False)
 
 def sync_videos() -> None:
     """Sync all video metadata into the database."""
-    sync_progress.set_total(1)
+    sync_progress.set_total(2)
     sync_progress.set_current(0)
-    sync_progress.set_message(sync_progress.format_message("Pulling videos... [{current}/{total}]"))
+    sync_progress.format_message("Pulling videos [{current}/{total}] stage 1/2: loading uploads")
     _logger.info("Starting videos sync")
+    sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
     videos = safe_get_videos()
+    sync_progress.increment()
+    sync_progress.format_message("Pulling videos [{current}/{total}] stage 2/2: loading shorts IDs")
+    sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
     short_video_ids = get_short_video_ids()
     upsert_videos(videos, short_video_ids=short_video_ids)
-    sync_progress.set_current(1)
-    sync_progress.set_message(sync_progress.format_message("Pulling videos... [{current}/{total}]"))
+    sync_progress.set_current(2)
+    sync_progress.format_message("Pulling videos [{current}/{total}] complete")
     return None
 
 
@@ -147,11 +151,11 @@ def sync_video_analytics(
     if total_videos == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.set_message(sync_progress.format_message("Video analytics [{current}/{total}] no videos to sync"))
+        sync_progress.format_message("Video analytics [{current}/{total}] no videos to sync")
         return None
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
-    sync_progress.set_message(sync_progress.format_message("Video analytics [{current}/{total}] starting"))
+    sync_progress.format_message("Video analytics [{current}/{total}] starting")
     for segment_index, segment in enumerate(segments, start=1):
         _logger.info(
             "Video analytics segment %s/%s: %s -> %s",
@@ -164,12 +168,9 @@ def sync_video_analytics(
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
             sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-            sync_progress.increment()
-            sync_progress.set_message(
-                sync_progress.format_message(
-                    "Video analytics [{current}/{total}] {detail}",
-                    detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
-                ),
+            sync_progress.format_message(
+                "Video analytics [{current}/{total}] {detail}",
+                detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
@@ -183,6 +184,7 @@ def sync_video_analytics(
             )
             total_rows += upsert_daily_analytics(video_id, rows)
             latest_by_video[video_id] = segment.end
+            sync_progress.increment()
 
     return None
 
@@ -234,11 +236,11 @@ def sync_video_traffic_source(
     if total_videos == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.set_message(sync_progress.format_message("Video traffic source [{current}/{total}] no videos to sync"))
+        sync_progress.format_message("Video traffic source [{current}/{total}] no videos to sync")
         return None
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
-    sync_progress.set_message(sync_progress.format_message("Video traffic source [{current}/{total}] starting"))
+    sync_progress.format_message("Video traffic source [{current}/{total}] starting")
     for segment_index, segment in enumerate(segments, start=1):
         _logger.info(
             "Video traffic-source segment %s/%s: %s -> %s",
@@ -251,12 +253,9 @@ def sync_video_traffic_source(
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
             sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-            sync_progress.increment()
-            sync_progress.set_message(
-                sync_progress.format_message(
-                    "Video traffic source [{current}/{total}] {detail}",
-                    detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
-                ),
+            sync_progress.format_message(
+                "Video traffic source [{current}/{total}] {detail}",
+                detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             traffic_start = find_next_sync_date(latest_traffic_by_video.get(video_id), segment.start)
@@ -269,6 +268,7 @@ def sync_video_traffic_source(
                 )
                 total_rows += upsert_video_traffic_source(video_id, traffic_rows)
                 latest_traffic_by_video[video_id] = segment.end
+                sync_progress.increment()
 
     return None
 
@@ -320,11 +320,11 @@ def sync_video_search_insights(
     if total_videos == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.set_message(sync_progress.format_message("Video search insights [{current}/{total}] no videos to sync"))
+        sync_progress.format_message("Video search insights [{current}/{total}] no videos to sync")
         return None
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
-    sync_progress.set_message(sync_progress.format_message("Video search insights [{current}/{total}] starting"))
+    sync_progress.format_message("Video search insights [{current}/{total}] starting")
 
     for segment_index, segment in enumerate(segments, start=1):
         _logger.info(
@@ -338,12 +338,9 @@ def sync_video_search_insights(
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
             sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-            sync_progress.increment()
-            sync_progress.set_message(
-                sync_progress.format_message(
-                    "Video search insights [{current}/{total}] {detail}",
-                    detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
-                ),
+            sync_progress.format_message(
+                "Video search insights [{current}/{total}] {detail}",
+                detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             search_start = find_next_sync_date(latest_search_by_video.get(video_id), segment.start)
@@ -356,6 +353,7 @@ def sync_video_search_insights(
                 )
                 total_rows += upsert_video_search_insights(video_id, search_rows)
                 latest_search_by_video[video_id] = segment.end
+                sync_progress.increment()
 
     return None
 
@@ -391,8 +389,10 @@ def sync_channel_analytics(
     total_rows = 0
     for index, segment in enumerate(segments, start=1):
         sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-        sync_progress.increment()
-        sync_progress.set_message(sync_progress.format_message("Pulling channel analytics... [{current}/{total}]"))
+        sync_progress.format_message(
+            "Channel analytics [{current}/{total}] {detail}",
+            detail=f"{segment.start} -> {segment.end} Segment [{index}/{len(segments)}]",
+        )
         _logger.info(
             "Channel analytics segment %s/%s: %s -> %s",
             index,
@@ -402,6 +402,7 @@ def sync_channel_analytics(
         )
         rows = fetch_channel_analytics(segment.start, segment.end)
         total_rows += upsert_channel_daily(rows)
+        sync_progress.increment()
     return None
 
 
@@ -436,8 +437,10 @@ def sync_traffic_sources(
     total_rows = 0
     for index, segment in enumerate(segments, start=1):
         sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-        sync_progress.increment()
-        sync_progress.set_message(sync_progress.format_message("Pulling traffic sources... [{current}/{total}]"))
+        sync_progress.format_message(
+            "Traffic sources [{current}/{total}] {detail}",
+            detail=f"{segment.start} -> {segment.end} Segment [{index}/{len(segments)}]",
+        )
         _logger.info(
             "Traffic sources segment %s/%s: %s -> %s",
             index,
@@ -447,13 +450,8 @@ def sync_traffic_sources(
         )
         rows = fetch_traffic_sources(segment.start, segment.end)
         total_rows += upsert_traffic_sources(rows)
+        sync_progress.increment()
     return None
-
-
-
-
-
-
 
 
 def sync_comments() -> None:
@@ -466,15 +464,15 @@ def sync_comments() -> None:
     total_videos = max(len(video_ids), 1)
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
-    sync_progress.set_message(sync_progress.format_message("Pulling comments... [{current}/{total}]"))
+    sync_progress.format_message("Pulling comments... [{current}/{total}]")
     total = 0
     for index, video_id in enumerate(video_ids, start=1):
         sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+        sync_progress.format_message("Pulling comments... [{current}/{total}]")
         _logger.info("Comments video %s/%s", index, len(video_ids))
         rows = extract_comments(video_id)
-        sync_progress.increment()
-        sync_progress.set_message(sync_progress.format_message("Pulling comments... [{current}/{total}]"))
         total += upsert_comments(rows)
+        sync_progress.increment()
 
 
 def sync_audience() -> None:
@@ -494,7 +492,7 @@ def sync_playlists() -> None:
     total_playlists = max(len(playlists), 1)
     sync_progress.set_total(total_playlists)
     sync_progress.set_current(0)
-    sync_progress.set_message(sync_progress.format_message("Pulling playlists... [{current}/{total}]"))
+    sync_progress.format_message("Pulling playlists... [{current}/{total}]")
     for index, playlist in enumerate(playlists, start=1):
         sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
         playlist_id = str(playlist["id"])
@@ -502,9 +500,7 @@ def sync_playlists() -> None:
         rows = get_all_playlist_items(playlist_id=playlist_id)
         replace_playlist_items(playlist_id, rows)
         sync_progress.increment()
-        sync_progress.set_message(
-            sync_progress.format_message("Pulling playlists... [{current}/{total}] {title}", title=playlist_title)
-        )
+        sync_progress.format_message("Pulling playlists... [{current}/{total}] {title}", title=playlist_title)
 
 
 def sync_playlist_analytics(
@@ -547,11 +543,11 @@ def sync_playlist_analytics(
     if total_playlists == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.set_message(sync_progress.format_message("Playlist analytics [{current}/{total}] no playlists to sync"))
+        sync_progress.format_message("Playlist analytics [{current}/{total}] no playlists to sync")
         return None
     sync_progress.set_total(total_playlists)
     sync_progress.set_current(0)
-    sync_progress.set_message(sync_progress.format_message("Playlist analytics [{current}/{total}] starting"))
+    sync_progress.format_message("Playlist analytics [{current}/{total}] starting")
     for segment_index, segment in enumerate(segments, start=1):
         _logger.info(
             "Playlist analytics segment %s/%s: %s -> %s",
@@ -564,12 +560,9 @@ def sync_playlist_analytics(
         segment_total = max(len(segment_playlists), 1)
         for playlist_index, playlist_id in enumerate(segment_playlists, start=1):
             sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-            sync_progress.increment()
-            sync_progress.set_message(
-                sync_progress.format_message(
-                    "Playlist analytics [{current}/{total}] {detail}",
-                    detail=f"{segment.start} -> {segment.end} Playlist [{playlist_index}/{segment_total}]",
-                ),
+            sync_progress.format_message(
+                "Playlist analytics [{current}/{total}] {detail}",
+                detail=f"{segment.start} -> {segment.end} Playlist [{playlist_index}/{segment_total}]",
             )
             latest = latest_by_playlist.get(playlist_id)
             if latest:
@@ -583,6 +576,7 @@ def sync_playlist_analytics(
                 publish_date=publish_map.get(playlist_id),
             )
             upsert_playlist_daily_analytics(playlist_id, rows)
+            sync_progress.increment()
 
 
 def sync_all(

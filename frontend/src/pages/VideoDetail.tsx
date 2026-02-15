@@ -407,7 +407,7 @@ function VideoDetail() {
       setAnalyticsLoading(true)
       setAnalyticsError(null)
       try {
-        const response = await fetch(`http://127.0.0.1:8000/analytics/daily?video_id=${videoId}&limit=10000`)
+        const response = await fetch(`http://127.0.0.1:8000/analytics/video-daily?video_id=${videoId}&limit=10000`)
         if (!response.ok) {
           throw new Error(`Failed to load analytics (${response.status})`)
         }

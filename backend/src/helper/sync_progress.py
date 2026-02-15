@@ -71,13 +71,15 @@ class SyncProgress:
             self.message = message
 
     def format_message(self, template: str, **values: object) -> str:
-        """Format a progress message using current and total placeholders."""
+        """Format and store a progress message using current and total placeholders."""
         with self._lock:
             current = int(self.current_step)
             total = max(int(self.max_steps), 1)
-        context = {"current": current, "total": total}
-        context.update(values)
-        return template.format(**context)
+            context = {"current": current, "total": total}
+            context.update(values)
+            message = template.format(**context)
+            self.message = message
+            return message
 
     def to_dict(self) -> dict[str, object]:
         """Return a dictionary representation of the current progress state."""

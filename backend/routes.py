@@ -1012,8 +1012,8 @@ def list_comments(
     return {"items": items, "total": total}
 
 
-@router.get("/analytics/daily")
-def list_daily_analytics(
+@router.get("/analytics/video-daily")
+def list_video_daily_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
     video_id: str | None = None,
@@ -1527,14 +1527,14 @@ def get_overview_stats() -> dict:
         latest_row = conn.execute("SELECT MAX(date) AS latest FROM video_analytics").fetchone()
         earliest_date = earliest_row["earliest"] if earliest_row else None
         latest_date = latest_row["latest"] if latest_row else None
-        daily_rows = conn.execute("SELECT COUNT(*) AS count FROM video_analytics").fetchone()
+        video_rows = conn.execute("SELECT COUNT(*) AS count FROM video_analytics").fetchone()
         channel_rows = conn.execute("SELECT COUNT(*) AS count FROM channel_analytics").fetchone()
         traffic_rows = conn.execute("SELECT COUNT(*) AS count FROM traffic_sources_daily").fetchone()
         video_traffic_rows = conn.execute("SELECT COUNT(*) AS count FROM video_traffic_source").fetchone()
         video_search_rows = conn.execute("SELECT COUNT(*) AS count FROM video_search_insights").fetchone()
         playlist_analytics_rows = conn.execute("SELECT COUNT(*) AS count FROM playlist_daily_analytics").fetchone()
-        daily_analytics_rows = daily_rows["count"] if daily_rows and daily_rows["count"] is not None else 0
-        channel_daily_rows = channel_rows["count"] if channel_rows and channel_rows["count"] is not None else 0
+        video_analytics_rows = video_rows["count"] if video_rows and video_rows["count"] is not None else 0
+        channel_analytics_rows = channel_rows["count"] if channel_rows and channel_rows["count"] is not None else 0
         traffic_sources_rows = traffic_rows["count"] if traffic_rows and traffic_rows["count"] is not None else 0
         video_traffic_source_rows = (
             video_traffic_rows["count"] if video_traffic_rows and video_traffic_rows["count"] is not None else 0
@@ -1558,8 +1558,8 @@ def get_overview_stats() -> dict:
         "total_comments": total_comments,
         "earliest_date": earliest_date,
         "latest_date": latest_date,
-        "daily_analytics_rows": daily_analytics_rows,
-        "channel_daily_rows": channel_daily_rows,
+        "video_analytics_rows": video_analytics_rows,
+        "channel_analytics_rows": channel_analytics_rows,
         "traffic_sources_rows": traffic_sources_rows,
         "video_traffic_source_rows": video_traffic_source_rows,
         "video_search_rows": video_search_rows_total,
