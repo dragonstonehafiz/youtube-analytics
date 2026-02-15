@@ -828,6 +828,47 @@ def list_playlist_traffic_sources(playlist_id: str, start_date: str, end_date: s
     return {"items": items}
 
 
+@router.get("/analytics/playlist-video-traffic-source-top-videos")
+def list_playlist_video_traffic_source_top_videos(
+    playlist_id: str,
+    start_date: str,
+    end_date: str,
+    traffic_source: str,
+    limit: int = Query(default=5, ge=1, le=100),
+) -> dict:
+    """Return top playlist videos for one traffic source within a date range."""
+    with get_connection() as conn:
+        exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Playlist not found.")
+        rows = conn.execute(
+            """
+            WITH playlist_videos AS (
+                SELECT DISTINCT video_id
+                FROM playlist_items
+                WHERE playlist_id = ? AND video_id IS NOT NULL
+            )
+            SELECT
+                v.id AS video_id,
+                COALESCE(v.title, '(untitled)') AS title,
+                COALESCE(v.thumbnail_url, '') AS thumbnail_url,
+                COALESCE(v.published_at, '') AS published_at,
+                SUM(vts.views) AS views,
+                SUM(vts.watch_time_minutes) AS watch_time_minutes
+            FROM video_traffic_source vts
+            JOIN playlist_videos pv ON pv.video_id = vts.video_id
+            LEFT JOIN videos v ON v.id = vts.video_id
+            WHERE vts.date >= ? AND vts.date <= ? AND vts.traffic_source = ?
+            GROUP BY vts.video_id
+            ORDER BY views DESC, watch_time_minutes DESC
+            LIMIT ?
+            """,
+            (playlist_id, start_date, end_date, traffic_source, limit),
+        ).fetchall()
+    items = [row_to_dict(row) for row in rows]
+    return {"items": items}
+
+
 @router.get("/comments")
 def list_comments(
     video_id: str | None = None,

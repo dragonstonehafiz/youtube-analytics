@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+
 type MonetizationContentType = 'video' | 'short'
 
 type MonetizationTopItem = {
@@ -37,13 +39,36 @@ function MonetizationContentPerformanceCard({
   itemCount = 5,
   onOpenVideo,
 }: MonetizationContentPerformanceCardProps) {
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const [cardWidth, setCardWidth] = useState(0)
   const active = performance[contentType]
   const visibleItems = active.items.slice(0, itemCount)
   const revenueValues = visibleItems.map((entry) => entry.revenue)
   const maxRevenue = revenueValues.length > 0 ? Math.max(...revenueValues) : 0
+  const COMPACT_WIDTH = 420
+  const MIN_VISIBLE_RATIO = 0.08
+  const isCompact = cardWidth > 0 && cardWidth <= COMPACT_WIDTH
+  const kpis = [
+    { key: 'estimated_revenue', label: 'Estimated revenue', value: `$${formatCurrency(active.estimated_revenue)}` },
+    { key: 'views', label: 'Views', value: formatViews(active.views) },
+    { key: 'rpm', label: 'Revenue per 1K views (RPM)', value: `$${formatCurrency(active.rpm)}` },
+  ]
+
+  useEffect(() => {
+    if (!cardRef.current) {
+      return
+    }
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setCardWidth(Math.floor(entry.contentRect.width))
+      }
+    })
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   return (
-    <div className="analytics-monetization-card">
+    <div className={isCompact ? 'analytics-monetization-card compact' : 'analytics-monetization-card'} ref={cardRef}>
       <div className="analytics-monetization-title">Content performance</div>
       <div className="analytics-content-toggle">
         <button
@@ -61,25 +86,30 @@ function MonetizationContentPerformanceCard({
           Shorts
         </button>
       </div>
-      <div className="analytics-content-kpis">
-        <div>
-          <strong>${formatCurrency(active.estimated_revenue)}</strong>
-          <span>Estimated revenue</span>
-        </div>
-        <div>
-          <strong>{formatViews(active.views)}</strong>
-          <span>Views</span>
-        </div>
-        <div>
-          <strong>${formatCurrency(active.rpm)}</strong>
-          <span>Revenue per 1K views (RPM)</span>
-        </div>
+      <div className={isCompact ? 'analytics-content-kpis compact' : 'analytics-content-kpis'}>
+        {kpis.map((kpi) => (
+          <div key={kpi.key}>
+            {isCompact ? (
+              <>
+                <span className="analytics-content-kpi-label">{kpi.label}</span>
+                <strong>{kpi.value}</strong>
+              </>
+            ) : (
+              <>
+                <strong>{kpi.value}</strong>
+                <span>{kpi.label}</span>
+              </>
+            )}
+          </div>
+        ))}
       </div>
       <div className="analytics-content-top-list">
         {visibleItems.map((item) => {
-          const width = maxRevenue > 0 ? `${Math.max(6, (item.revenue / maxRevenue) * 100)}%` : '0%'
+          const ratio = maxRevenue > 0 ? item.revenue / maxRevenue : 0
+          const showBar = !isCompact && ratio >= MIN_VISIBLE_RATIO
+          const width = `${Math.max(0, ratio * 100)}%`
           return (
-            <div key={item.video_id} className="analytics-content-top-row">
+            <div key={item.video_id} className={showBar ? 'analytics-content-top-row' : 'analytics-content-top-row compact'}>
               <div className="analytics-content-video">
                 {item.thumbnail_url ? (
                   <img src={item.thumbnail_url} alt={item.title} />
@@ -90,14 +120,17 @@ function MonetizationContentPerformanceCard({
                   type="button"
                   className="analytics-content-video-title"
                   onClick={() => onOpenVideo(item.video_id)}
+                  title={item.title}
                 >
                   {item.title}
                 </button>
               </div>
-              <div className="analytics-content-revenue">
-                <span className="analytics-content-revenue-bar-wrap">
-                  <span className="analytics-content-revenue-bar" style={{ width }} />
-                </span>
+              <div className={showBar ? 'analytics-content-revenue' : 'analytics-content-revenue compact'}>
+                {showBar ? (
+                  <span className="analytics-content-revenue-bar-wrap">
+                    <span className="analytics-content-revenue-bar" style={{ width }} />
+                  </span>
+                ) : null}
                 <strong>${formatCurrency(item.revenue)}</strong>
               </div>
             </div>

@@ -10,6 +10,10 @@
   color: var(--color-ink);
 }
 
+.earnings-card.compact .earnings-card-title {
+  font-size: 20px;
+}
+
 .earnings-card-list {
   display: flex;
   flex-direction: column;
@@ -21,6 +25,10 @@
   grid-template-columns: 170px minmax(0, 1fr) 112px;
   gap: 10px;
   align-items: center;
+}
+
+.earnings-card-row.compact {
+  grid-template-columns: minmax(0, 1fr) 112px;
 }
 
 .earnings-card-row > span {
@@ -52,5 +60,9 @@
 @media (max-width: 720px) {
   .earnings-card-row {
     grid-template-columns: 130px minmax(0, 1fr) 104px;
+  }
+
+  .earnings-card-row.compact {
+    grid-template-columns: minmax(0, 1fr) 104px;
   }
 }

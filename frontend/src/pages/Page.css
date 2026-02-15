@@ -150,10 +150,22 @@
   gap: 10px;
 }
 
+.analytics-content-kpis.compact {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
 .analytics-content-kpis > div {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.analytics-content-kpis.compact > div {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .analytics-content-kpis strong {
@@ -162,6 +174,14 @@
 }
 
 .analytics-content-kpis span {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.analytics-content-kpi-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
   font-size: 12px;
   color: var(--color-muted);
 }
@@ -177,6 +197,10 @@
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 10px;
   align-items: center;
+}
+
+.analytics-content-top-row.compact {
+  grid-template-columns: minmax(0, 1fr) 112px;
 }
 
 .analytics-content-video {
@@ -215,7 +239,7 @@
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
 }
 
 .analytics-content-video-title:hover {
@@ -227,6 +251,11 @@
   grid-template-columns: minmax(0, 1fr) 112px;
   gap: 8px;
   align-items: center;
+}
+
+.analytics-content-revenue.compact {
+  grid-template-columns: 112px;
+  justify-content: end;
 }
 
 .analytics-content-revenue-bar-wrap {
@@ -247,6 +276,25 @@
 .analytics-content-revenue strong {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.analytics-monetization-card.compact {
+  gap: 10px;
+}
+
+.analytics-monetization-card.compact .analytics-monetization-title {
+  font-size: 20px;
+}
+
+.analytics-monetization-card.compact .analytics-content-kpis strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.analytics-monetization-card.compact .analytics-content-kpi-label {
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--color-ink);
 }
 
 .page-body {
@@ -277,6 +325,12 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+.analytics-discovery-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .analytics-side-cards {
@@ -723,7 +777,7 @@
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
 }
 
 .db-overview-pie-wrap {

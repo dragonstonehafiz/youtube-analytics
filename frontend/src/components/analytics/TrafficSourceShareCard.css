@@ -5,6 +5,29 @@
   align-items: start;
 }
 
+.traffic-share-title {
+  grid-column: 1 / -1;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.1;
+  text-align: left;
+  justify-self: stretch;
+}
+
+.traffic-share-title.compact {
+  font-size: 20px;
+}
+
+.traffic-share-card.compact {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+.traffic-share-card.compact .traffic-share-chart-column {
+  width: 220px;
+}
+
 .traffic-share-chart-column {
   display: grid;
   gap: 10px;
@@ -12,6 +35,7 @@
 }
 
 .traffic-share-chart-wrap {
+  position: relative;
   width: 220px;
   height: 220px;
   display: flex;

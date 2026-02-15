@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DonutChart, RatioBar, type DonutSegmentResolved } from '../ui'
 import { formatWholeNumber } from '../../utils/number'
 import './TrafficSourceShareCard.css'
@@ -16,8 +16,12 @@ type TrafficSourceShareCardProps = {
 const PIE_COLORS = ['#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#ef4444', '#14b8a6', '#eab308']
 
 function TrafficSourceShareCard({ items }: TrafficSourceShareCardProps) {
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const [cardWidth, setCardWidth] = useState(0)
   const [hoveredSegment, setHoveredSegment] = useState<DonutSegmentResolved | null>(null)
   const totalViews = items.reduce((sum, item) => sum + item.views, 0)
+  const HIDE_DETAILS_WIDTH = 620
+  const isCompact = cardWidth > 0 && cardWidth <= HIDE_DETAILS_WIDTH
   const segments = useMemo(
     () =>
       items.map((item, index) => ({
@@ -29,8 +33,22 @@ function TrafficSourceShareCard({ items }: TrafficSourceShareCardProps) {
     [items]
   )
 
+  useEffect(() => {
+    if (!cardRef.current) {
+      return
+    }
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setCardWidth(Math.floor(entry.contentRect.width))
+      }
+    })
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div className="traffic-share-card">
+    <div className={isCompact ? 'traffic-share-card compact' : 'traffic-share-card'} ref={cardRef}>
+      <div className={isCompact ? 'traffic-share-title compact' : 'traffic-share-title'}>Traffic source share</div>
       <div className="traffic-share-chart-column">
         <div className="traffic-share-chart-wrap">
         <DonutChart
@@ -43,16 +61,28 @@ function TrafficSourceShareCard({ items }: TrafficSourceShareCardProps) {
           onHoverChange={setHoveredSegment}
         />
         </div>
-        {segments.length === 0 ? (
-          <div className="traffic-share-hover">No traffic-source data available.</div>
-        ) : (
+        {isCompact ? (
           <div className="traffic-share-hover">
-            {hoveredSegment
-              ? `${hoveredSegment.label}: ${formatWholeNumber(hoveredSegment.value)} (${hoveredSegment.percent.toFixed(1)}%)`
-              : 'Hover over a slice to see views'}
+            {segments.length === 0
+              ? 'No traffic-source data available.'
+              : hoveredSegment
+                ? `${hoveredSegment.label}: ${formatWholeNumber(hoveredSegment.value)} (${hoveredSegment.percent.toFixed(1)}%)`
+                : 'Hover over a slice to see views'}
           </div>
-        )}
+        ) : null}
+        {!isCompact ? (
+          segments.length === 0 ? (
+            <div className="traffic-share-hover">No traffic-source data available.</div>
+          ) : (
+            <div className="traffic-share-hover">
+              {hoveredSegment
+                ? `${hoveredSegment.label}: ${formatWholeNumber(hoveredSegment.value)} (${hoveredSegment.percent.toFixed(1)}%)`
+                : 'Hover over a slice to see views'}
+            </div>
+          )
+        ) : null}
       </div>
+      {!isCompact ? (
       <div className="traffic-share-legend">
         {items.map((item, index) => {
           const percent = totalViews > 0 ? (item.views / totalViews) * 100 : 0
@@ -72,6 +102,7 @@ function TrafficSourceShareCard({ items }: TrafficSourceShareCardProps) {
           )
         })}
       </div>
+      ) : null}
     </div>
   )
 }

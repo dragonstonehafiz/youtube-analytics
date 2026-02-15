@@ -4,6 +4,17 @@
   gap: 12px;
 }
 
+.traffic-top-title-header {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+
+.traffic-top-title-header.compact {
+  font-size: 20px;
+}
+
 .traffic-top-controls {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

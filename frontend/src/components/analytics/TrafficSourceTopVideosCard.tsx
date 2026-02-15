@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Dropdown } from '../ui'
 import { formatWholeNumber } from '../../utils/number'
 import './TrafficSourceTopVideosCard.css'
@@ -34,8 +35,29 @@ function TrafficSourceTopVideosCard({
   onSourceChange,
   onOpenVideo,
 }: TrafficSourceTopVideosCardProps) {
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const [cardWidth, setCardWidth] = useState(0)
+  const COMPACT_WIDTH = 420
+  const isCompact = cardWidth > 0 && cardWidth <= COMPACT_WIDTH
+
+  useEffect(() => {
+    if (!cardRef.current) {
+      return
+    }
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setCardWidth(Math.floor(entry.contentRect.width))
+      }
+    })
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <div className="traffic-top-card">
+    <div className={isCompact ? 'traffic-top-card compact' : 'traffic-top-card'} ref={cardRef}>
+      <div className={isCompact ? 'traffic-top-title-header compact' : 'traffic-top-title-header'}>
+        Top videos by traffic source
+      </div>
       <div className="traffic-top-controls">
         <Dropdown
           value={source}

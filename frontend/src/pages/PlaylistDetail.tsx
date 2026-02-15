@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { MetricChartCard, VideoDetailListCard, type VideoDetailListItem } from '../components/analytics'
+import {
+  MetricChartCard,
+  MonetizationContentPerformanceCard,
+  MonetizationEarningsCard,
+  TrafficSourceShareCard,
+  TrafficSourceTopVideosCard,
+  VideoDetailListCard,
+  type TopTrafficVideo,
+  type TrafficSourceShareItem,
+  type VideoDetailListItem,
+} from '../components/analytics'
 import { PageCard } from '../components/layout'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../components/playlists'
 import { formatDisplayDate } from '../utils/date'
@@ -38,6 +48,32 @@ type PlaylistDailyRow = {
   subscribers_gained?: number | null
   subscribers_lost?: number | null
   average_time_in_playlist_seconds?: number | null
+}
+type MonetizationMonthly = {
+  monthKey: string
+  label: string
+  amount: number
+}
+type MonetizationContentType = 'video' | 'short'
+type MonetizationTopItem = {
+  video_id: string
+  title: string
+  thumbnail_url: string
+  revenue: number
+}
+type MonetizationPerformance = {
+  views: number
+  estimated_revenue: number
+  rpm: number
+  items: MonetizationTopItem[]
+}
+type TopVideosBySourceResponseItem = {
+  video_id: string
+  title: string
+  thumbnail_url: string
+  published_at: string
+  views: number
+  watch_time_minutes: number
 }
 
 function formatDurationSeconds(seconds: number | null | undefined): string {
@@ -102,6 +138,10 @@ function PlaylistDetail() {
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
   const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
+  const [trafficTopSource, setTrafficTopSource] = useState('')
+  const [trafficTopVideos, setTrafficTopVideos] = useState<TopTrafficVideo[]>([])
+  const [trafficTopLoading, setTrafficTopLoading] = useState(false)
+  const [trafficTopError, setTrafficTopError] = useState<string | null>(null)
   const [publishedDates, setPublishedDates] = useState<Record<string, PublishedItem[]>>({})
   const [totals, setTotals] = useState({
     views: 0,
@@ -115,6 +155,7 @@ function PlaylistDetail() {
   const [topPerformingError, setTopPerformingError] = useState<string | null>(null)
   const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
   const [recentPerformingError, setRecentPerformingError] = useState<string | null>(null)
+  const [monetizationContentType, setMonetizationContentType] = useState<MonetizationContentType>('video')
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
   const range = useMemo(() => {
     const now = new Date()
@@ -705,6 +746,75 @@ function PlaylistDetail() {
     ]
   }, [discoverySeriesByMetric])
 
+  const trafficShareItems = useMemo<TrafficSourceShareItem[]>(() => {
+    const totals = new Map<string, number>()
+    discoveryTrafficRows.forEach((row) => {
+      if (!row.traffic_source) {
+        return
+      }
+      totals.set(row.traffic_source, (totals.get(row.traffic_source) ?? 0) + (row.views ?? 0))
+    })
+    return Array.from(totals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([source, views]) => ({ key: source, label: source.replace(/_/g, ' '), views }))
+  }, [discoveryTrafficRows])
+
+  const trafficSourceOptions = useMemo(() => {
+    return trafficShareItems.map((item) => ({ label: item.label, value: item.key }))
+  }, [trafficShareItems])
+
+  useEffect(() => {
+    if (!trafficTopSource && trafficSourceOptions.length > 0) {
+      setTrafficTopSource(trafficSourceOptions[0].value)
+      return
+    }
+    if (trafficTopSource && !trafficSourceOptions.some((option) => option.value === trafficTopSource)) {
+      setTrafficTopSource(trafficSourceOptions[0]?.value ?? '')
+    }
+  }, [trafficTopSource, trafficSourceOptions])
+
+  useEffect(() => {
+    async function loadTopVideosBySource() {
+      if (!playlistId || !trafficTopSource) {
+        setTrafficTopVideos([])
+        setTrafficTopError(null)
+        return
+      }
+      setTrafficTopLoading(true)
+      setTrafficTopError(null)
+      try {
+        const params = new URLSearchParams({
+          playlist_id: playlistId,
+          start_date: range.start,
+          end_date: range.end,
+          traffic_source: trafficTopSource,
+          limit: '5',
+        })
+        const response = await fetch(`http://127.0.0.1:8000/analytics/playlist-video-traffic-source-top-videos?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load playlist traffic-source videos (${response.status})`)
+        }
+        const payload = await response.json()
+        const entries = (Array.isArray(payload?.items) ? payload.items : []) as TopVideosBySourceResponseItem[]
+        setTrafficTopVideos(entries.map((item) => ({
+          video_id: String(item.video_id ?? ''),
+          title: String(item.title ?? '(untitled)'),
+          thumbnail_url: String(item.thumbnail_url ?? ''),
+          views: Number(item.views ?? 0),
+          watch_time_minutes: Number(item.watch_time_minutes ?? 0),
+        })))
+      } catch (error) {
+        setTrafficTopVideos([])
+        setTrafficTopError(error instanceof Error ? error.message : 'Failed to load playlist traffic-source videos.')
+      } finally {
+        setTrafficTopLoading(false)
+      }
+    }
+
+    loadTopVideosBySource()
+  }, [playlistId, range.start, range.end, trafficTopSource])
+
   const monetizationSeries = useMemo(() => {
     const sorted = [...videoDailyRows]
       .filter((item) => typeof item.day === 'string' && item.day >= range.start && item.day <= range.end)
@@ -766,6 +876,58 @@ function PlaylistDetail() {
       cpm: cpmWeighted,
     }
   }, [videoDailyRows, range.start, range.end])
+
+  const monetizationEarningsLastSixMonths = useMemo<MonetizationMonthly[]>(() => {
+    const monthTotals = new Map<string, number>()
+    videoDailyRows
+      .filter((item) => typeof item.day === 'string' && item.day >= range.start && item.day <= range.end)
+      .forEach((item) => {
+        const monthKey = item.day.slice(0, 7)
+        monthTotals.set(monthKey, (monthTotals.get(monthKey) ?? 0) + Number(item.estimated_revenue ?? 0))
+      })
+    return Array.from(monthTotals.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 6)
+      .map(([monthKey, amount]) => {
+        const [year, month] = monthKey.split('-')
+        const dateValue = new Date(Date.UTC(Number(year), Number(month) - 1, 1))
+        return {
+          monthKey,
+          label: dateValue.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+          amount,
+        }
+      })
+  }, [videoDailyRows, range.start, range.end])
+
+  const monetizationSidePerformance = useMemo<Record<MonetizationContentType, MonetizationPerformance>>(() => {
+    const buildPerformance = (items: VideoDetailListItem[]): MonetizationPerformance => {
+      const views = items.reduce((sum, item) => sum + Number(item.views ?? 0), 0)
+      const estimatedRevenue = Number(monetizationTotals.estimated_revenue ?? 0)
+      const rpm = views > 0 ? (estimatedRevenue / views) * 1000 : 0
+      const totalItemViews = items.reduce((sum, item) => sum + Math.max(0, Number(item.views ?? 0)), 0)
+      const mappedItems: MonetizationTopItem[] = items.map((item) => {
+        const itemViews = Math.max(0, Number(item.views ?? 0))
+        const share = totalItemViews > 0 ? itemViews / totalItemViews : 0
+        return {
+          video_id: item.video_id,
+          title: item.title,
+          thumbnail_url: item.thumbnail_url,
+          revenue: estimatedRevenue * share,
+        }
+      })
+      return {
+        views,
+        estimated_revenue: estimatedRevenue,
+        rpm,
+        items: mappedItems,
+      }
+    }
+
+    return {
+      video: buildPerformance(topPerformingItems),
+      short: buildPerformance(recentPerformingItems),
+    }
+  }, [topPerformingItems, recentPerformingItems, monetizationTotals.estimated_revenue])
 
   const toggleSort = (key: PlaylistItemSortKey) => {
     if (sortBy === key) {
@@ -1038,36 +1200,72 @@ function PlaylistDetail() {
               </div>
             </PageCard>
             <div className="playlist-detail-side-cards">
-              <PageCard>
-                {topPerformingError ? (
-                  <div className="video-detail-state">{topPerformingError}</div>
-                ) : (
-                  <VideoDetailListCard
-                    title="Top performing content"
-                    items={topPerformingItems}
-                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-                    emptyText="No playlist videos available."
-                    actionLabel="See analytics"
-                    showTypicalRange
-                    metrics={['views', 'watch_time', 'avg_duration']}
-                  />
-                )}
-              </PageCard>
-              <PageCard>
-                {recentPerformingError ? (
-                  <div className="video-detail-state">{recentPerformingError}</div>
-                ) : (
-                  <VideoDetailListCard
-                    title="Top performing content (last 90 days)"
-                    items={recentPerformingItems}
-                    onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-                    emptyText="No recent playlist video activity."
-                    actionLabel="See analytics"
-                    showTypicalRange
-                    metrics={['views', 'watch_time', 'avg_duration']}
-                  />
-                )}
-              </PageCard>
+              {analyticsTab === 'monetization' ? (
+                <>
+                  <PageCard>
+                    <MonetizationEarningsCard items={monetizationEarningsLastSixMonths} />
+                  </PageCard>
+                  <PageCard>
+                    <MonetizationContentPerformanceCard
+                      contentType={monetizationContentType}
+                      onContentTypeChange={setMonetizationContentType}
+                      performance={monetizationSidePerformance}
+                      itemCount={7}
+                      onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                    />
+                  </PageCard>
+                </>
+              ) : analyticsTab === 'discovery' ? (
+                <>
+                  <PageCard>
+                    <TrafficSourceShareCard items={trafficShareItems} />
+                  </PageCard>
+                  <PageCard>
+                    <TrafficSourceTopVideosCard
+                      source={trafficTopSource}
+                      sourceOptions={trafficSourceOptions}
+                      items={trafficTopVideos}
+                      loading={trafficTopLoading}
+                      error={trafficTopError}
+                      onSourceChange={setTrafficTopSource}
+                      onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                    />
+                  </PageCard>
+                </>
+              ) : (
+                <>
+                  <PageCard>
+                    {topPerformingError ? (
+                      <div className="video-detail-state">{topPerformingError}</div>
+                    ) : (
+                      <VideoDetailListCard
+                        title="Top performing content"
+                        items={topPerformingItems}
+                        onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                        emptyText="No playlist videos available."
+                        actionLabel="See analytics"
+                        showTypicalRange
+                        metrics={['views', 'watch_time', 'avg_duration']}
+                      />
+                    )}
+                  </PageCard>
+                  <PageCard>
+                    {recentPerformingError ? (
+                      <div className="video-detail-state">{recentPerformingError}</div>
+                    ) : (
+                      <VideoDetailListCard
+                        title="Top performing content (last 90 days)"
+                        items={recentPerformingItems}
+                        onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                        emptyText="No recent playlist video activity."
+                        actionLabel="See analytics"
+                        showTypicalRange
+                        metrics={['views', 'watch_time', 'avg_duration']}
+                      />
+                    )}
+                  </PageCard>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import './MonetizationEarningsCard.css'
 
 type MonetizationMonthly = {
@@ -15,20 +16,42 @@ function formatNumber(value: number): string {
 }
 
 function MonetizationEarningsCard({ items }: MonetizationEarningsCardProps) {
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const [cardWidth, setCardWidth] = useState(0)
   const maxAmount = items.length > 0 ? Math.max(...items.map((entry) => entry.amount)) : 0
+  const MIN_VISIBLE_RATIO = 0.08
+  const HIDE_BARS_WIDTH = 420
+  const hideBarsForCompactWidth = cardWidth > 0 && cardWidth <= HIDE_BARS_WIDTH
+
+  useEffect(() => {
+    if (!cardRef.current) {
+      return
+    }
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setCardWidth(Math.floor(entry.contentRect.width))
+      }
+    })
+    observer.observe(cardRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   return (
-    <div className="earnings-card">
+    <div className={hideBarsForCompactWidth ? 'earnings-card compact' : 'earnings-card'} ref={cardRef}>
       <div className="earnings-card-title">How much you&apos;re earning</div>
       <div className="earnings-card-list">
         {items.map((item) => {
-          const width = maxAmount > 0 ? `${Math.max(6, (item.amount / maxAmount) * 100)}%` : '0%'
+          const ratio = maxAmount > 0 ? item.amount / maxAmount : 0
+          const showBar = !hideBarsForCompactWidth && ratio >= MIN_VISIBLE_RATIO
+          const width = `${Math.max(0, ratio * 100)}%`
           return (
-            <div key={item.monthKey} className="earnings-card-row">
+            <div key={item.monthKey} className={showBar ? 'earnings-card-row' : 'earnings-card-row compact'}>
               <span>{item.label}</span>
-              <div className="earnings-card-bar-wrap">
-                <span className="earnings-card-bar" style={{ width }} />
-              </div>
+              {showBar ? (
+                <div className="earnings-card-bar-wrap">
+                  <span className="earnings-card-bar" style={{ width }} />
+                </div>
+              ) : null}
               <strong>${formatNumber(item.amount)}</strong>
             </div>
           )
