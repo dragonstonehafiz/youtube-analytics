@@ -36,6 +36,7 @@ backend/
   src/database/          # Schema + DB helpers per table
   src/youtube/           # YouTube API client code
   src/helper/            # Shared utilities (estimates, dates, progress)
+  src/utils/             # Logger and other utility functions
   
 frontend/
   src/pages/             # Page directories (each with index.ts, PageName.tsx, PageName.css)
@@ -259,7 +260,8 @@ Standard structure:
 ### Backend (Python)
 - Docstrings on all functions
 - Type hints on function signatures
-- Use `backend/utils/logger.py` for logging → `backend/outputs/`
+- Use `backend/src/utils/logger.py` for error logging only → `backend/outputs/`
+- No progress logs - only log errors with context
 - Single-line calls when short, multi-line for readability
 - Comments for non-obvious API behavior or pagination logic
 - Keep `.method()` on same line as object, don't start chained calls on new lines

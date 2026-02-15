@@ -30,7 +30,7 @@ def get_logger(
         logger.addHandler(stream_handler)
 
     if filename:
-        outputs_dir = Path(__file__).resolve().parents[1] / "outputs"
+        outputs_dir = Path(__file__).resolve().parents[2] / "outputs"
         outputs_dir.mkdir(parents=True, exist_ok=True)
         file_path = outputs_dir / filename
         file_handler = logging.FileHandler(file_path, encoding="utf-8")
