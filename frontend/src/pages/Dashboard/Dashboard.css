@@ -1,0 +1,14 @@
+/* Dashboard page styles */
+
+.dashboard-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 16px;
+}
+
+.dashboard-row > .page-card {
+  width: min(520px, 100%);
+  flex: 0 0 min(520px, 100%);
+}

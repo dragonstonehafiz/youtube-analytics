@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { PageCard } from '../components/layout'
-import { VideoListTable, type VideoRow, type VideoSortKey } from '../components/videos'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
-import './Page.css'
+import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { PageCard } from '../../components/layout'
+import { VideoListTable, type VideoRow, type VideoSortKey } from '../../components/videos'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import '../shared.css'
+import './Videos.css'
 
 type VideoFilters = {
   q: string

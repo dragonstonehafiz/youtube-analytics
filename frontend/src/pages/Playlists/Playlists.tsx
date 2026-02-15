@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { PageCard } from '../components/layout'
-import { formatDisplayDate } from '../utils/date'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
-import './Page.css'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { PageCard } from '../../components/layout'
+import { formatDisplayDate } from '../../utils/date'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import '../shared.css'
+import './Playlists.css'
 
 type PlaylistRow = {
   id: string

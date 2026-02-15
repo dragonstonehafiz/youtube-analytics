@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DateRangePicker, Dropdown } from '../components/ui'
+import { DateRangePicker, Dropdown } from '../../components/ui'
 import {
   MetricChartCard,
   MonetizationContentPerformanceCard,
@@ -11,12 +11,13 @@ import {
   VideoDetailListCard,
   type TopTrafficVideo,
   type TrafficSourceShareItem,
-} from '../components/analytics'
-import { PageCard } from '../components/layout'
-import { formatDisplayDate } from '../utils/date'
-import { formatCurrency, formatWholeNumber } from '../utils/number'
-import { getStored, setStored } from '../utils/storage'
-import './Page.css'
+} from '../../components/analytics'
+import { PageCard } from '../../components/layout'
+import { formatDisplayDate } from '../../utils/date'
+import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import { getStored, setStored } from '../../utils/storage'
+import '../shared.css'
+import './Analytics.css'
 
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 

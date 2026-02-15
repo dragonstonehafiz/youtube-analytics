@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { VideoDetailListCard } from '../components/analytics'
-import { ChannelAnalyticsCard, CommentsPreviewCard, MostActiveAudienceCard } from '../components/dashboard'
-import { PageCard } from '../components/layout'
-import './Page.css'
+import { VideoDetailListCard } from '../../components/analytics'
+import { ChannelAnalyticsCard, CommentsPreviewCard, MostActiveAudienceCard } from '../../components/dashboard'
+import { PageCard } from '../../components/layout'
+import '../shared.css'
+import './Dashboard.css'
 
 type VideoDetailListItem = {
   video_id: string

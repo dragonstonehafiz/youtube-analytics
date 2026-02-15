@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { CommentVideoGroup, type CommentRow, type CommentThread } from '../components/comments'
-import { PageCard } from '../components/layout'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../components/ui'
-import { formatDisplayDate } from '../utils/date'
-import { getSharedPageSize, setSharedPageSize } from '../utils/storage'
-import './Page.css'
+import { CommentVideoGroup, type CommentRow, type CommentThread } from '../../components/comments'
+import { PageCard } from '../../components/layout'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../../components/ui'
+import { formatDisplayDate } from '../../utils/date'
+import { getSharedPageSize, setSharedPageSize } from '../../utils/storage'
+import '../shared.css'
+import './AudienceDetail.css'
 
 type AudienceDetailRow = {
   channel_id: string

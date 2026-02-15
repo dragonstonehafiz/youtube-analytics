@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CommentVideoGroup, type CommentRow, type CommentThread } from '../components/comments'
-import { PageCard } from '../components/layout'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
-import './Page.css'
+import { CommentVideoGroup, type CommentRow, type CommentThread } from '../../components/comments'
+import { PageCard } from '../../components/layout'
+import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import '../shared.css'
+import './Comments.css'
 
 type CommentApiRow = CommentRow & {
   video_id: string

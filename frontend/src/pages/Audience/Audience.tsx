@@ -1,10 +1,11 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageCard } from '../components/layout'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../components/ui'
-import { formatDisplayDate } from '../utils/date'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
-import './Page.css'
+import { PageCard } from '../../components/layout'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../../components/ui'
+import { formatDisplayDate } from '../../utils/date'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import '../shared.css'
+import './Audience.css'
 
 type AudienceRow = {
   channel_id: string

@@ -1,0 +1,49 @@
+/* AudienceDetail page styles */
+
+.audience-detail-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.audience-detail-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.audience-detail-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 72px;
+}
+
+.audience-detail-main-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.audience-detail-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audience-detail-comments-toolbar {
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}

@@ -11,10 +11,11 @@ import {
   RatioBar,
   YearInput,
   type DonutSegmentResolved,
-} from '../components/ui'
-import { formatDisplayDate } from '../utils/date'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
-import './Page.css'
+} from '../../components/ui'
+import { formatDisplayDate } from '../../utils/date'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import '../shared.css'
+import './SyncSettings.css'
 
 function SyncSettings() {
   const formatTableMetricLabel = (table: string): string => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
+import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
 import {
   MetricChartCard,
   MonetizationContentPerformanceCard,
@@ -11,13 +11,14 @@ import {
   type TopTrafficVideo,
   type TrafficSourceShareItem,
   type VideoDetailListItem,
-} from '../components/analytics'
-import { PageCard } from '../components/layout'
-import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../components/playlists'
-import { formatDisplayDate } from '../utils/date'
-import { formatCurrency, formatWholeNumber } from '../utils/number'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
-import './Page.css'
+} from '../../components/analytics'
+import { PageCard } from '../../components/layout'
+import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/playlists'
+import { formatDisplayDate } from '../../utils/date'
+import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import '../shared.css'
+import './PlaylistDetail.css'
 
 type PlaylistMeta = {
   id: string

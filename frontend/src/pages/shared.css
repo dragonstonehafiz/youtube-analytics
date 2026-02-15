@@ -1,0 +1,206 @@
+/* Shared page layout and common patterns */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  margin: 0 0 6px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.header-inline-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-back-action {
+  height: 32px;
+  padding: 0 10px;
+  min-width: 32px;
+  border-radius: 8px;
+}
+
+.header-row .dropdown-field {
+  height: 100%;
+}
+
+.header-row .dropdown-trigger {
+  height: 44px;
+}
+
+.page-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.page-row {
+  grid-column: 1 / -1;
+}
+
+/* Filter patterns (used by Videos, Comments, etc.) */
+
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.filter-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+.filter-grid {
+  display: grid;
+  gap: 10px;
+  align-items: end;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-field > span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+.filter-grid .dropdown-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.filter-field > input,
+.filter-field > select {
+  height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+.filter-grid .dropdown-field,
+.filter-grid .date-range {
+  width: 100%;
+}
+
+.filter-grid .dropdown-trigger {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.filter-date .date-range {
+  gap: 6px;
+}
+
+.filter-date .date-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-action {
+  height: 38px;
+  padding: 0 14px;
+}
+
+/* Pagination patterns */
+
+.pagination-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pagination-main {
+  grid-column: 2;
+  display: flex;
+  justify-content: center;
+}
+
+.pagination-size {
+  grid-column: 3;
+  justify-self: end;
+  min-width: 140px;
+}
+
+/* Utility classes */
+
+.right {
+  text-align: right;
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
+/* Responsive breakpoints */
+
+@media (max-width: 1100px) {
+  .filter-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-actions {
+    justify-content: flex-start;
+  }
+}

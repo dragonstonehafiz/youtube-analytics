@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../components/ui'
-import { MetricChartCard, TrafficSourceShareCard, type TrafficSourceShareItem } from '../components/analytics'
-import { PageCard } from '../components/layout'
-import { CommentThreadItem, type CommentRow } from '../components/comments'
-import { formatDisplayDate } from '../utils/date'
-import { formatCurrency, formatWholeNumber } from '../utils/number'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../utils/storage'
-import './Page.css'
+import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { MetricChartCard, TrafficSourceShareCard, type TrafficSourceShareItem } from '../../components/analytics'
+import { PageCard } from '../../components/layout'
+import { CommentThreadItem, type CommentRow } from '../../components/comments'
+import { formatDisplayDate } from '../../utils/date'
+import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import '../shared.css'
+import './VideoDetail.css'
 
 type VideoMetadata = {
   id: string
