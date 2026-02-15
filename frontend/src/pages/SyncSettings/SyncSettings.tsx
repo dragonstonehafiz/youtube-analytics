@@ -140,7 +140,7 @@ function SyncSettings() {
     { label: 'Video search insights', value: 'video_search_insights' },
   ]
   const [selectedPulls, setSelectedPulls] = useState(
-    storedSync?.selectedPulls?.length ? storedSync.selectedPulls : pullOptions.map((item) => item.value)
+    storedSync?.selectedPulls?.length ? storedSync.selectedPulls : []
   )
   const validPullValues = useMemo(() => new Set(pullOptions.map((item) => item.value)), [pullOptions])
   const invalidSelectedPulls = useMemo(
@@ -387,11 +387,8 @@ function SyncSettings() {
   }, [rangeMode, year, overview.latest_date, today, startDate, endDate])
 
   const selectedPullKeys = useMemo(() => {
-    if (selectedPulls.length === 0) {
-      return pullOptions.map((item) => item.value)
-    }
     return selectedPulls
-  }, [selectedPulls, pullOptions])
+  }, [selectedPulls])
   const apiCallBarRows = useMemo(() => {
     const apiMaxByFamily: Record<string, number> = {
       'YouTube Data API v3': 10000,

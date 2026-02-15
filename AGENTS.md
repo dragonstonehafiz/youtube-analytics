@@ -21,17 +21,27 @@ YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 ### Directory Structure
 ```
 backend/
-  routes.py              # API endpoint definitions
-  src/sync.py           # Sync orchestration
-  src/database/         # Schema + DB helpers per table
-  src/youtube/          # YouTube API client code
-  src/helper/           # Shared utilities (estimates, dates, progress)
+  server.py              # FastAPI app entry point
+  src/routes/            # API endpoints organized by domain
+    __init__.py          # Combines all routers
+    helpers.py           # Shared helper functions
+    videos.py            # Video endpoints
+    playlists.py         # Playlist endpoints
+    audience.py          # Audience endpoints
+    comments.py          # Comment endpoints
+    analytics.py         # Analytics endpoints
+    sync.py              # Sync endpoints
+    stats.py             # Stats/DB info endpoints
+  src/sync.py            # Sync orchestration
+  src/database/          # Schema + DB helpers per table
+  src/youtube/           # YouTube API client code
+  src/helper/            # Shared utilities (estimates, dates, progress)
   
 frontend/
-  src/pages/            # Page directories (each with index.ts, PageName.tsx, PageName.css)
-    shared.css          # Common page layout, filter, and pagination styles
-  src/components/       # Reusable UI components (ui/, analytics/, videos/, etc.)
-  src/utils/            # Formatting helpers (dates, numbers, storage)
+  src/pages/             # Page directories (each with index.ts, PageName.tsx, PageName.css)
+    shared.css           # Common page layout, filter, and pagination styles
+  src/components/        # Reusable UI components (ui/, analytics/, videos/, etc.)
+  src/utils/             # Formatting helpers (dates, numbers, storage)
 ```
 
 ## Decision Tree: Where to Make Changes
@@ -44,9 +54,10 @@ frontend/
 5. API estimation: `backend/src/helper/estimates.py`
 
 ### Adding/modifying an API endpoint
-1. Route handler: `backend/routes.py`
+1. Route handler: `backend/src/routes/<domain>.py` (videos, playlists, audience, comments, analytics, sync, stats)
 2. DB query: `backend/src/database/<table>.py`
 3. Frontend API call: `frontend/src/pages/<Page>.tsx` or component
+4. Shared helpers: Add to `backend/src/routes/helpers.py` if used across routes
 
 ### Adding/modifying a UI page
 1. Create page directory: `frontend/src/pages/<PageName>/`
@@ -269,7 +280,7 @@ Standard structure:
 4. Add `sync_<stage>()` function in `backend/src/sync.py`
 5. Insert stage in correct position in `sync_all()` stage order
 6. Add estimation function to `backend/src/helper/estimates.py`
-7. Wire up in `backend/routes.py` for `/stats/table-api-calls`
+7. Update estimation logic in `backend/src/routes/helpers.py` (`estimate_min_api_calls_for_table`)
 8. Add pull option to `frontend/src/pages/SyncSettings.tsx` multiselect
 
 ### Add a new chart to Analytics page

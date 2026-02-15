@@ -5,6 +5,9 @@ from typing import Iterable
 from googleapiclient.errors import HttpError
 
 from src.youtube.client import get_youtube_client
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def iter_comment_threads(video_id: str, page_size: int = 100) -> Iterable[dict]:
@@ -42,7 +45,9 @@ def extract_comments(video_id: str) -> list[dict]:
                 error_text = exc.content.decode("utf-8")
         except Exception:
             error_text = str(exc)
-        if "commentsDisabled" in error_text:
+        # Skip videos where comments cannot be fetched (disabled, live streams, processing failures, etc.)
+        if any(keyword in error_text for keyword in ["commentsDisabled", "processingFailure", "forbidden", "disabled"]):
+            logger.warning(f"Skipping comments for video {video_id}: {error_text[:150]}")
             return []
         raise RuntimeError(f"YouTube API error: {exc}") from exc
     return [row for row in comments if row.get("id")]

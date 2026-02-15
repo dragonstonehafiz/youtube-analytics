@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from routes import router
+from src.routes import router
 from src.database.db import init_db
 from src.sync import sync_all
 
