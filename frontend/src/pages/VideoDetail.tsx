@@ -66,96 +66,11 @@ function formatDuration(seconds: number | null): string {
   return `${minutes}:${String(remSeconds).padStart(2, '0')}`
 }
 
-function aggregatePoints(points: SeriesPoint[], granularity: Granularity): SeriesPoint[] {
-  if (granularity === 'daily' || points.length === 0) {
-    return points
-  }
-  if (granularity === 'monthly' || granularity === 'yearly') {
-    const grouped = new Map<string, number>()
-    points.forEach((point) => {
-      const key = granularity === 'monthly' ? point.date.slice(0, 7) : `${point.date.slice(0, 4)}-01-01`
-      grouped.set(key, (grouped.get(key) ?? 0) + point.value)
-    })
-    return Array.from(grouped.entries()).map(([date, value]) => ({ date, value }))
-  }
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  const aggregated: SeriesPoint[] = []
-  for (let index = 0; index < points.length; index += windowSize) {
-    const bucket = points.slice(index, index + windowSize)
-    aggregated.push({
-      date: bucket[bucket.length - 1].date,
-      value: bucket.reduce((sum, point) => sum + point.value, 0),
-    })
-  }
-  return aggregated
-}
-
-function aggregateWeightedPoints(
-  points: SeriesPoint[],
-  weights: SeriesPoint[],
-  granularity: Granularity
-): SeriesPoint[] {
-  if (granularity === 'daily' || points.length === 0) {
-    return points
-  }
-
-  const weightByDate = new Map(weights.map((point) => [point.date, point.value]))
-
-  if (granularity === 'monthly' || granularity === 'yearly') {
-    const grouped = new Map<string, { value: number; weight: number; lastDate: string; fallbackSum: number; fallbackCount: number }>()
-    points.forEach((point) => {
-      const key = granularity === 'monthly' ? point.date.slice(0, 7) : point.date.slice(0, 4)
-      const weight = weightByDate.get(point.date) ?? 0
-      const existing = grouped.get(key)
-      if (existing) {
-        existing.value += point.value * weight
-        existing.weight += weight
-        existing.fallbackSum += point.value
-        existing.fallbackCount += 1
-        existing.lastDate = point.date
-      } else {
-        grouped.set(key, {
-          value: point.value * weight,
-          weight,
-          lastDate: point.date,
-          fallbackSum: point.value,
-          fallbackCount: 1,
-        })
-      }
-    })
-    return Array.from(grouped.entries()).map(([key, group]) => ({
-      date: granularity === 'monthly' ? key : `${key}-01-01`,
-      value: group.weight > 0 ? group.value / group.weight : group.fallbackSum / group.fallbackCount,
-    }))
-  }
-
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  const aggregated: SeriesPoint[] = []
-  for (let index = 0; index < points.length; index += windowSize) {
-    const bucket = points.slice(index, index + windowSize)
-    let weightedSum = 0
-    let weightSum = 0
-    let fallbackSum = 0
-    bucket.forEach((item) => {
-      const weight = weightByDate.get(item.date) ?? 0
-      weightedSum += item.value * weight
-      weightSum += weight
-      fallbackSum += item.value
-    })
-    aggregated.push({
-      date: bucket[bucket.length - 1].date,
-      value: weightSum > 0 ? weightedSum / weightSum : fallbackSum / bucket.length,
-    })
-  }
-  return aggregated
-}
-
 function buildTrafficSeries(
   rows: TrafficSourceRow[],
   metric: DiscoveryMetric,
   startDate: string,
-  endDate: string,
-  granularity: Granularity
+  endDate: string
 ): DiscoveryMultiSeries[] {
   const start = new Date(`${startDate}T00:00:00Z`)
   const end = new Date(`${endDate}T00:00:00Z`)
@@ -192,7 +107,7 @@ function buildTrafficSeries(
       key: source,
       label: source.replace(/_/g, ' '),
       color: colorPalette[index % colorPalette.length],
-      points: aggregatePoints(points, granularity),
+      points,
     }
   })
 }
@@ -241,7 +156,6 @@ function VideoDetail() {
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [monetizationSeries, setMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [previousMonetizationSeries, setPreviousMonetizationSeries] = useState<Record<string, SeriesPoint[]>>({})
-  const [discoveryMetric, setDiscoveryMetric] = useState<DiscoveryMetric>(getStored('videoDetailDiscoveryMetric', 'views'))
   const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
   const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
   const [totals, setTotals] = useState({
@@ -387,10 +301,6 @@ function VideoDetail() {
   }, [commentsSort])
 
   useEffect(() => {
-    setStored('videoDetailDiscoveryMetric', discoveryMetric)
-  }, [discoveryMetric])
-
-  useEffect(() => {
     async function loadVideoAnalytics() {
       if (!videoId) {
         setDailyRows([])
@@ -521,10 +431,10 @@ function VideoDetail() {
         const previousCpmSeries = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.cpm ?? 0 }))
 
         setSeries({
-          views: aggregatePoints(viewsSeries, granularity),
-          watch_time: aggregatePoints(watchSeries, granularity),
-          avg_duration: aggregateWeightedPoints(avgDurationSeries, viewsSeries, granularity),
-          revenue: aggregatePoints(revenueSeries, granularity),
+          views: viewsSeries,
+          watch_time: watchSeries,
+          avg_duration: avgDurationSeries,
+          revenue: revenueSeries,
         })
         setTotals({
           views: totalViews,
@@ -533,16 +443,16 @@ function VideoDetail() {
           estimated_revenue: totalRevenue,
         })
         setPreviousSeries({
-          views: aggregatePoints(previousViewsSeries, granularity),
-          watch_time: aggregatePoints(previousWatchSeries, granularity),
-          avg_duration: aggregateWeightedPoints(previousAvgDurationSeries, previousViewsSeries, granularity),
-          revenue: aggregatePoints(previousRevenueSeries, granularity),
+          views: previousViewsSeries,
+          watch_time: previousWatchSeries,
+          avg_duration: previousAvgDurationSeries,
+          revenue: previousRevenueSeries,
         })
         setMonetizationSeries({
-          estimated_revenue: aggregatePoints(revenueSeries, granularity),
-          ad_impressions: aggregatePoints(adImpressionsSeries, granularity),
-          monetized_playbacks: aggregatePoints(monetizedPlaybacksSeries, granularity),
-          cpm: aggregateWeightedPoints(cpmSeries, adImpressionsSeries, granularity),
+          estimated_revenue: revenueSeries,
+          ad_impressions: adImpressionsSeries,
+          monetized_playbacks: monetizedPlaybacksSeries,
+          cpm: cpmSeries,
         })
         setMonetizationTotals({
           estimated_revenue: totalRevenue,
@@ -551,15 +461,15 @@ function VideoDetail() {
           cpm: totalCpm,
         })
         setPreviousMonetizationSeries({
-          estimated_revenue: aggregatePoints(previousRevenueSeries, granularity),
-          ad_impressions: aggregatePoints(previousAdImpressionsSeries, granularity),
-          monetized_playbacks: aggregatePoints(previousMonetizedPlaybacksSeries, granularity),
-          cpm: aggregateWeightedPoints(previousCpmSeries, previousAdImpressionsSeries, granularity),
+          estimated_revenue: previousRevenueSeries,
+          ad_impressions: previousAdImpressionsSeries,
+          monetized_playbacks: previousMonetizedPlaybacksSeries,
+          cpm: previousCpmSeries,
         })
     } catch (err) {
       setAnalyticsError(err instanceof Error ? err.message : 'Failed to process analytics.')
     }
-  }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end, granularity])
+  }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end])
 
   useEffect(() => {
     async function loadDiscoveryTraffic() {
@@ -594,18 +504,18 @@ function VideoDetail() {
 
   const discoverySeriesByMetric = useMemo<Record<DiscoveryMetric, DiscoveryMultiSeries[]>>(
     () => ({
-      views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end, granularity),
-      watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end, granularity),
+      views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end),
+      watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end),
     }),
-    [discoveryTrafficRows, range.start, range.end, granularity]
+    [discoveryTrafficRows, range.start, range.end]
   )
 
   const previousDiscoverySeriesByMetric = useMemo<Record<DiscoveryMetric, DiscoveryMultiSeries[]>>(
     () => ({
-      views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end, granularity),
-      watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end, granularity),
+      views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end),
+      watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end),
     }),
-    [discoveryPreviousTrafficRows, previousRange.start, previousRange.end, granularity]
+    [discoveryPreviousTrafficRows, previousRange.start, previousRange.end]
   )
 
   const discoveryMetrics = useMemo(() => {
@@ -886,6 +796,7 @@ function VideoDetail() {
             ) : (
               activeTab === 'analytics' ? (
                 <MetricChartCard
+                  granularity={granularity}
                   metrics={[
                     { key: 'views', label: 'Views', value: formatWholeNumber(totals.views) },
                     { key: 'watch_time', label: 'Watch time (hours)', value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)) },
@@ -905,12 +816,11 @@ function VideoDetail() {
                     revenue: previousSeries.revenue ?? [],
                   }}
                   comparisonAggregation={{ avg_duration: 'avg' }}
-                  startDate={range.start}
-                  endDate={range.end}
                   publishedDates={{}}
                 />
               ) : activeTab === 'monetization' ? (
                 <MetricChartCard
+                  granularity={granularity}
                   metrics={[
                     {
                       key: 'estimated_revenue',
@@ -946,20 +856,14 @@ function VideoDetail() {
                     cpm: previousMonetizationSeries.cpm ?? [],
                   }}
                   comparisonAggregation={{ cpm: 'avg' }}
-                  startDate={range.start}
-                  endDate={range.end}
                 />
               ) : (
                 <MetricChartCard
+                  granularity={granularity}
                   metrics={discoveryMetrics}
                   series={{}}
                   multiSeriesByMetric={discoverySeriesByMetric}
                   previousMultiSeriesByMetric={previousDiscoverySeriesByMetric}
-                  activeMetricKey={discoveryMetric}
-                  onActiveMetricChange={(key) => setDiscoveryMetric(key as DiscoveryMetric)}
-                  startDate={range.start}
-                  endDate={range.end}
-                  useRangeAsDailyAxis={granularity === 'daily'}
                   publishedDates={{}}
                 />
               )

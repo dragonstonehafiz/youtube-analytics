@@ -21,7 +21,6 @@ import './Page.css'
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 
 type SeriesPoint = { date: string; value: number }
-type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 type TotalsState = {
   views: number
   watch_time_minutes: number
@@ -85,185 +84,6 @@ type MonetizationPerformance = {
   items: MonetizationTopItem[]
 }
 
-function buildDayBucketMap(days: string[], granularity: Granularity): Map<string, string> {
-  const dayToBucket = new Map<string, string>()
-  if (granularity === 'daily') {
-    days.forEach((day) => dayToBucket.set(day, day))
-    return dayToBucket
-  }
-  if (granularity === 'monthly') {
-    days.forEach((day) => dayToBucket.set(day, day.slice(0, 7)))
-    return dayToBucket
-  }
-  if (granularity === 'yearly') {
-    days.forEach((day) => dayToBucket.set(day, `${day.slice(0, 4)}-01-01`))
-    return dayToBucket
-  }
-
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  for (let index = 0; index < days.length; index += windowSize) {
-    const bucket = days.slice(index, index + windowSize)
-    if (bucket.length === 0) {
-      continue
-    }
-    const bucketKey = bucket[bucket.length - 1]
-    bucket.forEach((day) => dayToBucket.set(day, bucketKey))
-  }
-  return dayToBucket
-}
-
-function buildBucketMeta(days: string[], granularity: Granularity): Record<string, BucketMeta> {
-  const meta: Record<string, BucketMeta> = {}
-  if (days.length === 0) {
-    return meta
-  }
-  if (granularity === 'daily') {
-    days.forEach((day) => {
-      meta[day] = { startDate: day, endDate: day, dayCount: 1 }
-    })
-    return meta
-  }
-  if (granularity === 'monthly') {
-    const groups = new Map<string, { startDate: string; endDate: string; dayCount: number }>()
-    days.forEach((day) => {
-      const key = day.slice(0, 7)
-      const existing = groups.get(key)
-      if (!existing) {
-        groups.set(key, { startDate: day, endDate: day, dayCount: 1 })
-      } else {
-        existing.endDate = day
-        existing.dayCount += 1
-      }
-    })
-    groups.forEach((value, key) => {
-      meta[key] = value
-    })
-    return meta
-  }
-  if (granularity === 'yearly') {
-    const groups = new Map<string, { startDate: string; endDate: string; dayCount: number }>()
-    days.forEach((day) => {
-      const key = `${day.slice(0, 4)}-01-01`
-      const existing = groups.get(key)
-      if (!existing) {
-        groups.set(key, { startDate: day, endDate: day, dayCount: 1 })
-      } else {
-        existing.endDate = day
-        existing.dayCount += 1
-      }
-    })
-    groups.forEach((value, key) => {
-      meta[key] = value
-    })
-    return meta
-  }
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  for (let index = 0; index < days.length; index += windowSize) {
-    const bucket = days.slice(index, index + windowSize)
-    if (bucket.length === 0) {
-      continue
-    }
-    const key = bucket[bucket.length - 1]
-    meta[key] = { startDate: bucket[0], endDate: bucket[bucket.length - 1], dayCount: bucket.length }
-  }
-  return meta
-}
-
-function aggregatePoints(points: SeriesPoint[], granularity: Granularity): SeriesPoint[] {
-  if (granularity === 'daily' || points.length === 0) {
-    return points
-  }
-
-  if (granularity === 'monthly' || granularity === 'yearly') {
-    const grouped = new Map<string, { value: number; lastDate: string }>()
-    points.forEach((point) => {
-      const key = granularity === 'monthly' ? point.date.slice(0, 7) : point.date.slice(0, 4)
-      const existing = grouped.get(key)
-      if (existing) {
-        existing.value += point.value
-        existing.lastDate = point.date
-      } else {
-        grouped.set(key, { value: point.value, lastDate: point.date })
-      }
-    })
-    return Array.from(grouped.entries()).map(([key, group]) => ({
-      date: granularity === 'monthly' ? key : `${key}-01-01`,
-      value: group.value,
-    }))
-  }
-
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  const aggregated: SeriesPoint[] = []
-  for (let index = 0; index < points.length; index += windowSize) {
-    const bucket = points.slice(index, index + windowSize)
-    aggregated.push({
-      date: bucket[bucket.length - 1].date,
-      value: bucket.reduce((sum, item) => sum + item.value, 0),
-    })
-  }
-  return aggregated
-}
-
-function aggregateWeightedPoints(
-  points: SeriesPoint[],
-  weights: SeriesPoint[],
-  granularity: Granularity
-): SeriesPoint[] {
-  if (granularity === 'daily' || points.length === 0) {
-    return points
-  }
-
-  const weightByDate = new Map(weights.map((point) => [point.date, point.value]))
-
-  if (granularity === 'monthly' || granularity === 'yearly') {
-    const grouped = new Map<string, { value: number; weight: number; lastDate: string; fallbackSum: number; fallbackCount: number }>()
-    points.forEach((point) => {
-      const key = granularity === 'monthly' ? point.date.slice(0, 7) : point.date.slice(0, 4)
-      const weight = weightByDate.get(point.date) ?? 0
-      const existing = grouped.get(key)
-      if (existing) {
-        existing.value += point.value * weight
-        existing.weight += weight
-        existing.fallbackSum += point.value
-        existing.fallbackCount += 1
-        existing.lastDate = point.date
-      } else {
-        grouped.set(key, {
-          value: point.value * weight,
-          weight,
-          lastDate: point.date,
-          fallbackSum: point.value,
-          fallbackCount: 1,
-        })
-      }
-    })
-    return Array.from(grouped.entries()).map(([key, group]) => ({
-      date: granularity === 'monthly' ? key : `${key}-01-01`,
-      value: group.weight > 0 ? group.value / group.weight : group.fallbackSum / group.fallbackCount,
-    }))
-  }
-
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  const aggregated: SeriesPoint[] = []
-  for (let index = 0; index < points.length; index += windowSize) {
-    const bucket = points.slice(index, index + windowSize)
-    let weightedSum = 0
-    let weightSum = 0
-    let fallbackSum = 0
-    bucket.forEach((item) => {
-      const weight = weightByDate.get(item.date) ?? 0
-      weightedSum += item.value * weight
-      weightSum += weight
-      fallbackSum += item.value
-    })
-    aggregated.push({
-      date: bucket[bucket.length - 1].date,
-      value: weightSum > 0 ? weightedSum / weightSum : fallbackSum / bucket.length,
-    })
-  }
-  return aggregated
-}
-
 function Analytics() {
   const navigate = useNavigate()
   const [years, setYears] = useState<string[]>([])
@@ -296,10 +116,7 @@ function Analytics() {
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
-  const [summaryDays, setSummaryDays] = useState<string[]>([])
-  const [publishedDates, setPublishedDates] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
   const [publishedDatesDaily, setPublishedDatesDaily] = useState<Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]>>({})
-  const [publishBucketMeta, setPublishBucketMeta] = useState<Record<string, BucketMeta>>({})
   const [totals, setTotals] = useState<TotalsState>({
     views: 0,
     watch_time_minutes: 0,
@@ -345,7 +162,6 @@ function Analytics() {
     monetized_playbacks: [],
     cpm: [],
   })
-  const [discoveryMetric, setDiscoveryMetric] = useState<DiscoveryMetric>(getStored('analyticsDiscoveryMetric', 'views'))
   const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
   const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
   const [trafficTopSource, setTrafficTopSource] = useState('')
@@ -410,21 +226,6 @@ function Analytics() {
     }
   }, [range.start, range.end])
 
-  const fullRangeDays = useMemo(() => {
-    const start = new Date(`${range.start}T00:00:00Z`)
-    const end = new Date(`${range.end}T00:00:00Z`)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
-      return [] as string[]
-    }
-    const days: string[] = []
-    const cursor = new Date(start)
-    while (cursor <= end) {
-      days.push(cursor.toISOString().slice(0, 10))
-      cursor.setUTCDate(cursor.getUTCDate() + 1)
-    }
-    return days
-  }, [range.start, range.end])
-
   useEffect(() => {
     async function loadYears() {
       try {
@@ -471,10 +272,6 @@ function Analytics() {
     setStored('analyticsTab', analyticsTab)
   }, [analyticsTab])
   useEffect(() => {
-    setStored('analyticsDiscoveryMetric', discoveryMetric)
-  }, [discoveryMetric])
-
-  useEffect(() => {
     async function loadSummary() {
       try {
         const buildSummaryUrl = (start: string, end: string) =>
@@ -496,8 +293,6 @@ function Analytics() {
           estimated_revenue: data.totals?.estimated_revenue ?? 0,
         }
         setTotals(nextTotals)
-        const previousGained = previousData.totals?.subscribers_gained ?? 0
-        const previousLost = previousData.totals?.subscribers_lost ?? 0
         const previousItems = Array.isArray(previousData.items) ? previousData.items : []
         const byDay = new Map<string, any>()
         items.forEach((item: any) => {
@@ -511,8 +306,6 @@ function Analytics() {
           )
         ).sort((a, b) => a.localeCompare(b))
         if (sortedUniqueDays.length === 0) {
-          setSummaryDays([])
-          setPublishBucketMeta({})
           setSeries({
             views: [],
             watch_time: [],
@@ -534,8 +327,6 @@ function Analytics() {
           days.push(cursor.toISOString().slice(0, 10))
           cursor.setUTCDate(cursor.getUTCDate() + 1)
         }
-        setSummaryDays(days)
-        setPublishBucketMeta(buildBucketMeta(days, granularity))
         const dailyViews = days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 }))
         const dailyWatchTime = days.map((day) => ({
           date: day,
@@ -547,10 +338,10 @@ function Analytics() {
         }))
         const dailyRevenue = days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 }))
         setSeries({
-          views: aggregatePoints(dailyViews, granularity),
-          watch_time: aggregatePoints(dailyWatchTime, granularity),
-          subscribers: aggregatePoints(dailySubscribers, granularity),
-          revenue: aggregatePoints(dailyRevenue, granularity),
+          views: dailyViews,
+          watch_time: dailyWatchTime,
+          subscribers: dailySubscribers,
+          revenue: dailyRevenue,
         })
         const previousByDay = new Map<string, any>()
         previousItems.forEach((item: any) => {
@@ -583,10 +374,10 @@ function Analytics() {
         }))
         const previousDailyRevenue = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.estimated_revenue ?? 0 }))
         setPreviousSeries({
-          views: aggregatePoints(previousDailyViews, granularity),
-          watch_time: aggregatePoints(previousDailyWatchTime, granularity),
-          subscribers: aggregatePoints(previousDailySubscribers, granularity),
-          revenue: aggregatePoints(previousDailyRevenue, granularity),
+          views: previousDailyViews,
+          watch_time: previousDailyWatchTime,
+          subscribers: previousDailySubscribers,
+          revenue: previousDailyRevenue,
         })
       } catch (error) {
         console.error('Failed to load analytics summary', error)
@@ -594,7 +385,7 @@ function Analytics() {
     }
 
     loadSummary()
-  }, [range.start, range.end, contentSelection, granularity, previousRange.start, previousRange.end, previousRange.daySpan])
+  }, [range.start, range.end, contentSelection, previousRange.start, previousRange.end, previousRange.daySpan])
 
   useEffect(() => {
     async function loadPublished() {
@@ -612,63 +403,13 @@ function Analytics() {
           }
         })
         setPublishedDatesDaily(map)
-        if (granularity === 'daily') {
-          setPublishedDates(map)
-          return
-        }
-        if (summaryDays.length === 0) {
-          setPublishedDates({})
-          return
-        }
-        const dayToBucket = buildDayBucketMap(summaryDays, granularity)
-        const rebucketed: Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]> = {}
-        Object.entries(map).forEach(([day, dayItems]) => {
-          const bucket = dayToBucket.get(day)
-          if (!bucket) {
-            return
-          }
-          if (!rebucketed[bucket]) {
-            rebucketed[bucket] = []
-          }
-          rebucketed[bucket].push(...dayItems)
-        })
-        setPublishedDates(rebucketed)
       } catch (error) {
         console.error('Failed to load published dates', error)
       }
     }
 
     loadPublished()
-  }, [range.start, range.end, contentSelection, granularity, summaryDays])
-
-  const discoveryPublishedDates = useMemo(() => {
-    if (granularity === 'daily') {
-      return publishedDatesDaily
-    }
-    if (fullRangeDays.length === 0) {
-      return {}
-    }
-    const dayToBucket = buildDayBucketMap(fullRangeDays, granularity)
-    const rebucketed: Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]> = {}
-    Object.entries(publishedDatesDaily).forEach(([day, dayItems]) => {
-      const bucket = dayToBucket.get(day)
-      if (!bucket) {
-        return
-      }
-      if (!rebucketed[bucket]) {
-        rebucketed[bucket] = []
-      }
-      rebucketed[bucket].push(...dayItems)
-    })
-    return rebucketed
-  }, [publishedDatesDaily, fullRangeDays, granularity])
-
-  const discoveryPublishBucketMeta = useMemo(() => {
-    if (fullRangeDays.length === 0) {
-      return {}
-    }
-    return buildBucketMeta(fullRangeDays, granularity)
-  }, [fullRangeDays, granularity])
+  }, [range.start, range.end, contentSelection])
 
   useEffect(() => {
     async function loadTopContent() {
@@ -817,10 +558,10 @@ function Analytics() {
         }))
         const dailyCpm = days.map((day) => ({ date: day, value: Number(byDay.get(day)?.cpm ?? 0) }))
         setMonetizationSeries({
-          estimated_revenue: aggregatePoints(dailyRevenue, granularity),
-          ad_impressions: aggregatePoints(dailyAdImpressions, granularity),
-          monetized_playbacks: aggregatePoints(dailyMonetizedPlaybacks, granularity),
-          cpm: aggregateWeightedPoints(dailyCpm, dailyAdImpressions, granularity),
+          estimated_revenue: dailyRevenue,
+          ad_impressions: dailyAdImpressions,
+          monetized_playbacks: dailyMonetizedPlaybacks,
+          cpm: dailyCpm,
         })
         setMonetizationTotals({
           estimated_revenue: Number(payload?.totals?.estimated_revenue ?? 0),
@@ -859,10 +600,10 @@ function Analytics() {
         }))
         const previousDailyCpm = previousDays.map((day) => ({ date: day, value: Number(previousByDay.get(day)?.cpm ?? 0) }))
         setPreviousMonetizationSeries({
-          estimated_revenue: aggregatePoints(previousDailyRevenue, granularity),
-          ad_impressions: aggregatePoints(previousDailyAdImpressions, granularity),
-          monetized_playbacks: aggregatePoints(previousDailyMonetizedPlaybacks, granularity),
-          cpm: aggregateWeightedPoints(previousDailyCpm, previousDailyAdImpressions, granularity),
+          estimated_revenue: previousDailyRevenue,
+          ad_impressions: previousDailyAdImpressions,
+          monetized_playbacks: previousDailyMonetizedPlaybacks,
+          cpm: previousDailyCpm,
         })
 
         const monthTotals = new Map<string, number>()
@@ -919,7 +660,7 @@ function Analytics() {
     }
 
     loadMonetizationData()
-  }, [range.start, range.end, granularity, previousRange.start, previousRange.end, previousRange.daySpan, contentSelection])
+  }, [range.start, range.end, previousRange.start, previousRange.end, previousRange.daySpan, contentSelection])
 
   useEffect(() => {
     async function loadDiscoveryData() {
@@ -1033,12 +774,11 @@ function Analytics() {
         grouped.set(row.day, (grouped.get(row.day) ?? 0) + value)
       })
       const points = allDays.map((date) => ({ date, value: grouped.get(date) ?? 0 }))
-      const aggregated = aggregatePoints(points, granularity)
       return {
         key: source,
         label: source.replace(/_/g, ' '),
         color: colorPalette[index % colorPalette.length],
-        points: aggregated,
+        points,
       }
     })
     return seriesItems
@@ -1048,7 +788,7 @@ function Analytics() {
       views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end),
       watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end),
     }),
-    [discoveryTrafficRows, granularity, range.start, range.end]
+    [discoveryTrafficRows, range.start, range.end]
   )
   const discoveryMetrics = useMemo(() => {
     const totalViews = discoverySeriesByMetric.views.reduce(
@@ -1098,7 +838,7 @@ function Analytics() {
       views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end),
       watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end),
     }),
-    [discoveryPreviousTrafficRows, granularity, previousRange.start, previousRange.end]
+    [discoveryPreviousTrafficRows, previousRange.start, previousRange.end]
   )
 
   return (
@@ -1221,6 +961,7 @@ function Analytics() {
               <div className="analytics-main-column">
                 <PageCard>
                   <MetricChartCard
+                    granularity={granularity}
                     metrics={[
                       { key: 'views', label: 'Views', value: formatWholeNumber(totals.views) },
                       {
@@ -1235,8 +976,6 @@ function Analytics() {
                         value: formatCurrency(totals.estimated_revenue),
                       },
                     ]}
-                    startDate={range.start}
-                    endDate={range.end}
                     series={{
                       views: series.views ?? [],
                       watch_time: series.watch_time ?? [],
@@ -1249,8 +988,7 @@ function Analytics() {
                       subscribers: previousSeries.subscribers ?? [],
                       revenue: previousSeries.revenue ?? [],
                     }}
-                    publishedDates={publishedDates}
-                    publishedBucketMeta={publishBucketMeta}
+                    publishedDates={publishedDatesDaily}
                   />
                 </PageCard>
               <PageCard>
@@ -1278,6 +1016,7 @@ function Analytics() {
             <div className="analytics-monetization-layout">
               <PageCard>
                 <MetricChartCard
+                  granularity={granularity}
                   metrics={[
                     {
                       key: 'estimated_revenue',
@@ -1300,8 +1039,6 @@ function Analytics() {
                       value: formatCurrency(monetizationTotals.cpm),
                     },
                   ]}
-                  startDate={range.start}
-                  endDate={range.end}
                   series={{
                     estimated_revenue: monetizationSeries.estimated_revenue ?? [],
                     ad_impressions: monetizationSeries.ad_impressions ?? [],
@@ -1315,8 +1052,7 @@ function Analytics() {
                     cpm: previousMonetizationSeries.cpm ?? [],
                   }}
                   comparisonAggregation={{ cpm: 'avg' }}
-                  publishedDates={publishedDates}
-                  publishedBucketMeta={publishBucketMeta}
+                  publishedDates={publishedDatesDaily}
                 />
               </PageCard>
               <div className="analytics-monetization-cards-row">
@@ -1338,17 +1074,12 @@ function Analytics() {
             <div className="analytics-monetization-layout">
               <PageCard>
                 <MetricChartCard
+                  granularity={granularity}
                   metrics={discoveryMetrics}
                   series={{}}
                   multiSeriesByMetric={discoverySeriesByMetric}
                   previousMultiSeriesByMetric={previousDiscoverySeriesByMetric}
-                  activeMetricKey={discoveryMetric}
-                  onActiveMetricChange={(key) => setDiscoveryMetric(key as DiscoveryMetric)}
-                  startDate={range.start}
-                  endDate={range.end}
-                  useRangeAsDailyAxis={granularity === 'daily'}
-                  publishedDates={discoveryPublishedDates}
-                  publishedBucketMeta={discoveryPublishBucketMeta}
+                  publishedDates={publishedDatesDaily}
                 />
               </PageCard>
               <div className="analytics-traffic-row">

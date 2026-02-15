@@ -1860,7 +1860,16 @@
 
 .playlist-detail-analytics-toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1200px) {
+  .playlist-detail-analytics-toolbar {
+    justify-content: flex-start;
+  }
 }
 
 .playlist-detail-items-layout {

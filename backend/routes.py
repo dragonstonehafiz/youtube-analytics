@@ -760,6 +760,13 @@ def list_playlist_video_daily(playlist_id: str, start_date: str, end_date: str) 
                 SUM(COALESCE(a.views, 0)) AS views,
                 SUM(COALESCE(a.watch_time_minutes, 0)) AS watch_time_minutes,
                 SUM(COALESCE(a.estimated_revenue, 0)) AS estimated_revenue,
+                SUM(COALESCE(a.ad_impressions, 0)) AS ad_impressions,
+                SUM(COALESCE(a.monetized_playbacks, 0)) AS monetized_playbacks,
+                CASE
+                    WHEN SUM(COALESCE(a.ad_impressions, 0)) > 0
+                    THEN SUM(COALESCE(a.cpm, 0) * COALESCE(a.ad_impressions, 0)) / SUM(COALESCE(a.ad_impressions, 0))
+                    ELSE AVG(a.cpm)
+                END AS cpm,
                 SUM(COALESCE(a.subscribers_gained, 0)) AS subscribers_gained,
                 SUM(COALESCE(a.subscribers_lost, 0)) AS subscribers_lost
             FROM video_analytics a
@@ -775,10 +782,50 @@ def list_playlist_video_daily(playlist_id: str, start_date: str, end_date: str) 
         "views": sum(item.get("views") or 0 for item in items),
         "watch_time_minutes": sum(item.get("watch_time_minutes") or 0 for item in items),
         "estimated_revenue": sum(item.get("estimated_revenue") or 0 for item in items),
+        "ad_impressions": sum(item.get("ad_impressions") or 0 for item in items),
+        "monetized_playbacks": sum(item.get("monetized_playbacks") or 0 for item in items),
+        "cpm": None,
         "subscribers_gained": sum(item.get("subscribers_gained") or 0 for item in items),
         "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
     }
+    if totals["ad_impressions"] > 0:
+        totals["cpm"] = sum(
+            (item.get("cpm") or 0) * (item.get("ad_impressions") or 0) for item in items
+        ) / totals["ad_impressions"]
+    else:
+        totals["cpm"] = sum(item.get("cpm") or 0 for item in items) / len(items) if items else 0
     return {"items": items, "totals": totals}
+
+
+@router.get("/analytics/playlist-traffic-sources")
+def list_playlist_traffic_sources(playlist_id: str, start_date: str, end_date: str) -> dict:
+    """Return daily traffic-source rows aggregated across videos in one playlist."""
+    with get_connection() as conn:
+        exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Playlist not found.")
+        rows = conn.execute(
+            """
+            WITH playlist_videos AS (
+                SELECT DISTINCT video_id
+                FROM playlist_items
+                WHERE playlist_id = ? AND video_id IS NOT NULL
+            )
+            SELECT
+                vts.date AS day,
+                vts.traffic_source AS traffic_source,
+                SUM(COALESCE(vts.views, 0)) AS views,
+                SUM(COALESCE(vts.watch_time_minutes, 0)) AS watch_time_minutes
+            FROM video_traffic_source vts
+            JOIN playlist_videos pv ON pv.video_id = vts.video_id
+            WHERE vts.date >= ? AND vts.date <= ?
+            GROUP BY vts.date, vts.traffic_source
+            ORDER BY vts.date ASC, vts.traffic_source ASC
+            """,
+            (playlist_id, start_date, end_date),
+        ).fetchall()
+    items = [row_to_dict(row) for row in rows]
+    return {"items": items}
 
 
 @router.get("/comments")

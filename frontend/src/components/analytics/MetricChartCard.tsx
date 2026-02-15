@@ -4,6 +4,8 @@ import UploadPublishMarkers, { type ClusteredPublishMarker } from './UploadPubli
 import UploadPublishTooltip, { type UploadHoverState } from './UploadPublishTooltip'
 import './MetricChartCard.css'
 
+type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
+
 type MetricSummary = {
   key: string
   label: string
@@ -25,54 +27,207 @@ type MultiSeries = {
 type PublishedItem = { title: string; published_at: string; thumbnail_url: string; content_type: string }
 type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 
+type AggregatedSeries = {
+  points: SeriesPoint[]
+  rawDays: string[]
+  bucketMeta: Record<string, BucketMeta>
+  dayToBucket: Map<string, string>
+}
+
+type AggregatedMultiSeries = {
+  lines: MultiSeries[]
+  rawDays: string[]
+  bucketMeta: Record<string, BucketMeta>
+  dayToBucket: Map<string, string>
+}
+
 type MetricChartCardProps = {
   metrics: MetricSummary[]
+  granularity: Granularity
   series?: Record<string, SeriesPoint[]>
   previousSeries?: Record<string, SeriesPoint[]>
   multiSeriesByMetric?: Record<string, MultiSeries[]>
   previousMultiSeriesByMetric?: Record<string, MultiSeries[]>
   comparisonAggregation?: Record<string, 'sum' | 'avg'>
-  activeMetricKey?: string
-  onActiveMetricChange?: (key: string) => void
-  startDate?: string
-  endDate?: string
-  useRangeAsDailyAxis?: boolean
   publishedDates?: Record<string, PublishedItem[]>
-  publishedBucketMeta?: Record<string, BucketMeta>
 }
 
 const DECIMAL_METRICS = new Set(['revenue', 'estimated_revenue', 'cpm', 'rpm', 'playback_based_cpm'])
 
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function buildContinuousDays(startDay: string, endDay: string): string[] {
+  const start = new Date(`${startDay}T00:00:00Z`)
+  const end = new Date(`${endDay}T00:00:00Z`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+    return []
+  }
+  const days: string[] = []
+  const cursor = new Date(start)
+  while (cursor <= end) {
+    days.push(cursor.toISOString().slice(0, 10))
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  return days
+}
+
+function aggregateFilledSeries(
+  rawPoints: SeriesPoint[],
+  granularity: Granularity,
+  aggregation: 'sum' | 'avg'
+): AggregatedSeries {
+  const groupedRaw = new Map<string, number>()
+  rawPoints.forEach((point) => {
+    if (!isIsoDate(point.date)) {
+      return
+    }
+    groupedRaw.set(point.date, (groupedRaw.get(point.date) ?? 0) + (Number.isFinite(point.value) ? point.value : 0))
+  })
+
+  const sortedDays = Array.from(groupedRaw.keys()).sort((a, b) => a.localeCompare(b))
+  if (sortedDays.length === 0) {
+    return { points: [], rawDays: [], bucketMeta: {}, dayToBucket: new Map() }
+  }
+
+  const rawDays = buildContinuousDays(sortedDays[0], sortedDays[sortedDays.length - 1])
+  const rawFilled = rawDays.map((day) => ({ date: day, value: groupedRaw.get(day) ?? 0 }))
+
+  const dayToBucket = new Map<string, string>()
+  const bucketMeta: Record<string, BucketMeta> = {}
+
+  if (granularity === 'daily') {
+    rawFilled.forEach((point) => {
+      dayToBucket.set(point.date, point.date)
+      bucketMeta[point.date] = { startDate: point.date, endDate: point.date, dayCount: 1 }
+    })
+    return { points: rawFilled, rawDays, bucketMeta, dayToBucket }
+  }
+
+  if (granularity === 'monthly' || granularity === 'yearly') {
+    const buckets = new Map<string, { sum: number; count: number; startDate: string; endDate: string; dayCount: number }>()
+    rawFilled.forEach((point) => {
+      const bucketKey = granularity === 'monthly' ? point.date.slice(0, 7) : `${point.date.slice(0, 4)}-01-01`
+      dayToBucket.set(point.date, bucketKey)
+      const existing = buckets.get(bucketKey)
+      if (!existing) {
+        buckets.set(bucketKey, {
+          sum: point.value,
+          count: 1,
+          startDate: point.date,
+          endDate: point.date,
+          dayCount: 1,
+        })
+      } else {
+        existing.sum += point.value
+        existing.count += 1
+        existing.endDate = point.date
+        existing.dayCount += 1
+      }
+    })
+
+    const points = Array.from(buckets.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, bucket]) => {
+        bucketMeta[key] = {
+          startDate: bucket.startDate,
+          endDate: bucket.endDate,
+          dayCount: bucket.dayCount,
+        }
+        return { date: key, value: aggregation === 'avg' ? bucket.sum / bucket.count : bucket.sum }
+      })
+    return { points, rawDays, bucketMeta, dayToBucket }
+  }
+
+  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
+  const points: SeriesPoint[] = []
+  for (let index = 0; index < rawFilled.length; index += windowSize) {
+    const bucket = rawFilled.slice(index, index + windowSize)
+    if (bucket.length === 0) {
+      continue
+    }
+    const bucketKey = bucket[bucket.length - 1].date
+    bucket.forEach((point) => dayToBucket.set(point.date, bucketKey))
+    bucketMeta[bucketKey] = {
+      startDate: bucket[0].date,
+      endDate: bucket[bucket.length - 1].date,
+      dayCount: bucket.length,
+    }
+    const sum = bucket.reduce((acc, point) => acc + point.value, 0)
+    points.push({ date: bucketKey, value: aggregation === 'avg' ? sum / bucket.length : sum })
+  }
+
+  return { points, rawDays, bucketMeta, dayToBucket }
+}
+
+function aggregateFilledMultiSeries(
+  rawLines: MultiSeries[],
+  granularity: Granularity,
+  aggregation: 'sum' | 'avg'
+): AggregatedMultiSeries {
+  const allDays = new Set<string>()
+  const byLine = new Map<string, Map<string, number>>()
+
+  rawLines.forEach((line) => {
+    const lineDays = new Map<string, number>()
+    line.points.forEach((point) => {
+      if (!isIsoDate(point.date)) {
+        return
+      }
+      allDays.add(point.date)
+      lineDays.set(point.date, (lineDays.get(point.date) ?? 0) + (Number.isFinite(point.value) ? point.value : 0))
+    })
+    byLine.set(line.key, lineDays)
+  })
+
+  const sortedDays = Array.from(allDays).sort((a, b) => a.localeCompare(b))
+  if (sortedDays.length === 0) {
+    return { lines: [], rawDays: [], bucketMeta: {}, dayToBucket: new Map() }
+  }
+
+  const rawDays = buildContinuousDays(sortedDays[0], sortedDays[sortedDays.length - 1])
+  const rawFilledByLine = rawLines.map((line) => ({
+    ...line,
+    points: rawDays.map((day) => ({ date: day, value: byLine.get(line.key)?.get(day) ?? 0 })),
+  }))
+
+  const sample = aggregateFilledSeries(rawFilledByLine[0]?.points ?? [], granularity, aggregation)
+  const lines = rawFilledByLine.map((line) => {
+    const aggregated = aggregateFilledSeries(line.points, granularity, aggregation)
+    return {
+      key: line.key,
+      label: line.label,
+      color: line.color,
+      points: aggregated.points,
+    }
+  })
+
+  return {
+    lines,
+    rawDays,
+    bucketMeta: sample.bucketMeta,
+    dayToBucket: sample.dayToBucket,
+  }
+}
+
 function MetricChartCard({
   metrics,
+  granularity,
   series = {},
   previousSeries = {},
   multiSeriesByMetric = {},
   previousMultiSeriesByMetric = {},
   comparisonAggregation = {},
-  activeMetricKey,
-  onActiveMetricChange,
-  startDate,
-  endDate,
-  useRangeAsDailyAxis = false,
   publishedDates = {},
-  publishedBucketMeta = {},
 }: MetricChartCardProps) {
-  const [activeMetric, setActiveMetric] = useState<string>(activeMetricKey ?? metrics[0]?.key ?? '')
+  const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [hoverPublish, setHoverPublish] = useState<UploadHoverState | null>(null)
   const [hoverLocked, setHoverLocked] = useState(false)
   const hoverTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [chartWidth, setChartWidth] = useState(960)
-
-  const points = series[activeMetric] ?? []
-  const activeMultiSeries = multiSeriesByMetric[activeMetric] ?? []
-  const isMulti = activeMultiSeries.length > 0
-  const chartHeight = 300
-  const padding = { top: 12, right: 0, bottom: 48, left: 56 }
-  const innerWidth = chartWidth - padding.left - padding.right
-  const innerHeight = chartHeight - padding.top - padding.bottom
 
   useEffect(() => {
     if (!containerRef.current) {
@@ -89,29 +244,70 @@ function MetricChartCard({
   }, [])
 
   useEffect(() => {
-    if (activeMetricKey && metrics.some((metric) => metric.key === activeMetricKey) && activeMetric !== activeMetricKey) {
-      setActiveMetric(activeMetricKey)
-      return
-    }
     if (!metrics.some((metric) => metric.key === activeMetric)) {
-      setActiveMetric(activeMetricKey && metrics.some((metric) => metric.key === activeMetricKey) ? activeMetricKey : (metrics[0]?.key ?? ''))
+      setActiveMetric(metrics[0]?.key ?? '')
     }
-  }, [metrics, activeMetric, activeMetricKey])
+  }, [metrics, activeMetric])
+
+  const aggregatedSeriesByMetric = useMemo(() => {
+    const next: Record<string, AggregatedSeries> = {}
+    const keys = new Set<string>([...Object.keys(series), ...Object.keys(previousSeries), ...metrics.map((metric) => metric.key)])
+    keys.forEach((key) => {
+      const aggregation = comparisonAggregation[key] ?? 'sum'
+      next[key] = aggregateFilledSeries(series[key] ?? [], granularity, aggregation)
+    })
+    return next
+  }, [series, previousSeries, metrics, granularity, comparisonAggregation])
+
+  const previousAggregatedSeriesByMetric = useMemo(() => {
+    const next: Record<string, AggregatedSeries> = {}
+    const keys = new Set<string>([...Object.keys(series), ...Object.keys(previousSeries), ...metrics.map((metric) => metric.key)])
+    keys.forEach((key) => {
+      const aggregation = comparisonAggregation[key] ?? 'sum'
+      next[key] = aggregateFilledSeries(previousSeries[key] ?? [], granularity, aggregation)
+    })
+    return next
+  }, [series, previousSeries, metrics, granularity, comparisonAggregation])
+
+  const aggregatedMultiByMetric = useMemo(() => {
+    const next: Record<string, AggregatedMultiSeries> = {}
+    const keys = new Set<string>([...Object.keys(multiSeriesByMetric), ...Object.keys(previousMultiSeriesByMetric), ...metrics.map((metric) => metric.key)])
+    keys.forEach((key) => {
+      const aggregation = comparisonAggregation[key] ?? 'sum'
+      next[key] = aggregateFilledMultiSeries(multiSeriesByMetric[key] ?? [], granularity, aggregation)
+    })
+    return next
+  }, [multiSeriesByMetric, previousMultiSeriesByMetric, metrics, granularity, comparisonAggregation])
+
+  const previousAggregatedMultiByMetric = useMemo(() => {
+    const next: Record<string, AggregatedMultiSeries> = {}
+    const keys = new Set<string>([...Object.keys(multiSeriesByMetric), ...Object.keys(previousMultiSeriesByMetric), ...metrics.map((metric) => metric.key)])
+    keys.forEach((key) => {
+      const aggregation = comparisonAggregation[key] ?? 'sum'
+      next[key] = aggregateFilledMultiSeries(previousMultiSeriesByMetric[key] ?? [], granularity, aggregation)
+    })
+    return next
+  }, [multiSeriesByMetric, previousMultiSeriesByMetric, metrics, granularity, comparisonAggregation])
+
+  const points = aggregatedSeriesByMetric[activeMetric]?.points ?? []
+  const activeMultiSeries = aggregatedMultiByMetric[activeMetric]?.lines ?? []
+  const isMulti = activeMultiSeries.length > 0
+  const chartRawDays = isMulti
+    ? aggregatedMultiByMetric[activeMetric]?.rawDays ?? []
+    : aggregatedSeriesByMetric[activeMetric]?.rawDays ?? []
+  const chartDayToBucket = isMulti
+    ? aggregatedMultiByMetric[activeMetric]?.dayToBucket ?? new Map<string, string>()
+    : aggregatedSeriesByMetric[activeMetric]?.dayToBucket ?? new Map<string, string>()
+  const chartBucketMeta = isMulti
+    ? aggregatedMultiByMetric[activeMetric]?.bucketMeta ?? {}
+    : aggregatedSeriesByMetric[activeMetric]?.bucketMeta ?? {}
+
+  const chartHeight = 300
+  const padding = { top: 12, right: 0, bottom: 48, left: 56 }
+  const innerWidth = chartWidth - padding.left - padding.right
+  const innerHeight = chartHeight - padding.top - padding.bottom
 
   const dates = useMemo(() => {
-    if (useRangeAsDailyAxis && startDate && endDate) {
-      const start = new Date(`${startDate}T00:00:00Z`)
-      const end = new Date(`${endDate}T00:00:00Z`)
-      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && start <= end) {
-        const days: string[] = []
-        const cursor = new Date(start)
-        while (cursor <= end) {
-          days.push(cursor.toISOString().slice(0, 10))
-          cursor.setUTCDate(cursor.getUTCDate() + 1)
-        }
-        return days
-      }
-    }
     if (isMulti) {
       const allDates = new Set<string>()
       activeMultiSeries.forEach((line) => {
@@ -120,7 +316,7 @@ function MetricChartCard({
       return Array.from(allDates).sort((a, b) => a.localeCompare(b))
     }
     return points.map((point) => point.date)
-  }, [useRangeAsDailyAxis, startDate, endDate, isMulti, activeMultiSeries, points])
+  }, [isMulti, activeMultiSeries, points])
 
   const singleByDate = useMemo(() => {
     const map = new Map<string, number>()
@@ -240,12 +436,31 @@ function MetricChartCard({
   const activeX = hoverIndex !== null && hoverIndex >= 0 && hoverIndex < displayDates.length ? xScale(hoverIndex) : null
   const activeY = activeValue !== null && activeX !== null ? yScale(activeValue) : null
   const labelStep = Math.max(1, Math.ceil(displayDates.length / 8))
+
+  const rebucketedPublished = useMemo(() => {
+    const rebucketed: Record<string, PublishedItem[]> = {}
+    if (chartDayToBucket.size === 0) {
+      return rebucketed
+    }
+    Object.entries(publishedDates).forEach(([day, dayItems]) => {
+      const bucket = chartDayToBucket.get(day)
+      if (!bucket) {
+        return
+      }
+      if (!rebucketed[bucket]) {
+        rebucketed[bucket] = []
+      }
+      rebucketed[bucket].push(...dayItems)
+    })
+    return rebucketed
+  }, [publishedDates, chartDayToBucket])
+
   const publishPoints = displayDates
     .map((point, index) => ({
       index,
       date: point,
-      items: publishedDates[point] ?? [],
-      meta: publishedBucketMeta[point] ?? { startDate: point, endDate: point, dayCount: 1 },
+      items: rebucketedPublished[point] ?? [],
+      meta: chartBucketMeta[point] ?? { startDate: point, endDate: point, dayCount: 1 },
     }))
     .filter((item) => item.items.length > 0)
 
@@ -361,32 +576,24 @@ function MetricChartCard({
   }
 
   const previousWindowLabel = useMemo(() => {
-    if (!startDate || !endDate) {
-      return 'previous period'
-    }
-    const start = new Date(`${startDate}T00:00:00Z`)
-    const end = new Date(`${endDate}T00:00:00Z`)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return 'previous period'
-    }
-    const daySpan = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1)
+    const daySpan = Math.max(1, chartRawDays.length)
     return `previous ${daySpan === 1 ? '1 day' : `${daySpan} days`}`
-  }, [startDate, endDate])
+  }, [chartRawDays.length])
 
   const computeComparison = (metricKey: string) => {
     const aggregation = comparisonAggregation[metricKey] ?? 'sum'
-    const currentMulti = multiSeriesByMetric[metricKey] ?? []
-    const previousMulti = previousMultiSeriesByMetric[metricKey] ?? []
-    const currentSingle = series[metricKey] ?? []
-    const previousSingle = previousSeries[metricKey] ?? []
-    const getSingleValue = (points: SeriesPoint[]) => {
-      if (points.length === 0) {
+    const currentMulti = aggregatedMultiByMetric[metricKey]?.lines ?? []
+    const previousMulti = previousAggregatedMultiByMetric[metricKey]?.lines ?? []
+    const currentSingle = aggregatedSeriesByMetric[metricKey]?.points ?? []
+    const previousSingle = previousAggregatedSeriesByMetric[metricKey]?.points ?? []
+    const getSingleValue = (input: SeriesPoint[]) => {
+      if (input.length === 0) {
         return 0
       }
       if (aggregation === 'avg') {
-        return points.reduce((sum, point) => sum + point.value, 0) / points.length
+        return input.reduce((sum, point) => sum + point.value, 0) / input.length
       }
-      return points.reduce((sum, point) => sum + point.value, 0)
+      return input.reduce((sum, point) => sum + point.value, 0)
     }
     const getMultiValue = (lines: MultiSeries[]) => {
       const values = lines.flatMap((line) => line.points.map((point) => point.value))
@@ -430,7 +637,6 @@ function MetricChartCard({
               type="button"
               onClick={() => {
                 setActiveMetric(metric.key)
-                onActiveMetricChange?.(metric.key)
               }}
             >
               <span className="metric-label">{metric.label}</span>

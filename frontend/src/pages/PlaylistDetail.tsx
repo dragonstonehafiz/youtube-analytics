@@ -21,15 +21,20 @@ type PlaylistMeta = {
 
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type PlaylistViewMode = 'playlist_views' | 'video_views'
+type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery'
 type SeriesPoint = { date: string; value: number }
+type DiscoveryMultiSeries = { key: string; label: string; color: string; points: SeriesPoint[] }
+type TrafficSourceRow = { day: string; traffic_source: string; views: number; watch_time_minutes: number }
 type PublishedItem = { title: string; published_at: string; thumbnail_url: string; content_type: string }
-type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 type PlaylistDailyRow = {
   day: string
   views: number | null
   watch_time_minutes?: number | null
   average_view_duration_seconds?: number | null
   estimated_revenue?: number | null
+  ad_impressions?: number | null
+  monetized_playbacks?: number | null
+  cpm?: number | null
   subscribers_gained?: number | null
   subscribers_lost?: number | null
   average_time_in_playlist_seconds?: number | null
@@ -44,113 +49,6 @@ function formatDurationSeconds(seconds: number | null | undefined): string {
   const mins = Math.floor(rounded / 60)
   const secs = rounded % 60
   return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
-function buildDayBucketMap(days: string[], granularity: Granularity): Map<string, string> {
-  const dayToBucket = new Map<string, string>()
-  if (granularity === 'daily') {
-    days.forEach((day) => dayToBucket.set(day, day))
-    return dayToBucket
-  }
-  if (granularity === 'monthly') {
-    days.forEach((day) => dayToBucket.set(day, day.slice(0, 7)))
-    return dayToBucket
-  }
-  if (granularity === 'yearly') {
-    days.forEach((day) => dayToBucket.set(day, `${day.slice(0, 4)}-01-01`))
-    return dayToBucket
-  }
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  for (let index = 0; index < days.length; index += windowSize) {
-    const bucket = days.slice(index, index + windowSize)
-    if (bucket.length === 0) {
-      continue
-    }
-    const bucketKey = bucket[bucket.length - 1]
-    bucket.forEach((day) => dayToBucket.set(day, bucketKey))
-  }
-  return dayToBucket
-}
-
-function buildBucketMeta(days: string[], granularity: Granularity): Record<string, BucketMeta> {
-  const meta: Record<string, BucketMeta> = {}
-  if (days.length === 0) {
-    return meta
-  }
-  if (granularity === 'daily') {
-    days.forEach((day) => {
-      meta[day] = { startDate: day, endDate: day, dayCount: 1 }
-    })
-    return meta
-  }
-  if (granularity === 'monthly') {
-    const groups = new Map<string, { startDate: string; endDate: string; dayCount: number }>()
-    days.forEach((day) => {
-      const key = day.slice(0, 7)
-      const existing = groups.get(key)
-      if (!existing) {
-        groups.set(key, { startDate: day, endDate: day, dayCount: 1 })
-      } else {
-        existing.endDate = day
-        existing.dayCount += 1
-      }
-    })
-    groups.forEach((value, key) => {
-      meta[key] = value
-    })
-    return meta
-  }
-  if (granularity === 'yearly') {
-    const groups = new Map<string, { startDate: string; endDate: string; dayCount: number }>()
-    days.forEach((day) => {
-      const key = `${day.slice(0, 4)}-01-01`
-      const existing = groups.get(key)
-      if (!existing) {
-        groups.set(key, { startDate: day, endDate: day, dayCount: 1 })
-      } else {
-        existing.endDate = day
-        existing.dayCount += 1
-      }
-    })
-    groups.forEach((value, key) => {
-      meta[key] = value
-    })
-    return meta
-  }
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  for (let index = 0; index < days.length; index += windowSize) {
-    const bucket = days.slice(index, index + windowSize)
-    if (bucket.length === 0) {
-      continue
-    }
-    const key = bucket[bucket.length - 1]
-    meta[key] = { startDate: bucket[0], endDate: bucket[bucket.length - 1], dayCount: bucket.length }
-  }
-  return meta
-}
-
-function aggregatePoints(points: SeriesPoint[], granularity: Granularity): SeriesPoint[] {
-  if (granularity === 'daily' || points.length === 0) {
-    return points
-  }
-  if (granularity === 'monthly' || granularity === 'yearly') {
-    const grouped = new Map<string, number>()
-    points.forEach((point) => {
-      const key = granularity === 'monthly' ? point.date.slice(0, 7) : `${point.date.slice(0, 4)}-01-01`
-      grouped.set(key, (grouped.get(key) ?? 0) + point.value)
-    })
-    return Array.from(grouped.entries()).map(([date, value]) => ({ date, value }))
-  }
-  const windowSize = granularity === '7d' ? 7 : granularity === '28d' ? 28 : 90
-  const aggregated: SeriesPoint[] = []
-  for (let index = 0; index < points.length; index += windowSize) {
-    const bucket = points.slice(index, index + windowSize)
-    aggregated.push({
-      date: bucket[bucket.length - 1].date,
-      value: bucket.reduce((sum, point) => sum + point.value, 0),
-    })
-  }
-  return aggregated
 }
 
 function PlaylistDetail() {
@@ -193,13 +91,18 @@ function PlaylistDetail() {
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(getStored('playlistDetailViewMode', 'playlist_views'))
   const [granularity, setGranularity] = useState<Granularity>(getStored('playlistDetailGranularity', 'daily'))
+  const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(getStored('playlistDetailTab', 'metrics'))
   const [dailyRows, setDailyRows] = useState<PlaylistDailyRow[]>([])
   const [previousDailyRows, setPreviousDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [playlistDailyRows, setPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [videoDailyRows, setVideoDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [previousPlaylistDailyRows, setPreviousPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [previousVideoDailyRows, setPreviousVideoDailyRows] = useState<PlaylistDailyRow[]>([])
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({})
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({})
-  const [summaryDays, setSummaryDays] = useState<string[]>([])
+  const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
+  const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
   const [publishedDates, setPublishedDates] = useState<Record<string, PublishedItem[]>>({})
-  const [publishBucketMeta, setPublishBucketMeta] = useState<Record<string, BucketMeta>>({})
   const [totals, setTotals] = useState({
     views: 0,
     watch_time_minutes: 0,
@@ -443,6 +346,10 @@ function PlaylistDetail() {
   }, [granularity])
 
   useEffect(() => {
+    setStored('playlistDetailTab', analyticsTab)
+  }, [analyticsTab])
+
+  useEffect(() => {
     async function loadYears() {
       try {
         const response = await fetch('http://127.0.0.1:8000/analytics/years')
@@ -468,6 +375,10 @@ function PlaylistDetail() {
   useEffect(() => {
     async function loadPlaylistAnalytics() {
       if (!playlistId) {
+        setPlaylistDailyRows([])
+        setVideoDailyRows([])
+        setPreviousPlaylistDailyRows([])
+        setPreviousVideoDailyRows([])
         setDailyRows([])
         setPreviousDailyRows([])
         setTotals({
@@ -486,46 +397,51 @@ function PlaylistDetail() {
       setAnalyticsLoading(true)
       setAnalyticsError(null)
       try {
-        const endpoint =
-          viewMode === 'playlist_views'
-            ? '/analytics/playlist-daily'
-            : '/analytics/playlist-video-daily'
-        const [currentResponse, previousResponse] = await Promise.all([
+        const [
+          playlistCurrentResponse,
+          playlistPreviousResponse,
+          videoCurrentResponse,
+          videoPreviousResponse,
+        ] = await Promise.all([
           fetch(
-            `http://127.0.0.1:8000${endpoint}?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
+            `http://127.0.0.1:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
           ),
           fetch(
-            `http://127.0.0.1:8000${endpoint}?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
+            `http://127.0.0.1:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
+          ),
+          fetch(
+            `http://127.0.0.1:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
+          ),
+          fetch(
+            `http://127.0.0.1:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
           ),
         ])
-        if (!currentResponse.ok) {
-          throw new Error(`Failed to load playlist analytics (${currentResponse.status})`)
+        if (!playlistCurrentResponse.ok || !playlistPreviousResponse.ok || !videoCurrentResponse.ok || !videoPreviousResponse.ok) {
+          const status = !playlistCurrentResponse.ok
+            ? playlistCurrentResponse.status
+            : !playlistPreviousResponse.ok
+              ? playlistPreviousResponse.status
+              : !videoCurrentResponse.ok
+                ? videoCurrentResponse.status
+                : videoPreviousResponse.status
+          throw new Error(`Failed to load playlist analytics (${status})`)
         }
-        if (!previousResponse.ok) {
-          throw new Error(`Failed to load previous playlist analytics (${previousResponse.status})`)
-        }
-        const [data, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
-        const items = (Array.isArray(data.items) ? data.items : []) as PlaylistDailyRow[]
-        const sorted = [...items]
-          .filter((item) => typeof item.day === 'string')
-          .sort((a, b) => a.day.localeCompare(b.day))
-        setDailyRows(sorted)
-        const gained = data.totals?.subscribers_gained ?? 0
-        const lost = data.totals?.subscribers_lost ?? 0
-        const nextTotals = {
-          views: data.totals?.views ?? 0,
-          watch_time_minutes: data.totals?.watch_time_minutes ?? 0,
-          subscribers_net: gained - lost,
-          estimated_revenue: data.totals?.estimated_revenue ?? 0,
-          average_view_duration_seconds: data.totals?.average_view_duration_seconds ?? 0,
-          average_time_in_playlist_seconds: data.totals?.average_time_in_playlist_seconds ?? 0,
-        }
-        setTotals(nextTotals)
-        const previousItems = (Array.isArray(previousData.items) ? previousData.items : []) as PlaylistDailyRow[]
-        const previousSorted = [...previousItems]
-          .filter((item) => typeof item.day === 'string')
-          .sort((a, b) => a.day.localeCompare(b.day))
-        setPreviousDailyRows(previousSorted)
+        const [playlistData, playlistPreviousData, videoData, videoPreviousData] = await Promise.all([
+          playlistCurrentResponse.json(),
+          playlistPreviousResponse.json(),
+          videoCurrentResponse.json(),
+          videoPreviousResponse.json(),
+        ])
+        const sortRows = (rows: PlaylistDailyRow[]) =>
+          [...rows].filter((item) => typeof item.day === 'string').sort((a, b) => a.day.localeCompare(b.day))
+        const playlistCurrentRows = sortRows((Array.isArray(playlistData.items) ? playlistData.items : []) as PlaylistDailyRow[])
+        const playlistPreviousRows = sortRows((Array.isArray(playlistPreviousData.items) ? playlistPreviousData.items : []) as PlaylistDailyRow[])
+        const videoCurrentRows = sortRows((Array.isArray(videoData.items) ? videoData.items : []) as PlaylistDailyRow[])
+        const videoPreviousRows = sortRows((Array.isArray(videoPreviousData.items) ? videoPreviousData.items : []) as PlaylistDailyRow[])
+        setPlaylistDailyRows(playlistCurrentRows)
+        setPreviousPlaylistDailyRows(playlistPreviousRows)
+        setVideoDailyRows(videoCurrentRows)
+        setPreviousVideoDailyRows(videoPreviousRows)
       } catch (err) {
         setAnalyticsError(err instanceof Error ? err.message : 'Failed to load playlist analytics.')
       } finally {
@@ -534,7 +450,45 @@ function PlaylistDetail() {
     }
 
     loadPlaylistAnalytics()
-  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end, viewMode])
+  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end])
+
+  useEffect(() => {
+    setDailyRows(viewMode === 'playlist_views' ? playlistDailyRows : videoDailyRows)
+    setPreviousDailyRows(viewMode === 'playlist_views' ? previousPlaylistDailyRows : previousVideoDailyRows)
+  }, [viewMode, playlistDailyRows, videoDailyRows, previousPlaylistDailyRows, previousVideoDailyRows])
+
+  useEffect(() => {
+    async function loadDiscoveryTraffic() {
+      if (!playlistId) {
+        setDiscoveryTrafficRows([])
+        setDiscoveryPreviousTrafficRows([])
+        return
+      }
+      try {
+        const currentUrl = `http://127.0.0.1:8000/analytics/playlist-traffic-sources?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
+        const previousUrl = `http://127.0.0.1:8000/analytics/playlist-traffic-sources?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
+        const [currentResponse, previousResponse] = await Promise.all([fetch(currentUrl), fetch(previousUrl)])
+        if (!currentResponse.ok || !previousResponse.ok) {
+          throw new Error('Failed to load playlist discovery traffic data.')
+        }
+        const [currentPayload, previousPayload] = await Promise.all([currentResponse.json(), previousResponse.json()])
+        const toRows = (items: any[]): TrafficSourceRow[] =>
+          items.map((item) => ({
+            day: String(item?.day ?? ''),
+            traffic_source: String(item?.traffic_source ?? ''),
+            views: Number(item?.views ?? 0),
+            watch_time_minutes: Number(item?.watch_time_minutes ?? 0),
+          }))
+        setDiscoveryTrafficRows(Array.isArray(currentPayload?.items) ? toRows(currentPayload.items) : [])
+        setDiscoveryPreviousTrafficRows(Array.isArray(previousPayload?.items) ? toRows(previousPayload.items) : [])
+      } catch (error) {
+        console.error('Failed to load playlist discovery traffic data', error)
+        setDiscoveryTrafficRows([])
+        setDiscoveryPreviousTrafficRows([])
+      }
+    }
+    loadDiscoveryTraffic()
+  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end])
 
   useEffect(() => {
     try {
@@ -544,8 +498,6 @@ function PlaylistDetail() {
       if (sorted.length === 0) {
         setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
         setPreviousSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
-        setSummaryDays([])
-        setPublishBucketMeta({})
         setTotals({
           views: 0,
           watch_time_minutes: 0,
@@ -569,8 +521,6 @@ function PlaylistDetail() {
         days.push(cursor.toISOString().slice(0, 10))
         cursor.setUTCDate(cursor.getUTCDate() + 1)
       }
-      setSummaryDays(days)
-      setPublishBucketMeta(buildBucketMeta(days, granularity))
       const viewsSeries = days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 }))
       const watchSeries = days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) }))
       const subsSeries = days.map((day) => {
@@ -620,16 +570,16 @@ function PlaylistDetail() {
           : previousByDay.get(day)?.estimated_revenue ?? 0,
       }))
       setSeries({
-        views: aggregatePoints(viewsSeries, granularity),
-        watch_time: aggregatePoints(watchSeries, granularity),
-        subscribers: aggregatePoints(subsSeries, granularity),
-        revenue: aggregatePoints(revenueSeries, granularity),
+        views: viewsSeries,
+        watch_time: watchSeries,
+        subscribers: subsSeries,
+        revenue: revenueSeries,
       })
       setPreviousSeries({
-        views: aggregatePoints(previousViewsSeries, granularity),
-        watch_time: aggregatePoints(previousWatchSeries, granularity),
-        subscribers: aggregatePoints(previousSubsSeries, granularity),
-        revenue: aggregatePoints(previousRevenueSeries, granularity),
+        views: previousViewsSeries,
+        watch_time: previousWatchSeries,
+        subscribers: previousSubsSeries,
+        revenue: previousRevenueSeries,
       })
       setTotals({
         views: sorted.reduce((sum, item) => sum + (item.views ?? 0), 0),
@@ -645,7 +595,7 @@ function PlaylistDetail() {
     } catch (err) {
       setAnalyticsError(err instanceof Error ? err.message : 'Failed to process playlist analytics.')
     }
-  }, [dailyRows, previousDailyRows, range.start, range.end, previousRange.start, previousRange.end, granularity, viewMode])
+  }, [dailyRows, previousDailyRows, range.start, range.end, previousRange.start, previousRange.end, viewMode])
 
   useEffect(() => {
     async function loadPublished() {
@@ -668,34 +618,154 @@ function PlaylistDetail() {
             map[item.day] = Array.isArray(item.items) ? item.items : []
           }
         })
-        if (granularity === 'daily') {
-          setPublishedDates(map)
-          return
-        }
-        if (summaryDays.length === 0) {
-          setPublishedDates({})
-          return
-        }
-        const dayToBucket = buildDayBucketMap(summaryDays, granularity)
-        const rebucketed: Record<string, PublishedItem[]> = {}
-        Object.entries(map).forEach(([day, dayItems]) => {
-          const bucket = dayToBucket.get(day)
-          if (!bucket) {
-            return
-          }
-          if (!rebucketed[bucket]) {
-            rebucketed[bucket] = []
-          }
-          rebucketed[bucket].push(...dayItems)
-        })
-        setPublishedDates(rebucketed)
+        setPublishedDates(map)
       } catch (error) {
         console.error('Failed to load playlist published dates', error)
       }
     }
 
     loadPublished()
-  }, [playlistId, range.start, range.end, granularity, summaryDays])
+  }, [playlistId, range.start, range.end])
+
+  const buildTrafficSeries = (
+    rows: TrafficSourceRow[],
+    metric: 'views' | 'watch_time',
+    startDate: string,
+    endDate: string
+  ): DiscoveryMultiSeries[] => {
+    const start = new Date(`${startDate}T00:00:00Z`)
+    const end = new Date(`${endDate}T00:00:00Z`)
+    const allDays: string[] = []
+    const cursor = new Date(start)
+    while (cursor <= end) {
+      allDays.push(cursor.toISOString().slice(0, 10))
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    }
+    const totalsBySource = new Map<string, number>()
+    rows.forEach((row) => {
+      const source = row.traffic_source
+      if (!source) {
+        return
+      }
+      const value = metric === 'views' ? row.views : row.watch_time_minutes
+      totalsBySource.set(source, (totalsBySource.get(source) ?? 0) + value)
+    })
+    const topSources = Array.from(totalsBySource.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([source]) => source)
+    const palette = ['#0ea5e9', '#22c55e', '#f97316', '#a855f7', '#ef4444']
+    return topSources.map((source, index) => {
+      const grouped = new Map<string, number>()
+      rows.forEach((row) => {
+        if (row.traffic_source !== source || !row.day) {
+          return
+        }
+        const value = metric === 'views' ? row.views : row.watch_time_minutes
+        grouped.set(row.day, (grouped.get(row.day) ?? 0) + value)
+      })
+      const points = allDays.map((date) => ({ date, value: grouped.get(date) ?? 0 }))
+      return {
+        key: source,
+        label: source.replace(/_/g, ' '),
+        color: palette[index % palette.length],
+        points,
+      }
+    })
+  }
+
+  const discoverySeriesByMetric = useMemo(
+    () => ({
+      views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end),
+      watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end),
+    }),
+    [discoveryTrafficRows, range.start, range.end]
+  )
+
+  const previousDiscoverySeriesByMetric = useMemo(
+    () => ({
+      views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end),
+      watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end),
+    }),
+    [discoveryPreviousTrafficRows, previousRange.start, previousRange.end]
+  )
+
+  const discoveryMetrics = useMemo(() => {
+    const totalViews = discoverySeriesByMetric.views.reduce(
+      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0),
+      0
+    )
+    const totalWatch = discoverySeriesByMetric.watch_time.reduce(
+      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0),
+      0
+    )
+    return [
+      { key: 'views', label: 'Views', value: formatWholeNumber(Math.round(totalViews)) },
+      { key: 'watch_time', label: 'Watch time', value: formatWholeNumber(Math.round(totalWatch)) },
+    ]
+  }, [discoverySeriesByMetric])
+
+  const monetizationSeries = useMemo(() => {
+    const sorted = [...videoDailyRows]
+      .filter((item) => typeof item.day === 'string' && item.day >= range.start && item.day <= range.end)
+      .sort((a, b) => a.day.localeCompare(b.day))
+    const byDay = new Map<string, PlaylistDailyRow>()
+    sorted.forEach((item) => byDay.set(item.day, item))
+    if (sorted.length === 0) {
+      return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] } as Record<string, SeriesPoint[]>
+    }
+    const days: string[] = []
+    const cursor = new Date(`${sorted[0].day}T00:00:00Z`)
+    const end = new Date(`${sorted[sorted.length - 1].day}T00:00:00Z`)
+    while (cursor <= end) {
+      days.push(cursor.toISOString().slice(0, 10))
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    }
+    return {
+      estimated_revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
+      ad_impressions: days.map((day) => ({ date: day, value: byDay.get(day)?.ad_impressions ?? 0 })),
+      monetized_playbacks: days.map((day) => ({ date: day, value: byDay.get(day)?.monetized_playbacks ?? 0 })),
+      cpm: days.map((day) => ({ date: day, value: byDay.get(day)?.cpm ?? 0 })),
+    }
+  }, [videoDailyRows, range.start, range.end])
+
+  const previousMonetizationSeries = useMemo(() => {
+    const sorted = [...previousVideoDailyRows]
+      .filter((item) => typeof item.day === 'string' && item.day >= previousRange.start && item.day <= previousRange.end)
+      .sort((a, b) => a.day.localeCompare(b.day))
+    const byDay = new Map<string, PlaylistDailyRow>()
+    sorted.forEach((item) => byDay.set(item.day, item))
+    if (sorted.length === 0) {
+      return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] } as Record<string, SeriesPoint[]>
+    }
+    const days: string[] = []
+    const cursor = new Date(`${sorted[0].day}T00:00:00Z`)
+    const end = new Date(`${sorted[sorted.length - 1].day}T00:00:00Z`)
+    while (cursor <= end) {
+      days.push(cursor.toISOString().slice(0, 10))
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    }
+    return {
+      estimated_revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
+      ad_impressions: days.map((day) => ({ date: day, value: byDay.get(day)?.ad_impressions ?? 0 })),
+      monetized_playbacks: days.map((day) => ({ date: day, value: byDay.get(day)?.monetized_playbacks ?? 0 })),
+      cpm: days.map((day) => ({ date: day, value: byDay.get(day)?.cpm ?? 0 })),
+    }
+  }, [previousVideoDailyRows, previousRange.start, previousRange.end])
+
+  const monetizationTotals = useMemo(() => {
+    const rows = videoDailyRows.filter((item) => typeof item.day === 'string' && item.day >= range.start && item.day <= range.end)
+    const adImpressions = rows.reduce((sum, item) => sum + Number(item.ad_impressions ?? 0), 0)
+    const cpmWeighted = adImpressions > 0
+      ? rows.reduce((sum, item) => sum + Number(item.cpm ?? 0) * Number(item.ad_impressions ?? 0), 0) / adImpressions
+      : 0
+    return {
+      estimated_revenue: rows.reduce((sum, item) => sum + Number(item.estimated_revenue ?? 0), 0),
+      ad_impressions: adImpressions,
+      monetized_playbacks: rows.reduce((sum, item) => sum + Number(item.monetized_playbacks ?? 0), 0),
+      cpm: cpmWeighted,
+    }
+  }, [videoDailyRows, range.start, range.end])
 
   const toggleSort = (key: PlaylistItemSortKey) => {
     if (sortBy === key) {
@@ -756,6 +826,29 @@ function PlaylistDetail() {
         </div>
         <div className="page-row">
           <div className="playlist-detail-analytics-toolbar">
+            <div className="analytics-tab-row">
+              <button
+                type="button"
+                className={analyticsTab === 'metrics' ? 'analytics-tab active' : 'analytics-tab'}
+                onClick={() => setAnalyticsTab('metrics')}
+              >
+                Metrics
+              </button>
+              <button
+                type="button"
+                className={analyticsTab === 'monetization' ? 'analytics-tab active' : 'analytics-tab'}
+                onClick={() => setAnalyticsTab('monetization')}
+              >
+                Monetization
+              </button>
+              <button
+                type="button"
+                className={analyticsTab === 'discovery' ? 'analytics-tab active' : 'analytics-tab'}
+                onClick={() => setAnalyticsTab('discovery')}
+              >
+                Discovery
+              </button>
+            </div>
             <div className="analytics-range-controls">
                 <Dropdown
                   value={granularity}
@@ -846,8 +939,9 @@ function PlaylistDetail() {
               <div className="video-detail-state">Loading playlist analytics...</div>
             ) : analyticsError ? (
               <div className="video-detail-state">{analyticsError}</div>
-            ) : (
+            ) : analyticsTab === 'metrics' ? (
               <MetricChartCard
+                granularity={granularity}
                 metrics={[
                   {
                     key: 'views',
@@ -886,10 +980,40 @@ function PlaylistDetail() {
                   subscribers: previousSeries.subscribers ?? [],
                   revenue: previousSeries.revenue ?? [],
                 }}
-                startDate={range.start}
-                endDate={range.end}
                 publishedDates={publishedDates}
-                publishedBucketMeta={publishBucketMeta}
+              />
+            ) : analyticsTab === 'monetization' ? (
+              <MetricChartCard
+                granularity={granularity}
+                metrics={[
+                  { key: 'estimated_revenue', label: 'Estimated revenue', value: formatCurrency(monetizationTotals.estimated_revenue) },
+                  { key: 'ad_impressions', label: 'Ad impressions', value: formatWholeNumber(monetizationTotals.ad_impressions) },
+                  { key: 'monetized_playbacks', label: 'Monetized playbacks', value: formatWholeNumber(monetizationTotals.monetized_playbacks) },
+                  { key: 'cpm', label: 'CPM', value: formatCurrency(monetizationTotals.cpm) },
+                ]}
+                series={{
+                  estimated_revenue: monetizationSeries.estimated_revenue ?? [],
+                  ad_impressions: monetizationSeries.ad_impressions ?? [],
+                  monetized_playbacks: monetizationSeries.monetized_playbacks ?? [],
+                  cpm: monetizationSeries.cpm ?? [],
+                }}
+                previousSeries={{
+                  estimated_revenue: previousMonetizationSeries.estimated_revenue ?? [],
+                  ad_impressions: previousMonetizationSeries.ad_impressions ?? [],
+                  monetized_playbacks: previousMonetizationSeries.monetized_playbacks ?? [],
+                  cpm: previousMonetizationSeries.cpm ?? [],
+                }}
+                comparisonAggregation={{ cpm: 'avg' }}
+                publishedDates={publishedDates}
+              />
+            ) : (
+              <MetricChartCard
+                granularity={granularity}
+                metrics={discoveryMetrics}
+                series={{}}
+                multiSeriesByMetric={discoverySeriesByMetric}
+                previousMultiSeriesByMetric={previousDiscoverySeriesByMetric}
+                publishedDates={publishedDates}
               />
             )}
           </PageCard>
