@@ -68,16 +68,6 @@ def list_videos(
     return {"items": [row_to_dict(row) for row in rows], "total": total}
 
 
-@router.get("/videos/{video_id}")
-def get_video(video_id: str) -> dict:
-    """Return one video row by ID."""
-    with get_connection() as conn:
-        row = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Video not found.")
-    return {"item": row_to_dict(row)}
-
-
 @router.get("/videos/published")
 def list_published_dates(start_date: str, end_date: str, content_type: str | None = None) -> dict:
     """Return published video titles by date within a range, optionally filtered by content type."""
@@ -118,3 +108,13 @@ def list_published_dates(start_date: str, end_date: str, content_type: str | Non
         )
     items = [{"day": day, "items": items, "count": len(items)} for day, items in grouped.items()]
     return {"items": items}
+
+
+@router.get("/videos/{video_id}")
+def get_video(video_id: str) -> dict:
+    """Return one video row by ID."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    return {"item": row_to_dict(row)}

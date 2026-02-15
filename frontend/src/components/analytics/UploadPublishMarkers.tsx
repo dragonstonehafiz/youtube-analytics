@@ -1,4 +1,4 @@
-type PublishedItem = { title: string; published_at: string; thumbnail_url: string; content_type: string }
+type PublishedItem = { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }
 
 type MarkerType = 'video' | 'short'
 

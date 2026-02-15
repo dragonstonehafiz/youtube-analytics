@@ -6,6 +6,11 @@
   gap: 24px;
 }
 
+.page-header {
+  position: relative;
+  z-index: var(--z-sticky);
+}
+
 .page-header h1 {
   font-size: 28px;
   margin: 0 0 6px;

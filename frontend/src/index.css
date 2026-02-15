@@ -38,4 +38,12 @@ a {
   --color-accent-2: #a3e635;
   --radius-card: 12px;
   --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+
+  /* Z-index hierarchy (organized by UI element level) */
+  --z-base: 1;
+  --z-sticky: 10;      /* Sticky navigation, sidebar */
+  --z-dropdown: 20;     /* Dropdown menus, select controls */
+  --z-tooltip: 30;      /* Tooltips, popovers, info bubbles */
+  --z-modal: 40;        /* Modal overlays and dialogs */
+  --z-page-control: 50; /* Page-level controls (sidebar toggle, etc.) */
 }

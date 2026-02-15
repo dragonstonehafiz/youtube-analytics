@@ -397,7 +397,7 @@ function Analytics() {
         )
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
-        const map: Record<string, { title: string; published_at: string; thumbnail_url: string; content_type: string }[]> = {}
+        const map: Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]> = {}
         items.forEach((item: any) => {
           if (item.day) {
             map[item.day] = Array.isArray(item.items) ? item.items : []

@@ -15,7 +15,7 @@
   align-self: start;
   overflow-y: auto;
   transition: transform 0.22s ease;
-  z-index: 20;
+  z-index: var(--z-sticky);
 }
 
 .brand {
@@ -91,7 +91,7 @@
   position: fixed;
   left: 12px;
   top: 20px;
-  z-index: 30;
+  z-index: var(--z-page-control);
 }
 
 @media (max-width: 900px) {

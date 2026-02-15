@@ -37,7 +37,7 @@
   font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
-  z-index: 20;
+  z-index: var(--z-tooltip);
   pointer-events: none;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
 }
