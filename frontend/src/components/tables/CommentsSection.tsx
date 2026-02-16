@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import CommentVideoGroup from './CommentVideoGroup'
-import { PageCard } from '../layout'
-import type { CommentGroup } from './commentGroups'
+import { PageCard } from '../cards'
+import type { CommentGroup } from '../features/commentGroups'
 import './CommentsSection.css'
 
 type CommentsSectionProps = {

@@ -41,7 +41,12 @@ backend/
 frontend/
   src/pages/             # Page directories (each with index.ts, PageName.tsx, PageName.css)
     shared.css           # Common page layout, filter, and pagination styles
-  src/components/        # Reusable UI components (ui/, analytics/, videos/, etc.)
+  src/components/        # Reusable UI components organized by pattern/complexity
+    ui/                  # Basic primitives (buttons, dropdowns, inputs, pagination)
+    charts/              # Visualization components (charts, graphs, progress bars)
+    cards/               # Card-based display components
+    tables/              # Table and list components
+    features/            # Complex domain-specific/composite components
   src/utils/             # Formatting helpers (dates, numbers, storage)
 ```
 
@@ -70,7 +75,7 @@ frontend/
 
 ### Adding/modifying a chart or visualization
 1. Check if `MetricChartCard` can handle it (single/multi-series support)
-2. If new chart type needed: Create in `frontend/src/components/analytics/`
+2. If new chart type needed: Create in `frontend/src/components/charts/`
 3. Data formatting: In the page component, not the chart component
 
 ## Critical Constraints
@@ -161,8 +166,12 @@ import './<PageName>.css'     // Page-specific styles
 ```
 
 **Import paths**: Components in page directories are one level deeper:
-- `'../../components/ui'` (not `'../components/ui'`)
-- `'../../utils/date'` (not `'../utils/date'`)
+- `'../../components/ui'` - basic primitives
+- `'../../components/charts'` - visualization components
+- `'../../components/cards'` - card displays
+- `'../../components/tables'` - table/list components
+- `'../../components/features'` - complex features
+- `'../../utils/date'` - utilities
 
 **Shared styles** (`shared.css`):
 - `.page`, `.page-header`, `.page-content` - page layout
@@ -181,16 +190,25 @@ Standard structure:
 **Tabs**: Local state only (not URL params), default to first tab on navigation
 
 ### Component Reuse
-**Critical**: Before creating custom UI, check `frontend/src/components/ui/`
+**Critical**: Before creating custom UI, check existing components organized by pattern
 
-**Common components**:
+**UI primitives** (`frontend/src/components/ui/`):
 - `ActionButton` - standard buttons (primary/soft variants)
 - `Dropdown` - custom select (not native `<select>`)
 - `MultiSelect` - for filter chips
 - `DateRangePicker` - date range inputs
 - `PageSwitcher` + `PageSizePicker` - pagination
+- `ProfileImage` - profile images with fallback
+
+**Visualization components** (`frontend/src/components/charts/`):
 - `DonutChart` - interactive pie/donut charts
 - `RatioBar` - single or segmented horizontal bars
+- `ProgressBar` - progress indicators
+- `MetricChartCard` - time-series charts with KPI chips
+- `UploadPublishMarkers` - video upload indicators for charts
+
+**Feature components** (`frontend/src/components/features/`):
+- `DataRangeControl` - reusable analytics-style range control row (granularity + presets/year/custom)
 
 ### Chart Components
 **Primary**: `MetricChartCard` - handles most time-series charts
@@ -292,7 +310,7 @@ Standard structure:
 1. Fetch data in `frontend/src/pages/Analytics.tsx` (or relevant page)
 2. If on a new tab, add tab option to page header
 3. If standard time-series, use `MetricChartCard` with series data
-4. If custom visualization, create component in `frontend/src/components/analytics/`
+4. If custom visualization, create component in `frontend/src/components/charts/`
 5. Handle granularity bucketing if not using `MetricChartCard`
 
 ### Add a new page
@@ -304,6 +322,19 @@ Standard structure:
 6. Create `index.ts`: `export { default } from './<PageName>'`
 7. Add route in `frontend/src/App.tsx`: `import PageName from './pages/<PageName>'`
 8. Add `<Route path="/page-path" element={<PageName />} />` to routes
+9. Import components from: `../../components/ui`, `../../components/charts`, `../../components/cards`, `../../components/tables`, or `../../components/features`
+
+### Add a new reusable component
+1. Determine component category by pattern:
+   - `ui/` - Basic primitives (buttons, dropdowns, inputs)
+   - `charts/` - Visualization components (charts, graphs)
+   - `cards/` - Card-based displays
+   - `tables/` - Table and list components
+   - `features/` - Complex domain-specific features
+2. Create component file in appropriate directory: `<ComponentName>.tsx`
+3. Create colocated styles if needed: `<ComponentName>.css`
+4. Add export to directory's `index.ts`: `export { default as ComponentName } from './<ComponentName>'`
+5. Export types if needed: `export type { ComponentType } from './<ComponentName>'`
 
 ### Add a new filter to a list page
 1. Add filter UI in page header (use existing `Dropdown`, `DateRangePicker`, etc.)
@@ -364,18 +395,31 @@ Standard structure:
 ## Component Reference
 
 **UI primitives** (`frontend/src/components/ui/`):
-- `ActionButton`, `Dropdown`, `MultiSelect`, `DateRangePicker`
-- `DataRangeControl` - reusable analytics-style range control row (granularity + optional secondary + presets/year/custom)
+- `ActionButton`, `Dropdown`, `MultiSelect`, `DateRangePicker`, `YearInput`
 - `PageSwitcher`, `PageSizePicker` (global page size in local storage)
-- `DonutChart`, `RatioBar`, `ProgressBar`
+- `ProfileImage` - profile images with fallback
 
-**Chart components** (`frontend/src/components/analytics/`):
-- `MetricChartCard` - primary chart (single/multi-series, KPI chips, trends)
-- `TrafficSourceShareCard`, `TrafficSourceTopVideosCard`
+**Visualization components** (`frontend/src/components/charts/`):
+- `MetricChartCard` - primary time-series chart (single/multi-series, KPI chips, trends)
+- `DonutChart` - interactive pie/donut charts
+- `RatioBar` - single or segmented horizontal bars  
+- `ProgressBar` - progress indicators
+- `UploadPublishMarkers`, `UploadPublishTooltip` - video upload indicators for charts
+
+**Card components** (`frontend/src/components/cards/`):
+- `PageCard` - generic card container
+- `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
+- `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards
+- `TrafficSourceShareCard`, `TrafficSourceTopVideosCard` - traffic source cards
 - `VideoDetailListCard` - top content cards with typical-range meters
 
-**List components**:
-- `frontend/src/components/videos/` - `VideoListTable`, `VideoListRow`
-- `frontend/src/components/playlists/` - `PlaylistItemsTable`, `PlaylistItemRow`
-- `frontend/src/components/comments/` - `CommentThreadItem`, `CommentVideoGroup`, `CommentsSection` (presentational grouped-list renderer)
+**Table/List components** (`frontend/src/components/tables/`):
+- `VideoListTable`, `VideoListRow` - video list display
+- `PlaylistItemsTable`, `PlaylistItemRow` - playlist items display
+- `TopContentTable` - top content table for analytics
+- `CommentThreadItem`, `CommentVideoGroup`, `CommentsSection` - comment displays
+
+**Feature components** (`frontend/src/components/features/`):
+- `DataRangeControl` - reusable analytics-style range control (granularity + presets/year/custom)
+- `buildCommentGroups()` - helper for grouping comments by video
 

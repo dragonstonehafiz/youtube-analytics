@@ -1,4 +1,4 @@
-import type { CommentRow, CommentThread } from './CommentThreadItem'
+import type { CommentRow, CommentThread } from '../tables/CommentThreadItem'
 
 type CommentApiRow = CommentRow & {
   video_id: string

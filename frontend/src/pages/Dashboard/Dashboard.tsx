@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { VideoDetailListCard } from '../../components/analytics'
-import { ChannelAnalyticsCard, CommentsPreviewCard, MostActiveAudienceCard } from '../../components/dashboard'
-import { PageCard } from '../../components/layout'
+import {
+  ChannelAnalyticsCard,
+  CommentsPreviewCard,
+  MostActiveAudienceCard,
+  PageCard,
+  VideoDetailListCard,
+} from '../../components/cards'
 import '../shared.css'
 import './Dashboard.css'
 

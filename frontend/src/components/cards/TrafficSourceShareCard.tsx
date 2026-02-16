@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DonutChart, RatioBar, type DonutSegmentResolved } from '../ui'
+import { DonutChart, RatioBar, type DonutSegmentResolved } from '../charts'
 import { formatWholeNumber } from '../../utils/number'
 import './TrafficSourceShareCard.css'
 

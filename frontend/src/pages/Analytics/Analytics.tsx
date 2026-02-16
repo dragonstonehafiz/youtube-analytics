@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DataRangeControl } from '../../components/ui'
+import { DataRangeControl } from '../../components/features'
+import { MetricChartCard } from '../../components/charts'
 import {
-  MetricChartCard,
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
-  TopContentTable,
+  PageCard,
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
   VideoDetailListCard,
   type TopTrafficVideo,
   type TrafficSourceShareItem,
-} from '../../components/analytics'
-import { PageCard } from '../../components/layout'
+} from '../../components/cards'
+import { TopContentTable } from '../../components/tables'
 import { formatDisplayDate } from '../../utils/date'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import { getStored, setStored } from '../../utils/storage'

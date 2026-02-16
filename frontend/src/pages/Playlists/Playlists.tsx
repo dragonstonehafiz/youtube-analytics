@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
-import { PageCard } from '../../components/layout'
+import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
 import '../shared.css'

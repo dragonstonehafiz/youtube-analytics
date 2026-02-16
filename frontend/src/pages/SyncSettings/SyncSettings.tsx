@@ -2,16 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ActionButton,
   DateRangePicker,
-  DonutChart,
   Dropdown,
   MultiSelect,
   PageSizePicker,
   PageSwitcher,
-  ProgressBar,
-  RatioBar,
   YearInput,
-  type DonutSegmentResolved,
 } from '../../components/ui'
+import { DonutChart, ProgressBar, RatioBar, type DonutSegmentResolved } from '../../components/charts'
 import { formatDisplayDate } from '../../utils/date'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
 import '../shared.css'

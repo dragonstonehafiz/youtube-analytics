@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, DataRangeControl, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { DataRangeControl } from '../../components/features'
+import { MetricChartCard } from '../../components/charts'
 import {
-  MetricChartCard,
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
+  PageCard,
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
   VideoDetailListCard,
   type TopTrafficVideo,
   type TrafficSourceShareItem,
   type VideoDetailListItem,
-} from '../../components/analytics'
-import { CommentsSection, buildCommentGroups, type CommentApiRow } from '../../components/comments'
-import { PageCard } from '../../components/layout'
-import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/playlists'
+} from '../../components/cards'
+import { CommentsSection, PlaylistItemsTable, type CommentApiRow, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
+import { buildCommentGroups } from '../../components/features'
 import { formatDisplayDate } from '../../utils/date'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
