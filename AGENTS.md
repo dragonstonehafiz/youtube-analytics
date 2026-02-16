@@ -244,6 +244,9 @@ Standard structure:
 - `GET /audience/active` - top active members in rolling window
 - `GET /audience/{channel_id}` - single audience member detail
 
+### Comments
+- `GET /comments` - paginated comments with optional `video_id`, `playlist_id`, `author_channel_id`, and date filters
+
 ### Sync
 - `POST /sync` - trigger sync (accepts pulls array, date range, deep_sync flag)
 - `POST /sync/stop` - request graceful stop
@@ -352,15 +355,17 @@ Standard structure:
 - Comments tab: Flat list (no inline replies), sorts by date/likes/reply_count
 
 ### PlaylistDetail (`frontend/src/pages/PlaylistDetail.tsx`)
-- Three tabs: `Metrics`, `Monetization`, `Discovery`
+- Four tabs: `Metrics`, `Monetization`, `Discovery`, `Comments`
 - Content selector: `Playlist Views` vs `Video Views` (different data sources)
 - Items table: Sortable Position/Added/Views columns, hover actions
 - No search input on items view
+- Comments tab: Only comment sorting appears in the tab toolbar row; grouped data + pagination state are page-owned and passed into `CommentsSection`
 
 ## Component Reference
 
 **UI primitives** (`frontend/src/components/ui/`):
 - `ActionButton`, `Dropdown`, `MultiSelect`, `DateRangePicker`
+- `DataRangeControl` - reusable analytics-style range control row (granularity + optional secondary + presets/year/custom)
 - `PageSwitcher`, `PageSizePicker` (global page size in local storage)
 - `DonutChart`, `RatioBar`, `ProgressBar`
 
@@ -372,5 +377,5 @@ Standard structure:
 **List components**:
 - `frontend/src/components/videos/` - `VideoListTable`, `VideoListRow`
 - `frontend/src/components/playlists/` - `PlaylistItemsTable`, `PlaylistItemRow`
-- `frontend/src/components/comments/` - `CommentThreadItem`, `CommentVideoGroup`
+- `frontend/src/components/comments/` - `CommentThreadItem`, `CommentVideoGroup`, `CommentsSection` (presentational grouped-list renderer)
 

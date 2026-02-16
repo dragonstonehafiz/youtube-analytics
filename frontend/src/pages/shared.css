@@ -85,6 +85,10 @@
   align-items: end;
 }
 
+.filter-grid-compact {
+  grid-template-columns: minmax(320px, 2fr) minmax(220px, 1fr) auto;
+}
+
 .filter-field {
   display: flex;
   flex-direction: column;
@@ -198,10 +202,18 @@
   .filter-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
+
+  .filter-grid-compact {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
   .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-grid-compact {
     grid-template-columns: 1fr;
   }
 

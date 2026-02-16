@@ -1,4 +1,8 @@
 export { default as CommentThreadItem } from './CommentThreadItem'
 export { default as CommentVideoGroup } from './CommentVideoGroup'
+export { default as CommentsSection } from './CommentsSection'
+export { buildCommentGroups } from './commentGroups'
 export type { CommentRow, CommentThread } from './CommentThreadItem'
 export type { CommentVideoGroupProps } from './CommentVideoGroup'
+export type { CommentsSectionProps } from './CommentsSection'
+export type { CommentApiRow, CommentGroup } from './commentGroups'

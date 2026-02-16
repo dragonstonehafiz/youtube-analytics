@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { ActionButton, DataRangeControl, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
 import {
   MetricChartCard,
   MonetizationContentPerformanceCard,
@@ -12,6 +12,7 @@ import {
   type TrafficSourceShareItem,
   type VideoDetailListItem,
 } from '../../components/analytics'
+import { CommentsSection, buildCommentGroups, type CommentApiRow } from '../../components/comments'
 import { PageCard } from '../../components/layout'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/playlists'
 import { formatDisplayDate } from '../../utils/date'
@@ -32,7 +33,8 @@ type PlaylistMeta = {
 
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type PlaylistViewMode = 'playlist_views' | 'video_views'
-type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery'
+type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'comments'
+type CommentSort = 'published_at' | 'likes' | 'reply_count'
 type SeriesPoint = { date: string; value: number }
 type DiscoveryMultiSeries = { key: string; label: string; color: string; points: SeriesPoint[] }
 type TrafficSourceRow = { day: string; traffic_source: string; views: number; watch_time_minutes: number }
@@ -76,6 +78,23 @@ type TopVideosBySourceResponseItem = {
   views: number
   watch_time_minutes: number
 }
+type StoredPlaylistCommentsSettings = {
+  pageSize?: number
+  sortBy?: CommentSort
+  page?: number
+}
+const GRANULARITY_OPTIONS = [
+  { label: 'Daily', value: 'daily' },
+  { label: '7-days', value: '7d' },
+  { label: '28-days', value: '28d' },
+  { label: '90-days', value: '90d' },
+  { label: 'Monthly', value: 'monthly' },
+  { label: 'Yearly', value: 'yearly' },
+]
+const VIEW_MODE_OPTIONS = [
+  { label: 'Playlist Views', value: 'playlist_views' },
+  { label: 'Video Views', value: 'video_views' },
+]
 
 function formatDurationSeconds(seconds: number | null | undefined): string {
   const value = Number(seconds ?? 0)
@@ -129,6 +148,15 @@ function PlaylistDetail() {
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(getStored('playlistDetailViewMode', 'playlist_views'))
   const [granularity, setGranularity] = useState<Granularity>(getStored('playlistDetailGranularity', 'daily'))
   const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(getStored('playlistDetailTab', 'metrics'))
+  const commentsSettingsKey = `playlistDetailCommentsSettings:${playlistId ?? 'unknown'}`
+  const storedCommentsSettings = getStored(commentsSettingsKey, null as StoredPlaylistCommentsSettings | null)
+  const [commentsRows, setCommentsRows] = useState<CommentApiRow[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentsError, setCommentsError] = useState<string | null>(null)
+  const [commentsPage, setCommentsPage] = useState(storedCommentsSettings?.page ?? 1)
+  const [commentsPageSize, setCommentsPageSize] = useState(() => getSharedPageSize(storedCommentsSettings?.pageSize ?? 10))
+  const [commentsSortBy, setCommentsSortBy] = useState<CommentSort>(storedCommentsSettings?.sortBy ?? 'published_at')
+  const [commentsTotal, setCommentsTotal] = useState(0)
   const [dailyRows, setDailyRows] = useState<PlaylistDailyRow[]>([])
   const [previousDailyRows, setPreviousDailyRows] = useState<PlaylistDailyRow[]>([])
   const [playlistDailyRows, setPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
@@ -158,6 +186,8 @@ function PlaylistDetail() {
   const [recentPerformingError, setRecentPerformingError] = useState<string | null>(null)
   const [monetizationContentType, setMonetizationContentType] = useState<MonetizationContentType>('video')
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const commentsTotalPages = useMemo(() => Math.max(1, Math.ceil(commentsTotal / commentsPageSize)), [commentsTotal, commentsPageSize])
+  const commentsGroups = useMemo(() => buildCommentGroups(commentsRows), [commentsRows])
   const range = useMemo(() => {
     const now = new Date()
     const utcToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
@@ -275,6 +305,44 @@ function PlaylistDetail() {
   }, [playlistId, page, pageSize, sortBy, direction])
 
   useEffect(() => {
+    async function loadComments() {
+      if (!playlistId) {
+        setCommentsRows([])
+        setCommentsTotal(0)
+        setCommentsError('Missing playlist ID.')
+        return
+      }
+      setCommentsLoading(true)
+      setCommentsError(null)
+      try {
+        const offset = (commentsPage - 1) * commentsPageSize
+        const params = new URLSearchParams({
+          playlist_id: playlistId,
+          limit: String(commentsPageSize),
+          offset: String(offset),
+          sort_by: commentsSortBy,
+          direction: 'desc',
+        })
+        const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load playlist comments (${response.status})`)
+        }
+        const data = await response.json()
+        setCommentsRows(Array.isArray(data.items) ? (data.items as CommentApiRow[]) : [])
+        setCommentsTotal(typeof data.total === 'number' ? data.total : 0)
+      } catch (err) {
+        setCommentsError(err instanceof Error ? err.message : 'Failed to load comments.')
+      } finally {
+        setCommentsLoading(false)
+      }
+    }
+
+    if (analyticsTab === 'comments') {
+      loadComments()
+    }
+  }, [analyticsTab, playlistId, commentsPage, commentsPageSize, commentsSortBy])
+
+  useEffect(() => {
     async function loadTopPerformingItems() {
       if (!playlistId) {
         setTopPerformingItems([])
@@ -365,8 +433,23 @@ function PlaylistDetail() {
   }, [pageSize, sortBy, direction])
 
   useEffect(() => {
+    const stored = getStored(commentsSettingsKey, null as StoredPlaylistCommentsSettings | null)
+    setCommentsPage(stored?.page ?? 1)
+    setCommentsPageSize(getSharedPageSize(stored?.pageSize ?? 10))
+    setCommentsSortBy(stored?.sortBy ?? 'published_at')
+  }, [commentsSettingsKey])
+
+  useEffect(() => {
+    setCommentsPage(1)
+  }, [playlistId, commentsPageSize, commentsSortBy])
+
+  useEffect(() => {
     setSharedPageSize(pageSize)
   }, [pageSize])
+
+  useEffect(() => {
+    setSharedPageSize(commentsPageSize)
+  }, [commentsPageSize])
 
   useEffect(() => {
     setStored('playlistDetailRange', {
@@ -390,6 +473,14 @@ function PlaylistDetail() {
   useEffect(() => {
     setStored('playlistDetailTab', analyticsTab)
   }, [analyticsTab])
+
+  useEffect(() => {
+    setStored(commentsSettingsKey, {
+      pageSize: commentsPageSize,
+      sortBy: commentsSortBy,
+      page: commentsPage,
+    } satisfies StoredPlaylistCommentsSettings)
+  }, [commentsSettingsKey, commentsPageSize, commentsSortBy, commentsPage])
 
   useEffect(() => {
     async function loadYears() {
@@ -1011,91 +1102,81 @@ function PlaylistDetail() {
               >
                 Discovery
               </button>
+              <button
+                type="button"
+                className={analyticsTab === 'comments' ? 'analytics-tab active' : 'analytics-tab'}
+                onClick={() => setAnalyticsTab('comments')}
+              >
+                Comments
+              </button>
             </div>
             <div className="analytics-range-controls">
-                <Dropdown
-                  value={granularity}
-                  onChange={(value) => setGranularity(value as Granularity)}
-                  placeholder="Daily"
-                  items={[
-                    { type: 'option' as const, label: 'Daily', value: 'daily' },
-                    { type: 'option' as const, label: '7-days', value: '7d' },
-                    { type: 'option' as const, label: '28-days', value: '28d' },
-                    { type: 'option' as const, label: '90-days', value: '90d' },
-                    { type: 'option' as const, label: 'Monthly', value: 'monthly' },
-                    { type: 'option' as const, label: 'Yearly', value: 'yearly' },
-                  ]}
-                />
-                <Dropdown
-                  value={viewMode}
-                  onChange={(value) => setViewMode(value as PlaylistViewMode)}
-                  placeholder="Playlist Views"
-                  items={[
-                    { type: 'option' as const, label: 'Playlist Views', value: 'playlist_views' },
-                    { type: 'option' as const, label: 'Video Views', value: 'video_views' },
-                  ]}
-                />
-                <Dropdown
-                  value={mode}
-                  onChange={(value) => setMode(value as 'presets' | 'year' | 'custom')}
-                  placeholder="Presets"
-                  items={[
-                    { type: 'option' as const, label: 'Presets', value: 'presets' },
-                    { type: 'option' as const, label: 'Yearly', value: 'year' },
-                    { type: 'option' as const, label: 'Custom range', value: 'custom' },
-                  ]}
-                />
-                {mode === 'presets' ? (
+                {analyticsTab === 'comments' ? (
                   <Dropdown
-                    value={presetSelection}
-                    onChange={setPresetSelection}
-                    placeholder="Full data"
-                    items={rangeOptions.map((option) => ({ type: 'option' as const, ...option }))}
+                    value={commentsSortBy}
+                    onChange={(value) => setCommentsSortBy(value as CommentSort)}
+                    placeholder="Date posted"
+                    items={[
+                      { type: 'option' as const, label: 'Date posted', value: 'published_at' },
+                      { type: 'option' as const, label: 'Likes', value: 'likes' },
+                      { type: 'option' as const, label: 'Reply count', value: 'reply_count' },
+                    ]}
                   />
-                ) : null}
-                {mode === 'year' ? (
-                  <>
-                    <Dropdown
-                      value={yearSelection}
-                      onChange={setYearSelection}
-                      placeholder="Select year"
-                      items={years.map((item) => ({ type: 'option' as const, label: item, value: item }))}
-                    />
-                    <Dropdown
-                      value={monthSelection}
-                      onChange={setMonthSelection}
-                      placeholder="All months"
-                      items={[
-                        { type: 'option' as const, label: 'All months', value: 'all' },
-                        { type: 'option' as const, label: 'January', value: '1' },
-                        { type: 'option' as const, label: 'February', value: '2' },
-                        { type: 'option' as const, label: 'March', value: '3' },
-                        { type: 'option' as const, label: 'April', value: '4' },
-                        { type: 'option' as const, label: 'May', value: '5' },
-                        { type: 'option' as const, label: 'June', value: '6' },
-                        { type: 'option' as const, label: 'July', value: '7' },
-                        { type: 'option' as const, label: 'August', value: '8' },
-                        { type: 'option' as const, label: 'September', value: '9' },
-                        { type: 'option' as const, label: 'October', value: '10' },
-                        { type: 'option' as const, label: 'November', value: '11' },
-                        { type: 'option' as const, label: 'December', value: '12' },
-                      ]}
-                    />
-                  </>
-                ) : null}
-                {mode === 'custom' ? (
-                  <DateRangePicker
-                    startDate={customStart}
-                    endDate={customEnd}
-                    onChange={(nextStart, nextEnd) => {
+                ) : (
+                  <DataRangeControl
+                    granularity={granularity}
+                    onGranularityChange={(value) => setGranularity(value as Granularity)}
+                    mode={mode}
+                    onModeChange={(value) => setMode(value)}
+                    presetSelection={presetSelection}
+                    onPresetSelectionChange={setPresetSelection}
+                    yearSelection={yearSelection}
+                    onYearSelectionChange={setYearSelection}
+                    monthSelection={monthSelection}
+                    onMonthSelectionChange={setMonthSelection}
+                    customStart={customStart}
+                    customEnd={customEnd}
+                    onCustomRangeChange={(nextStart, nextEnd) => {
                       setCustomStart(nextStart)
                       setCustomEnd(nextEnd)
                     }}
+                    years={years}
+                    rangeOptions={rangeOptions}
+                    granularityOptions={GRANULARITY_OPTIONS}
+                    secondaryControl={{
+                      value: viewMode,
+                      onChange: (value) => setViewMode(value as PlaylistViewMode),
+                      placeholder: 'Playlist Views',
+                      items: VIEW_MODE_OPTIONS,
+                    }}
+                    presetPlaceholder="Full data"
                   />
-                ) : null}
+                )}
             </div>
           </div>
         </div>
+        {analyticsTab === 'comments' ? (
+          <>
+            <CommentsSection
+              groups={commentsGroups}
+              loading={commentsLoading}
+              error={commentsError}
+              loadingText="Loading playlist comments..."
+              emptyText="No comments found for this playlist."
+              footer={(
+                <div className="pagination-footer">
+                  <div className="pagination-main">
+                    <PageSwitcher currentPage={commentsPage} totalPages={commentsTotalPages} onPageChange={setCommentsPage} />
+                  </div>
+                  <div className="pagination-size">
+                    <PageSizePicker value={commentsPageSize} onChange={setCommentsPageSize} />
+                  </div>
+                </div>
+              )}
+            />
+          </>
+        ) : (
+          <>
         <div className="page-row">
           <PageCard>
             {analyticsLoading ? (
@@ -1270,6 +1351,8 @@ function PlaylistDetail() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </section>
   )

@@ -1,34 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CommentVideoGroup, type CommentRow, type CommentThread } from '../../components/comments'
+import { CommentsSection, buildCommentGroups, type CommentApiRow } from '../../components/comments'
 import { PageCard } from '../../components/layout'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Comments.css'
 
-type CommentApiRow = CommentRow & {
-  video_id: string
-  video_title?: string | null
-  video_thumbnail_url?: string | null
+type StoredCommentsSettings = {
+  pageSize?: number
+  sortBy?: CommentSort
+  postedAfter?: string
+  postedBefore?: string
+  page?: number
 }
 
-type CommentGroup = {
-  videoId: string
-  videoTitle: string
-  videoThumbnailUrl: string | null
-  comments: CommentThread[]
-}
+type CommentSort = 'published_at' | 'likes' | 'reply_count'
 
 function Comments() {
-  const storedSettings = getStored('commentsPageSettings', null as {
-    pageSize?: number
-    sortBy?: 'published_at' | 'likes' | 'reply_count'
-    postedAfter?: string
-    postedBefore?: string
-    page?: number
-  } | null)
+  const storedSettings = getStored('commentsPageSettings', null as StoredCommentsSettings | null)
   const [pageSize, setPageSize] = useState(() => getSharedPageSize(storedSettings?.pageSize ?? 10))
-  const [sortBy, setSortBy] = useState<'published_at' | 'likes' | 'reply_count'>(storedSettings?.sortBy ?? 'published_at')
+  const [sortBy, setSortBy] = useState<CommentSort>(storedSettings?.sortBy ?? 'published_at')
   const [rows, setRows] = useState<CommentApiRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,6 +27,8 @@ function Comments() {
   const [total, setTotal] = useState(0)
   const [postedAfter, setPostedAfter] = useState(storedSettings?.postedAfter ?? '')
   const [postedBefore, setPostedBefore] = useState(storedSettings?.postedBefore ?? '')
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const groups = useMemo(() => buildCommentGroups(rows), [rows])
 
   useEffect(() => {
     async function loadCommentsPage() {
@@ -55,9 +48,7 @@ function Comments() {
         if (postedBefore) {
           params.set('published_before', postedBefore)
         }
-        const response = await fetch(
-          `http://127.0.0.1:8000/comments?${params.toString()}`
-        )
+        const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load comments (${response.status})`)
         }
@@ -89,49 +80,8 @@ function Comments() {
       postedAfter,
       postedBefore,
       page,
-    })
+    } satisfies StoredCommentsSettings)
   }, [pageSize, sortBy, postedAfter, postedBefore, page])
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
-
-  const groups = useMemo(() => {
-    const getTime = (value: string | null) => (value ? new Date(value).getTime() : 0)
-    const byVideoRows = new Map<string, CommentApiRow[]>()
-    rows.forEach((row) => {
-      if (!row.video_id) {
-        return
-      }
-      const existing = byVideoRows.get(row.video_id)
-      if (existing) {
-        existing.push(row)
-      } else {
-        byVideoRows.set(row.video_id, [row])
-      }
-    })
-    const byVideo = new Map<string, CommentGroup>()
-    rows.forEach((row) => {
-      const videoId = row.video_id || ''
-      if (!videoId) {
-        return
-      }
-      if (byVideo.has(videoId)) {
-        return
-      }
-      const videoRows = byVideoRows.get(videoId) ?? []
-      byVideo.set(videoId, {
-        videoId,
-        videoTitle: row.video_title && row.video_title.trim() ? row.video_title : '(untitled video)',
-        videoThumbnailUrl: row.video_thumbnail_url && row.video_thumbnail_url.trim() ? row.video_thumbnail_url : null,
-        comments: videoRows
-          .map((parent) => ({
-            parent,
-            replies: [],
-            repliesTotal: parent.reply_count ?? 0,
-          }))
-          .sort((a, b) => getTime(b.parent.published_at) - getTime(a.parent.published_at)),
-      })
-    })
-    return Array.from(byVideo.values())
-  }, [rows])
 
   return (
     <section className="page">
@@ -157,7 +107,7 @@ function Comments() {
                 <div className="filter-field">
                   <Dropdown
                     value={sortBy}
-                    onChange={(value) => setSortBy(value as 'published_at' | 'likes' | 'reply_count')}
+                    onChange={(value) => setSortBy(value as CommentSort)}
                     placeholder="Date posted"
                     items={[
                       { type: 'option' as const, label: 'Date posted', value: 'published_at' },
@@ -182,37 +132,21 @@ function Comments() {
             </div>
           </PageCard>
         </div>
-        <div className="page-row">
-          <PageCard>
-            {loading ? (
-              <div className="video-detail-state">Loading comments...</div>
-            ) : error ? (
-              <div className="video-detail-state">{error}</div>
-            ) : groups.length === 0 ? (
-              <div className="video-detail-state">No comments found.</div>
-            ) : (
-                <div className="comments-groups">
-                  {groups.map((group) => (
-                    <CommentVideoGroup
-                      key={group.videoId}
-                      videoId={group.videoId}
-                      videoTitle={group.videoTitle}
-                      videoThumbnailUrl={group.videoThumbnailUrl}
-                      comments={group.comments}
-                    />
-                  ))}
-                <div className="pagination-footer">
-                  <div className="pagination-main">
-                    <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-                  </div>
-                  <div className="pagination-size">
-                    <PageSizePicker value={pageSize} onChange={setPageSize} />
-                  </div>
-                </div>
+        <CommentsSection
+          groups={groups}
+          loading={loading}
+          error={error}
+          footer={(
+            <div className="pagination-footer">
+              <div className="pagination-main">
+                <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
               </div>
-            )}
-          </PageCard>
-        </div>
+              <div className="pagination-size">
+                <PageSizePicker value={pageSize} onChange={setPageSize} />
+              </div>
+            </div>
+          )}
+        />
       </div>
     </section>
   )

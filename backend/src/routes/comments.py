@@ -12,6 +12,7 @@ router = APIRouter()
 @router.get("/comments")
 def list_comments(
     video_id: str | None = None,
+    playlist_id: str | None = None,
     author_channel_id: str | None = None,
     published_after: str | None = None,
     published_before: str | None = None,
@@ -20,12 +21,23 @@ def list_comments(
     sort_by: str = Query(default="published_at"),
     direction: str = Query(default="desc"),
 ) -> dict:
-    """Return comments with optional video/author filters and pagination."""
+    """Return comments with optional video/playlist/author filters and pagination."""
     where_clauses = []
     params: list[object] = []
     if video_id:
         where_clauses.append("c.video_id = ?")
         params.append(video_id)
+    if playlist_id:
+        where_clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM playlist_items pi
+                WHERE pi.playlist_id = ? AND pi.video_id = c.video_id
+            )
+            """
+        )
+        params.append(playlist_id)
     if author_channel_id:
         where_clauses.append("c.author_channel_id = ?")
         params.append(author_channel_id)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { ActionButton, DataRangeControl, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
 import { MetricChartCard, TrafficSourceShareCard, type TrafficSourceShareItem } from '../../components/analytics'
 import { PageCard } from '../../components/layout'
 import { CommentThreadItem, type CommentRow } from '../../components/comments'
@@ -53,6 +53,14 @@ type DiscoveryMultiSeries = {
   color: string
   points: SeriesPoint[]
 }
+const GRANULARITY_OPTIONS = [
+  { label: 'Daily', value: 'daily' },
+  { label: '7-days', value: '7d' },
+  { label: '28-days', value: '28d' },
+  { label: '90-days', value: '90d' },
+  { label: 'Monthly', value: 'monthly' },
+  { label: 'Yearly', value: 'yearly' },
+]
 
 function formatDuration(seconds: number | null): string {
   if (!seconds || seconds < 0) {
@@ -672,77 +680,28 @@ function VideoDetail() {
             </div>
             {activeTab === 'analytics' || activeTab === 'monetization' || activeTab === 'discovery' ? (
               <div className="analytics-range-controls">
-              <Dropdown
-                value={granularity}
-                onChange={(value) => setGranularity(value as Granularity)}
-                placeholder="Daily"
-                items={[
-                  { type: 'option' as const, label: 'Daily', value: 'daily' },
-                  { type: 'option' as const, label: '7-days', value: '7d' },
-                  { type: 'option' as const, label: '28-days', value: '28d' },
-                  { type: 'option' as const, label: '90-days', value: '90d' },
-                  { type: 'option' as const, label: 'Monthly', value: 'monthly' },
-                  { type: 'option' as const, label: 'Yearly', value: 'yearly' },
-                ]}
-              />
-              <Dropdown
-                value={mode}
-                onChange={(value) => setMode(value as 'presets' | 'year' | 'custom')}
-                placeholder="Presets"
-                items={[
-                  { type: 'option' as const, label: 'Presets', value: 'presets' },
-                  { type: 'option' as const, label: 'Yearly', value: 'year' },
-                  { type: 'option' as const, label: 'Custom range', value: 'custom' },
-                ]}
-              />
-              {mode === 'presets' ? (
-                <Dropdown
-                  value={presetSelection}
-                  onChange={setPresetSelection}
-                  placeholder="Full data"
-                  items={rangeOptions.map((option) => ({ type: 'option' as const, ...option }))}
-                />
-              ) : null}
-              {mode === 'year' ? (
-                <>
-                  <Dropdown
-                    value={yearSelection}
-                    onChange={setYearSelection}
-                    placeholder="Select year"
-                    items={years.map((item) => ({ type: 'option' as const, label: item, value: item }))}
-                  />
-                  <Dropdown
-                    value={monthSelection}
-                    onChange={setMonthSelection}
-                    placeholder="All months"
-                    items={[
-                      { type: 'option' as const, label: 'All months', value: 'all' },
-                      { type: 'option' as const, label: 'January', value: '1' },
-                      { type: 'option' as const, label: 'February', value: '2' },
-                      { type: 'option' as const, label: 'March', value: '3' },
-                      { type: 'option' as const, label: 'April', value: '4' },
-                      { type: 'option' as const, label: 'May', value: '5' },
-                      { type: 'option' as const, label: 'June', value: '6' },
-                      { type: 'option' as const, label: 'July', value: '7' },
-                      { type: 'option' as const, label: 'August', value: '8' },
-                      { type: 'option' as const, label: 'September', value: '9' },
-                      { type: 'option' as const, label: 'October', value: '10' },
-                      { type: 'option' as const, label: 'November', value: '11' },
-                      { type: 'option' as const, label: 'December', value: '12' },
-                    ]}
-                  />
-                </>
-              ) : null}
-              {mode === 'custom' ? (
-                <DateRangePicker
-                  startDate={customStart}
-                  endDate={customEnd}
-                  onChange={(nextStart, nextEnd) => {
+                <DataRangeControl
+                  granularity={granularity}
+                  onGranularityChange={(value) => setGranularity(value as Granularity)}
+                  mode={mode}
+                  onModeChange={(value) => setMode(value)}
+                  presetSelection={presetSelection}
+                  onPresetSelectionChange={setPresetSelection}
+                  yearSelection={yearSelection}
+                  onYearSelectionChange={setYearSelection}
+                  monthSelection={monthSelection}
+                  onMonthSelectionChange={setMonthSelection}
+                  customStart={customStart}
+                  customEnd={customEnd}
+                  onCustomRangeChange={(nextStart, nextEnd) => {
                     setCustomStart(nextStart)
                     setCustomEnd(nextEnd)
                   }}
+                  years={years}
+                  rangeOptions={rangeOptions}
+                  granularityOptions={GRANULARITY_OPTIONS}
+                  presetPlaceholder="Full data"
                 />
-              ) : null}
               </div>
             ) : activeTab === 'comments' ? (
               <div className="analytics-range-controls">
