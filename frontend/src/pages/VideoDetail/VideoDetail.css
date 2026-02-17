@@ -194,6 +194,13 @@
   color: var(--color-muted);
 }
 
+.video-detail-discovery-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
 @media (max-width: 1200px) {
   .video-detail-toolbar {
     justify-content: flex-start;
@@ -201,6 +208,10 @@
 }
 
 @media (max-width: 980px) {
+  .video-detail-discovery-row {
+    grid-template-columns: 1fr;
+  }
+
   .video-detail-meta {
     grid-template-columns: 1fr;
   }

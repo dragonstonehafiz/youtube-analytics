@@ -7,9 +7,11 @@ import {
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
   PageCard,
+  SearchInsightsTopTermsCard,
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
   VideoDetailListCard,
+  type SearchInsightsTopTerm,
   type TopTrafficVideo,
   type TrafficSourceShareItem,
   type VideoDetailListItem,
@@ -78,6 +80,12 @@ type TopVideosBySourceResponseItem = {
   published_at: string
   views: number
   watch_time_minutes: number
+}
+type TopSearchResponseItem = {
+  search_term: string
+  views: number
+  watch_time_minutes: number
+  video_count: number
 }
 type StoredPlaylistCommentsSettings = {
   pageSize?: number
@@ -172,6 +180,10 @@ function PlaylistDetail() {
   const [trafficTopVideos, setTrafficTopVideos] = useState<TopTrafficVideo[]>([])
   const [trafficTopLoading, setTrafficTopLoading] = useState(false)
   const [trafficTopError, setTrafficTopError] = useState<string | null>(null)
+  const [playlistVideoIds, setPlaylistVideoIds] = useState<string[]>([])
+  const [searchTopTerms, setSearchTopTerms] = useState<SearchInsightsTopTerm[]>([])
+  const [searchTopTermsLoading, setSearchTopTermsLoading] = useState(false)
+  const [searchTopTermsError, setSearchTopTermsError] = useState<string | null>(null)
   const [publishedDates, setPublishedDates] = useState<Record<string, PublishedItem[]>>({})
   const [totals, setTotals] = useState({
     views: 0,
@@ -868,6 +880,52 @@ function PlaylistDetail() {
   }, [trafficTopSource, trafficSourceOptions])
 
   useEffect(() => {
+    async function loadPlaylistVideoIds() {
+      if (!playlistId) {
+        setPlaylistVideoIds([])
+        return
+      }
+      try {
+        const collected = new Set<string>()
+        const pageLimit = 1000
+        let offset = 0
+        let total = 0
+        do {
+          const params = new URLSearchParams({
+            limit: String(pageLimit),
+            offset: String(offset),
+            sort_by: 'position',
+            direction: 'asc',
+          })
+          const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}/items?${params.toString()}`)
+          if (!response.ok) {
+            throw new Error(`Failed to load playlist items for search scope (${response.status})`)
+          }
+          const payload = await response.json()
+          const items = Array.isArray(payload?.items) ? payload.items : []
+          total = Number(payload?.total ?? 0)
+          items.forEach((item: any) => {
+            const videoId = String(item?.video_id ?? '').trim()
+            if (videoId) {
+              collected.add(videoId)
+            }
+          })
+          offset += pageLimit
+          if (items.length < pageLimit) {
+            break
+          }
+        } while (offset < total)
+        setPlaylistVideoIds(Array.from(collected))
+      } catch (loadError) {
+        console.error('Failed to load playlist video IDs for search insights', loadError)
+        setPlaylistVideoIds([])
+      }
+    }
+
+    loadPlaylistVideoIds()
+  }, [playlistId])
+
+  useEffect(() => {
     async function loadTopVideosBySource() {
       if (!playlistId || !trafficTopSource) {
         setTrafficTopVideos([])
@@ -907,6 +965,50 @@ function PlaylistDetail() {
 
     loadTopVideosBySource()
   }, [playlistId, range.start, range.end, trafficTopSource])
+
+  useEffect(() => {
+    async function loadTopSearchTerms() {
+      if (!playlistId || analyticsTab !== 'discovery') {
+        return
+      }
+      if (playlistVideoIds.length === 0) {
+        setSearchTopTerms([])
+        setSearchTopTermsError(null)
+        setSearchTopTermsLoading(false)
+        return
+      }
+      setSearchTopTermsLoading(true)
+      setSearchTopTermsError(null)
+      try {
+        const params = new URLSearchParams({
+          start_date: range.start,
+          end_date: range.end,
+          video_ids: playlistVideoIds.join(','),
+        })
+        const response = await fetch(`http://127.0.0.1:8000/analytics/video-search-insights?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load top search terms (${response.status})`)
+        }
+        const payload = await response.json()
+        const items = (Array.isArray(payload?.items) ? payload.items : []) as TopSearchResponseItem[]
+        setSearchTopTerms(
+          items.map((item) => ({
+            search_term: String(item.search_term ?? ''),
+            views: Number(item.views ?? 0),
+            watch_time_minutes: Number(item.watch_time_minutes ?? 0),
+            video_count: Number(item.video_count ?? 0),
+          }))
+        )
+      } catch (loadError) {
+        setSearchTopTerms([])
+        setSearchTopTermsError(loadError instanceof Error ? loadError.message : 'Failed to load top search terms.')
+      } finally {
+        setSearchTopTermsLoading(false)
+      }
+    }
+
+    loadTopSearchTerms()
+  }, [playlistId, analyticsTab, range.start, range.end, playlistVideoIds])
 
   const monetizationSeries = useMemo(() => {
     const sorted = [...videoDailyRows]
@@ -1312,6 +1414,16 @@ function PlaylistDetail() {
                       error={trafficTopError}
                       onSourceChange={setTrafficTopSource}
                       onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+                    />
+                  </PageCard>
+                  <PageCard>
+                    <SearchInsightsTopTermsCard
+                      items={searchTopTerms}
+                      loading={searchTopTermsLoading}
+                      error={searchTopTermsError}
+                      startDate={range.start}
+                      endDate={range.end}
+                      videoIds={playlistVideoIds}
                     />
                   </PageCard>
                 </>

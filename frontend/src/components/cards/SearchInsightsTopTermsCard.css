@@ -1,0 +1,128 @@
+.search-insights-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.search-insights-title {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+
+.search-insights-title.compact {
+  font-size: 20px;
+}
+
+.search-insights-subtitle {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.search-insights-list {
+  position: relative;
+}
+
+.search-insights-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+  table-layout: fixed;
+  --search-insights-views-col: 8ch;
+  --search-insights-videos-col: 7ch;
+}
+
+.search-insights-col-term {
+  width: auto;
+}
+
+.search-insights-col-views {
+  width: var(--search-insights-views-col);
+}
+
+.search-insights-col-videos {
+  width: var(--search-insights-videos-col);
+}
+
+.search-insights-header {
+  color: #64748b;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.search-insights-header-term {
+  text-align: left;
+  font-weight: 500;
+  padding: 8px 0;
+}
+
+.search-insights-header-metric,
+.search-insights-metric,
+.search-insights-videos-trigger {
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: center;
+  padding-left: 10px;
+}
+
+.search-insights-row > td {
+  vertical-align: middle;
+  padding: 4px 0;
+}
+
+.search-insights-term-cell {
+  width: 100%;
+  padding-right: 12px;
+}
+
+.search-insights-term {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-insights-metric {
+  text-align: center;
+  color: #0f172a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.search-insights-videos-trigger {
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-block;
+  min-width: 100%;
+}
+
+.search-insights-videos-trigger:hover,
+.search-insights-videos-trigger:focus-visible {
+  color: #0369a1;
+}
+
+.search-insights-state {
+  color: #64748b;
+  font-size: 13px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .search-insights-header > th,
+  .search-insights-row > td {
+    padding: 3px 0;
+  }
+}

@@ -107,7 +107,7 @@
 }
 
 .publish-tooltip {
-  transform: translate(-50%, 0);
+  transform: none;
   width: 260px;
   max-width: 260px;
   max-height: 160px;
@@ -204,6 +204,31 @@
   pointer-events: auto;
 }
 
+.chart-tooltip.tooltip-clamped {
+  transform: none;
+}
+
+.chart-tooltip.tooltip-with-indicator::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  left: var(--tooltip-arrow-left, 20px);
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+}
+
+.chart-tooltip.tooltip-above::after {
+  bottom: -6px;
+  border-top: 6px solid #0f172a;
+}
+
+.chart-tooltip.tooltip-below::after {
+  top: -6px;
+  border-bottom: 6px solid #0f172a;
+}
+
 .tooltip-date {
   opacity: 0.8;
   font-size: 11px;
@@ -215,7 +240,6 @@
 }
 
 .multiline-tooltip {
-  transform: translate(-50%, 0);
   min-width: 220px;
   max-width: 300px;
 }

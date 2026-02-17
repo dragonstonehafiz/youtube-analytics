@@ -4,10 +4,12 @@ export { default as MonetizationContentPerformanceCard } from './MonetizationCon
 export { default as MonetizationEarningsCard } from './MonetizationEarningsCard'
 export { default as MostActiveAudienceCard } from './MostActiveAudienceCard'
 export { default as PageCard } from './PageCard'
+export { default as SearchInsightsTopTermsCard } from './SearchInsightsTopTermsCard'
 export { default as TrafficSourceShareCard } from './TrafficSourceShareCard'
 export { default as TrafficSourceTopVideosCard } from './TrafficSourceTopVideosCard'
 export { default as VideoDetailListCard } from './VideoDetailListCard'
 
 export type { TopTrafficVideo, TrafficSourceShareItem } from './TrafficSourceShareCard'
+export type { SearchInsightsTopTerm } from './SearchInsightsTopTermsCard'
 export type { TrafficSourceOption } from './TrafficSourceTopVideosCard'
 export type { VideoDetailListItem } from './VideoDetailListCard'

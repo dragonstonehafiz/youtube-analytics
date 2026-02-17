@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from math import ceil
 
 from src.youtube.analytics import DateRange, chunk_date_range
@@ -23,6 +23,25 @@ def _to_date(value: str | None):
         return datetime.fromisoformat(value).date()
     except ValueError:
         return None
+
+
+def _month_start(value: str) -> date:
+    """Return the first day of the month for a valid YYYY-MM-DD value."""
+    parsed = datetime.fromisoformat(value).date()
+    return parsed.replace(day=1)
+
+
+def _next_month(value: str) -> date:
+    """Return first day of the month following a valid YYYY-MM-DD value."""
+    current = _month_start(value)
+    if current.month == 12:
+        return current.replace(year=current.year + 1, month=1)
+    return current.replace(month=current.month + 1)
+
+
+def _month_span_inclusive(start_value: date, end_value: date) -> int:
+    """Return inclusive month count between two first-of-month dates."""
+    return ((end_value.year - start_value.year) * 12) + (end_value.month - start_value.month) + 1
 
 
 def build_estimate_date_range(
@@ -88,14 +107,14 @@ def _count_video_search_api_calls(
     end: str,
     deep_sync: bool,
 ) -> tuple[int, int, int]:
-    """Count video-search calls and return (calls, active_videos, covered_video_days)."""
+    """Count video-search calls and return (calls, active_videos, covered_video_months)."""
     range_start = _to_date(start)
     range_end = _to_date(end)
     if not range_start or not range_end:
         return 0, 0, 0
     calls = 0
     active_videos = 0
-    total_days = 0
+    total_months = 0
     for video_id in video_ids:
         effective_start = range_start
         published = _to_date(published_by_video.get(video_id))
@@ -104,15 +123,17 @@ def _count_video_search_api_calls(
         if published and published > effective_start:
             effective_start = published
         latest = None if deep_sync else _to_date(latest_by_video.get(video_id))
-        if latest and (latest + timedelta(days=1)) > effective_start:
-            effective_start = latest + timedelta(days=1)
+        if latest:
+            next_month = _next_month(latest.isoformat())
+            if next_month > effective_start:
+                effective_start = next_month
         if effective_start > range_end:
             continue
         active_videos += 1
-        day_count = (range_end - effective_start).days + 1
-        total_days += day_count
-        calls += day_count
-    return calls, active_videos, total_days
+        month_count = _month_span_inclusive(_month_start(effective_start.isoformat()), _month_start(range_end.isoformat()))
+        total_months += month_count
+        calls += month_count
+    return calls, active_videos, total_months
 
 
 def estimate_videos_api_calls(video_count: int, shorts_count: int) -> EstimateResult:
@@ -309,7 +330,7 @@ def estimate_video_search_insights_api_calls(
     if not resolved:
         return EstimateResult(minimum_api_calls=0, basis="no videos/date range")
     start, end = resolved
-    calls, video_count, day_count = _count_video_search_api_calls(
+    calls, video_count, month_count = _count_video_search_api_calls(
         video_ids=video_ids,
         published_by_video=published_by_video,
         latest_by_video=latest_by_video,
@@ -319,5 +340,8 @@ def estimate_video_search_insights_api_calls(
     )
     return EstimateResult(
         minimum_api_calls=calls,
-        basis=f"{video_count} videos across {day_count} video-days (1 call per video-day, minimum, no pagination)",
+        basis=(
+            f"{video_count} videos across {month_count} video-months "
+            "(1 call per video-month, single page only: top 25 terms by views)"
+        ),
     )

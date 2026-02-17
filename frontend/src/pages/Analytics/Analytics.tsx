@@ -6,9 +6,11 @@ import {
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
   PageCard,
+  SearchInsightsTopTermsCard,
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
   VideoDetailListCard,
+  type SearchInsightsTopTerm,
   type TopTrafficVideo,
   type TrafficSourceShareItem,
 } from '../../components/cards'
@@ -59,6 +61,12 @@ type TopVideosBySourceResponseItem = {
   published_at: string
   views: number
   watch_time_minutes: number
+}
+type TopSearchResponseItem = {
+  search_term: string
+  views: number
+  watch_time_minutes: number
+  video_count: number
 }
 type MonetizationTotalsState = {
   estimated_revenue: number
@@ -182,6 +190,9 @@ function Analytics() {
   const [trafficTopVideos, setTrafficTopVideos] = useState<TopTrafficVideo[]>([])
   const [trafficTopLoading, setTrafficTopLoading] = useState(false)
   const [trafficTopError, setTrafficTopError] = useState<string | null>(null)
+  const [searchTopTerms, setSearchTopTerms] = useState<SearchInsightsTopTerm[]>([])
+  const [searchTopTermsLoading, setSearchTopTermsLoading] = useState(false)
+  const [searchTopTermsError, setSearchTopTermsError] = useState<string | null>(null)
 
   const range = useMemo(() => {
     const now = new Date()
@@ -836,7 +847,6 @@ function Analytics() {
   const trafficSourceOptions = useMemo(() => {
     return trafficShareItems.map((item) => ({ label: item.label, value: item.key }))
   }, [trafficShareItems])
-
   useEffect(() => {
     if (!trafficTopSource && trafficSourceOptions.length > 0) {
       setTrafficTopSource(trafficSourceOptions[0].value)
@@ -846,6 +856,43 @@ function Analytics() {
       setTrafficTopSource(trafficSourceOptions[0]?.value ?? '')
     }
   }, [trafficTopSource, trafficSourceOptions])
+
+  useEffect(() => {
+    async function loadTopSearchTerms() {
+      setSearchTopTermsLoading(true)
+      setSearchTopTermsError(null)
+      try {
+        const params = new URLSearchParams({
+          start_date: range.start,
+          end_date: range.end,
+        })
+        if (contentSelection !== 'all') {
+          params.set('content_type', contentSelection)
+        }
+        const response = await fetch(`http://127.0.0.1:8000/analytics/video-search-insights?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load top search terms (${response.status})`)
+        }
+        const payload = await response.json()
+        const items = (Array.isArray(payload?.items) ? payload.items : []) as TopSearchResponseItem[]
+        setSearchTopTerms(
+          items.map((item) => ({
+            search_term: String(item.search_term ?? ''),
+            views: Number(item.views ?? 0),
+            watch_time_minutes: Number(item.watch_time_minutes ?? 0),
+            video_count: Number(item.video_count ?? 0),
+          }))
+        )
+      } catch (error) {
+        setSearchTopTerms([])
+        setSearchTopTermsError(error instanceof Error ? error.message : 'Failed to load top search terms.')
+      } finally {
+        setSearchTopTermsLoading(false)
+      }
+    }
+
+    loadTopSearchTerms()
+  }, [range.start, range.end, contentSelection])
 
   const previousDiscoverySeriesByMetric = useMemo(
     () => ({
@@ -1044,9 +1091,21 @@ function Analytics() {
                 />
               </PageCard>
               <div className="analytics-traffic-row">
-                <PageCard>
-                  <TrafficSourceShareCard items={trafficShareItems} />
-                </PageCard>
+                <div className="analytics-discovery-stack">
+                  <PageCard>
+                    <TrafficSourceShareCard items={trafficShareItems} />
+                  </PageCard>
+                  <PageCard>
+                    <SearchInsightsTopTermsCard
+                      items={searchTopTerms}
+                      loading={searchTopTermsLoading}
+                      error={searchTopTermsError}
+                      startDate={range.start}
+                      endDate={range.end}
+                      contentType={contentSelection === 'all' ? null : contentSelection}
+                    />
+                  </PageCard>
+                </div>
                 <PageCard>
                   <TrafficSourceTopVideosCard
                     source={trafficTopSource}

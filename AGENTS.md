@@ -85,12 +85,14 @@ frontend/
 - **Foreign keys**: `playlist_items.video_id` is a raw YouTube ID (no FK to `videos`)
 - **Sync history**: One `sync_runs` row per stage execution, not per full sync
 - **SQLite location**: `backend/data/youtube.db` (from `backend/.env` `DB_PATH`)
+- **Video search insights granularity**: `video_search_insights.date` is a month bucket (`YYYY-MM-01`), not per-day rows
 
 ### Sync Behavior
 - **Stage order** (immutable): `videos` → `comments` → `audience` → `playlists` → `traffic` → `channel_analytics` → `playlist_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
 - **Stop requests**: Cooperative (takes effect before next API call)
 - **Shorts detection**: Uses UUSH playlist, not dimensions (fail-fast if unavailable)
 - **Progress tracking**: In-memory state in `SyncProgress`, persistence in `sync_runs`
+- **Video search insights fetch policy**: Monthly queries, sorted by `-views`, capped to one page (`maxResults=25`, `startIndex=1`) per video-month
 
 ### Date/Time Handling
 - **Backend**: ISO date strings (`YYYY-MM-DD`), no timestamps unless required
@@ -108,6 +110,7 @@ frontend/
 - **Navigation**: Attach to title text when detail page exists
 - **Pagination**: Global page size (`10/25/50/100`) shared across all pages
 - **Filter persistence**: Use local storage keys per page
+- **Tooltips**: Clamp to viewport bounds by default (horizontal + vertical) and show an indicator pointer
 
 ## Backend Patterns
 
@@ -249,6 +252,8 @@ Standard structure:
 - `GET /analytics/traffic-sources` - channel traffic source breakdown
 - `GET /analytics/video-traffic-sources` - video-level traffic sources
 - `GET /analytics/video-traffic-source-top-videos` - top videos for a traffic source
+- `GET /analytics/video-search-insights` - top YouTube search terms by views from monthly `video_search_insights` rows (supports date range + optional `video_ids` CSV and `content_type`, no API-side result limit)
+- `GET /analytics/video-search-insights/videos` - per-search-term video list sorted by search-driven views (supports date range + required `search_term`, optional `video_ids` CSV and `content_type`)
 
 ### Playlists
 - `GET /playlists` - paginated list with computed aggregates
@@ -378,11 +383,15 @@ Standard structure:
 - Granularity: `Daily/7-days/28-days/90-days/Monthly/Yearly`
 - Chart range trims to first/last day with data, zero-fills gaps inside
 - Upload markers rebucket to match granularity
+- Discovery tab includes a "Top YouTube search terms" card under traffic source share; it aggregates monthly search insights for all videos in the active date range (optionally filtered by selected content type)
+- Top YouTube search terms card displays the top 10 terms by views
+- Hovering the search-terms card `Videos` column uses `UploadPublishTooltip` to show all matching videos for that search term, sorted by views from search (desc)
 
 ### VideoDetail (`frontend/src/pages/VideoDetail.tsx`)
 - Three tabs: `Analytics`, `Monetization`, `Discovery` (local state, not URL)
 - Default tab: `Analytics` on each navigation
 - Discovery tab: Multi-series traffic source chart + share card
+- Discovery tab side row includes `Top YouTube search terms` next to traffic source share, scoped to the current video and active date range
 - Comments tab: Flat list (no inline replies), sorts by date/likes/reply_count
 
 ### PlaylistDetail (`frontend/src/pages/PlaylistDetail.tsx`)
@@ -391,6 +400,7 @@ Standard structure:
 - Items table: Sortable Position/Added/Views columns, hover actions
 - No search input on items view
 - Comments tab: Only comment sorting appears in the tab toolbar row; grouped data + pagination state are page-owned and passed into `CommentsSection`
+- Discovery side rail includes `Top YouTube search terms` under traffic cards, scoped to videos in the current playlist and active date range
 
 ## Component Reference
 
@@ -411,6 +421,7 @@ Standard structure:
 - `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
 - `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards
 - `TrafficSourceShareCard`, `TrafficSourceTopVideosCard` - traffic source cards
+- `SearchInsightsTopTermsCard` - top monthly YouTube search terms aggregated for the active Discovery range/filter context
 - `VideoDetailListCard` - top content cards with typical-range meters
 
 **Table/List components** (`frontend/src/components/tables/`):

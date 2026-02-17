@@ -227,6 +227,7 @@ function MetricChartCard({
   const [hoverLocked, setHoverLocked] = useState(false)
   const hoverTimeoutRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const chartWrapRef = useRef<HTMLDivElement | null>(null)
   const [chartWidth, setChartWidth] = useState(960)
 
   useEffect(() => {
@@ -625,6 +626,65 @@ function MetricChartCard({
     }
   }
 
+  const clamp = (value: number, minValue: number, maxValue: number): number => {
+    if (maxValue < minValue) {
+      return minValue
+    }
+    return Math.min(Math.max(value, minValue), maxValue)
+  }
+
+  const getTooltipPosition = (
+    anchorX: number,
+    anchorY: number,
+    tooltipWidth: number,
+    tooltipHeight: number,
+    preferAbove: boolean
+  ) => {
+    const viewportMargin = 8
+    const gap = 10
+    const wrapRect = chartWrapRef.current?.getBoundingClientRect()
+    const wrapTop = wrapRect?.top ?? 0
+    const wrapLeft = wrapRect?.left ?? 0
+    const viewportWidth = typeof window === 'undefined' ? chartWidth : window.innerWidth
+    const viewportHeight = typeof window === 'undefined' ? chartHeight : window.innerHeight
+
+    const minLeftFromWrap = viewportMargin - wrapLeft
+    const maxLeftFromWrap = viewportWidth - viewportMargin - wrapLeft - tooltipWidth
+    let left = clamp(anchorX - tooltipWidth / 2, minLeftFromWrap, maxLeftFromWrap)
+
+    const belowTop = anchorY + gap
+    const aboveTop = anchorY - tooltipHeight - gap
+    let top = preferAbove ? aboveTop : belowTop
+
+    const belowBottomViewport = wrapTop + belowTop + tooltipHeight
+    const aboveTopViewport = wrapTop + aboveTop
+    if (preferAbove && aboveTopViewport < viewportMargin) {
+      top = belowTop
+    } else if (!preferAbove && belowBottomViewport > viewportHeight - viewportMargin) {
+      top = aboveTop
+    }
+
+    const minTopFromWrap = viewportMargin - wrapTop
+    const maxTopFromWrap = viewportHeight - viewportMargin - wrapTop - tooltipHeight
+    top = clamp(top, minTopFromWrap, maxTopFromWrap)
+    return { left, top }
+  }
+
+  const singleTooltipPosition = useMemo(() => {
+    if (isMulti || activeX === null || activeY === null) {
+      return null
+    }
+    return getTooltipPosition(activeX, activeY, 160, 54, true)
+  }, [isMulti, activeX, activeY, chartWidth, chartHeight])
+
+  const multiTooltipPosition = useMemo(() => {
+    if (!isMulti || activeX === null) {
+      return null
+    }
+    const estimatedHeight = 34 + activeMultiSeries.length * 26
+    return getTooltipPosition(activeX, padding.top + 12, 300, estimatedHeight, false)
+  }, [isMulti, activeX, activeMultiSeries.length, padding.top, chartWidth, chartHeight])
+
   return (
     <div className="metric-chart-card" ref={containerRef}>
       <div className="metric-row">
@@ -654,7 +714,7 @@ function MetricChartCard({
           )
         })}
       </div>
-      <div className="chart-wrap">
+      <div className="chart-wrap" ref={chartWrapRef}>
         <svg
           width="100%"
           height={chartHeight}
@@ -747,15 +807,24 @@ function MetricChartCard({
         </svg>
         {!isMulti && activeDay && activeX !== null && activeY !== null ? (
           <div
-            className="chart-tooltip"
-            style={{ left: activeX, top: activeY }}
+            className="chart-tooltip tooltip-clamped"
+            style={{
+              left: singleTooltipPosition?.left ?? activeX,
+              top: singleTooltipPosition?.top ?? activeY,
+            }}
           >
             <div className="tooltip-date">{activeDay}</div>
             <div className="tooltip-value">{formatChartValue(activeValue ?? 0)}</div>
           </div>
         ) : null}
         {isMulti && activeDay && activeX !== null ? (
-          <div className="chart-tooltip multiline-tooltip" style={{ left: activeX, top: padding.top + 12 }}>
+          <div
+            className="chart-tooltip multiline-tooltip tooltip-clamped"
+            style={{
+              left: multiTooltipPosition?.left ?? activeX,
+              top: multiTooltipPosition?.top ?? padding.top + 12,
+            }}
+          >
             <div className="tooltip-date">{activeDay}</div>
             {activeMultiSeries.map((line) => {
               const value = valueByMultiSeries.get(line.key)?.get(activeDay) ?? 0

@@ -149,6 +149,7 @@ def _ensure_video_insights_tables(conn: sqlite3.Connection) -> None:
             search_term TEXT NOT NULL,
             views INTEGER,
             watch_time_minutes REAL,
+            CHECK (substr(date, 9, 2) = '01'),
             PRIMARY KEY (video_id, date, search_term),
             FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
         )

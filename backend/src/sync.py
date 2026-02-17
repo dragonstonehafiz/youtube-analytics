@@ -43,6 +43,26 @@ from src.youtube.videos import get_short_video_ids
 sync_progress = SyncProgress()
 
 
+def month_start(iso_date: str) -> str:
+    """Return ISO date for the first day of the month containing iso_date."""
+    return datetime.fromisoformat(iso_date).date().replace(day=1).isoformat()
+
+
+def next_month_start(iso_date: str) -> str:
+    """Return ISO date for the first day of the month following iso_date."""
+    current = datetime.fromisoformat(iso_date).date().replace(day=1)
+    if current.month == 12:
+        return current.replace(year=current.year + 1, month=1).isoformat()
+    return current.replace(month=current.month + 1).isoformat()
+
+
+def find_next_month_sync_date(latest_date: str | None, fallback_start: str) -> str:
+    """Return month-aligned next sync date for monthly-bucketed tables."""
+    if not latest_date:
+        return fallback_start
+    return next_month_start(latest_date)
+
+
 def sync_videos() -> None:
     """Sync all video metadata into the database."""
     sync_progress.set_total(2)
@@ -250,7 +270,7 @@ def sync_video_search_insights(
     deep_sync: bool = False,
     segments: list[DateRange] | None = None,
 ) -> None:
-    """Sync per-video daily YouTube-search term insight rows."""
+    """Sync per-video monthly YouTube-search term insight rows."""
     video_ids = list_video_ids()
     if not video_ids:
         sync_videos()
@@ -264,8 +284,9 @@ def sync_video_search_insights(
         return None
 
     latest_search_by_video = {} if deep_sync else get_latest_grouped_dates("video_search_insights", "video_id")
+    month_aligned_range = DateRange(start=month_start(date_range.start), end=date_range.end)
     if segments is None:
-        segments = chunk_date_range(date_range)
+        segments = chunk_date_range(month_aligned_range)
     publish_map = build_video_publish_map()
     total_rows = 0
     segment_video_sets: list[list[str]] = []
@@ -276,7 +297,8 @@ def sync_video_search_insights(
             publish_date = publish_map.get(video_id)
             if publish_date and publish_date > segment.end:
                 continue
-            search_start = find_next_sync_date(latest_search_by_video.get(video_id), segment.start)
+            segment_start = max(segment.start, date_range.start)
+            search_start = find_next_month_sync_date(latest_search_by_video.get(video_id), segment_start)
             if search_start > segment.end:
                 continue
             segment_videos.append(video_id)
@@ -301,7 +323,8 @@ def sync_video_search_insights(
                 detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
-            search_start = find_next_sync_date(latest_search_by_video.get(video_id), segment.start)
+            segment_start = max(segment.start, date_range.start)
+            search_start = find_next_month_sync_date(latest_search_by_video.get(video_id), segment_start)
             if search_start <= segment.end:
                 search_rows = fetch_video_search_insight_metrics(
                     video_id,
@@ -310,7 +333,7 @@ def sync_video_search_insights(
                     publish_date=publish_date,
                 )
                 total_rows += upsert_video_search_insights(video_id, search_rows)
-                latest_search_by_video[video_id] = segment.end
+                latest_search_by_video[video_id] = month_start(segment.end)
                 sync_progress.increment()
 
     return None

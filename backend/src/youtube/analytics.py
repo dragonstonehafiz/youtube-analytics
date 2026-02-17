@@ -137,7 +137,7 @@ def fetch_video_search_insight_metrics(
     publish_date: str | None = None,
     max_results: int = 25,
 ) -> list[dict[str, Any]]:
-    """Fetch daily YouTube-search term insight rows for one video across a date range."""
+    """Fetch monthly YouTube-search term insight rows for one video across a date range."""
     yt_analytics = get_analytics_client()
     effective_start = start_date
     if publish_date:
@@ -145,17 +145,22 @@ def fetch_video_search_insight_metrics(
             return []
         if publish_date > start_date:
             effective_start = publish_date
-    # YouTube Analytics does not support day+insightTrafficSourceDetail together.
-    # Query one day at a time with insightTrafficSourceDetail only, then stamp the day.
-    rows: list[dict[str, Any]] = []
-    current = date.fromisoformat(effective_start)
+    effective_start_date = date.fromisoformat(effective_start)
     end = date.fromisoformat(end_date)
-    while current <= end:
-        day = current.isoformat()
+
+    # Query one month at a time for search-term details.
+    # Keep only one page (top 25 terms by views) per video-month.
+    rows: list[dict[str, Any]] = []
+    current_month = effective_start_date.replace(day=1)
+    while current_month <= end:
+        month_last_day = calendar.monthrange(current_month.year, current_month.month)[1]
+        month_end = date(current_month.year, current_month.month, month_last_day)
+        query_start = max(effective_start_date, current_month)
+        query_end = min(end, month_end)
         request_params = {
             "ids": "channel==MINE",
-            "startDate": day,
-            "endDate": day,
+            "startDate": query_start.isoformat(),
+            "endDate": query_end.isoformat(),
             "metrics": "views,estimatedMinutesWatched",
             "dimensions": "insightTrafficSourceDetail",
             "filters": f"video=={video_id};insightTrafficSourceType==YT_SEARCH",
@@ -163,11 +168,12 @@ def fetch_video_search_insight_metrics(
             "maxResults": max_results,
             "startIndex": 1,
         }
-        day_rows = _fetch_report_rows(yt_analytics, request_params, max_results)
-        for row in day_rows:
-            row["day"] = day
-        rows.extend(day_rows)
-        current += timedelta(days=1)
+        month_rows = _fetch_report_rows(yt_analytics, request_params, max_results, max_pages=1)
+        month_bucket = current_month.isoformat()
+        for row in month_rows:
+            row["day"] = month_bucket
+        rows.extend(month_rows)
+        current_month = add_months(current_month, 1)
     return rows
 
 
@@ -290,10 +296,16 @@ def _execute_with_retry(service, params: dict, max_attempts: int = 5):
             raise RuntimeError(f"YouTube Analytics API error: {error}") from error
 
 
-def _fetch_report_rows(service, request_params: dict, max_results: int) -> list[dict[str, Any]]:
+def _fetch_report_rows(
+    service,
+    request_params: dict,
+    max_results: int,
+    max_pages: int | None = None,
+) -> list[dict[str, Any]]:
     """Fetch all rows for a report, handling pagination."""
     results: list[dict[str, Any]] = []
     headers: list[str] | None = None
+    page_count = 0
     while True:
         response = _execute_with_retry(service, request_params)
         if response is None:
@@ -303,6 +315,9 @@ def _fetch_report_rows(service, request_params: dict, max_results: int) -> list[
             headers = [h["name"] for h in response.get("columnHeaders", [])]
         for row in rows:
             results.append({headers[i]: row[i] for i in range(len(headers))})
+        page_count += 1
+        if max_pages is not None and page_count >= max_pages:
+            break
         if len(rows) < max_results:
             break
         request_params["startIndex"] += max_results
