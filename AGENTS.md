@@ -269,6 +269,7 @@ Standard structure:
 
 ### Comments
 - `GET /comments` - paginated comments with optional `video_id`, `playlist_id`, `author_channel_id`, and date filters
+- `GET /comments/word-cloud/image` - renders a PNG word-cloud image from all comments matching active filters; supports optional `word_types` CSV (`noun,verb,proper_noun,adjective,adverb`)
 
 ### Sync
 - `POST /sync` - trigger sync (accepts pulls array, date range, deep_sync flag)
@@ -402,6 +403,14 @@ Standard structure:
 - Comments tab: Only comment sorting appears in the tab toolbar row; grouped data + pagination state are page-owned and passed into `CommentsSection`
 - Discovery side rail includes `Top YouTube search terms` under traffic cards, scoped to videos in the current playlist and active date range
 
+### Comments (`frontend/src/pages/Comments/Comments.tsx`)
+- Includes a dedicated word-cloud card between filters and comments section
+- Word cloud card displays backend-generated PNG from `GET /comments/word-cloud/image` using active page filters (not limited to current page rows)
+- Word cloud image colors use the WordCloud library defaults (no backend hardcoded palette)
+- Word cloud card includes a word-type multiselect above the image (nouns, verbs, proper nouns, adjectives, adverbs)
+- Word-type multiselect spans the full card row width
+- Word cloud image viewport height is responsive and capped on large screens to prevent oversized full-screen rendering
+
 ## Component Reference
 
 **UI primitives** (`frontend/src/components/ui/`):
@@ -418,6 +427,7 @@ Standard structure:
 
 **Card components** (`frontend/src/components/cards/`):
 - `PageCard` - generic card container
+- `CommentsWordCloudCard` - displays backend-rendered word-cloud PNG from filtered comments
 - `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
 - `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards
 - `TrafficSourceShareCard`, `TrafficSourceTopVideosCard` - traffic source cards

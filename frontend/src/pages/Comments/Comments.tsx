@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CommentsSection, type CommentApiRow } from '../../components/tables'
 import { buildCommentGroups } from '../../components/features'
-import { PageCard } from '../../components/cards'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { CommentsWordCloudCard, PageCard } from '../../components/cards'
+import { ActionButton, DateRangePicker, Dropdown, MultiSelect, PageSizePicker, PageSwitcher } from '../../components/ui'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Comments.css'
@@ -13,9 +13,21 @@ type StoredCommentsSettings = {
   postedAfter?: string
   postedBefore?: string
   page?: number
+  wordTypes?: WordType[]
 }
 
 type CommentSort = 'published_at' | 'likes' | 'reply_count'
+type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
+
+const WORD_TYPE_OPTIONS: Array<{ label: string; value: WordType }> = [
+  { label: 'Nouns', value: 'noun' },
+  { label: 'Verbs', value: 'verb' },
+  { label: 'Proper nouns', value: 'proper_noun' },
+  { label: 'Adjectives', value: 'adjective' },
+  { label: 'Adverbs', value: 'adverb' },
+]
+
+const DEFAULT_WORD_TYPES: WordType[] = ['noun', 'verb', 'proper_noun', 'adjective', 'adverb']
 
 function Comments() {
   const storedSettings = getStored('commentsPageSettings', null as StoredCommentsSettings | null)
@@ -28,6 +40,10 @@ function Comments() {
   const [total, setTotal] = useState(0)
   const [postedAfter, setPostedAfter] = useState(storedSettings?.postedAfter ?? '')
   const [postedBefore, setPostedBefore] = useState(storedSettings?.postedBefore ?? '')
+  const [wordTypes, setWordTypes] = useState<WordType[]>(storedSettings?.wordTypes ?? DEFAULT_WORD_TYPES)
+  const [wordCloudImageUrl, setWordCloudImageUrl] = useState('')
+  const [wordCloudLoading, setWordCloudLoading] = useState(false)
+  const [wordCloudError, setWordCloudError] = useState<string | null>(null)
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
   const groups = useMemo(() => buildCommentGroups(rows), [rows])
 
@@ -67,6 +83,53 @@ function Comments() {
   }, [page, pageSize, postedAfter, postedBefore, sortBy])
 
   useEffect(() => {
+    let nextObjectUrl = ''
+    async function loadWordCloud() {
+      setWordCloudLoading(true)
+      setWordCloudError(null)
+      try {
+        const params = new URLSearchParams({
+          max_words: '120',
+          min_count: '2',
+        })
+        if (postedAfter) {
+          params.set('published_after', postedAfter)
+        }
+        if (postedBefore) {
+          params.set('published_before', postedBefore)
+        }
+        if (wordTypes.length > 0) {
+          params.set('word_types', wordTypes.join(','))
+        }
+        const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to build word cloud (${response.status})`)
+        }
+        const blob = await response.blob()
+        nextObjectUrl = URL.createObjectURL(blob)
+        setWordCloudImageUrl((previousUrl) => {
+          if (previousUrl) {
+            URL.revokeObjectURL(previousUrl)
+          }
+          return nextObjectUrl
+        })
+      } catch (err) {
+        setWordCloudImageUrl('')
+        setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
+      } finally {
+        setWordCloudLoading(false)
+      }
+    }
+
+    loadWordCloud()
+    return () => {
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl)
+      }
+    }
+  }, [postedAfter, postedBefore, wordTypes])
+
+  useEffect(() => {
     setPage(1)
   }, [postedAfter, postedBefore, sortBy, pageSize])
 
@@ -81,8 +144,9 @@ function Comments() {
       postedAfter,
       postedBefore,
       page,
+      wordTypes,
     } satisfies StoredCommentsSettings)
-  }, [pageSize, sortBy, postedAfter, postedBefore, page])
+  }, [pageSize, sortBy, postedAfter, postedBefore, page, wordTypes])
 
   return (
     <section className="page">
@@ -131,6 +195,23 @@ function Comments() {
                 </div>
               </div>
             </div>
+          </PageCard>
+        </div>
+        <div className="page-row">
+          <PageCard>
+            <CommentsWordCloudCard
+              imageUrl={wordCloudImageUrl}
+              loading={wordCloudLoading}
+              error={wordCloudError}
+              controls={(
+                <MultiSelect
+                  items={WORD_TYPE_OPTIONS}
+                  selected={wordTypes}
+                  onChange={(next) => setWordTypes(next as WordType[])}
+                  placeholder="Word types"
+                />
+              )}
+            />
           </PageCard>
         </div>
         <CommentsSection

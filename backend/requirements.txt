@@ -2,7 +2,9 @@ fastapi
 google-api-python-client
 google-auth-oauthlib
 pandas
+pillow
 plotly
 pydantic-settings
 tqdm
 uvicorn
+wordcloud

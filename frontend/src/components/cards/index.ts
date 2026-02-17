@@ -1,4 +1,5 @@
 export { default as ChannelAnalyticsCard } from './ChannelAnalyticsCard'
+export { default as CommentsWordCloudCard } from './CommentsWordCloudCard'
 export { default as CommentsPreviewCard } from './CommentsPreviewCard'
 export { default as MonetizationContentPerformanceCard } from './MonetizationContentPerformanceCard'
 export { default as MonetizationEarningsCard } from './MonetizationEarningsCard'

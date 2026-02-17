@@ -1,0 +1,34 @@
+.comments-word-cloud-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comments-word-cloud-controls {
+  width: 100%;
+}
+
+.comments-word-cloud-state {
+  color: var(--color-muted);
+  font-size: 13px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.comments-word-cloud-list {
+  position: relative;
+  height: clamp(280px, 34vw, 560px);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.comments-word-cloud-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #ffffff;
+}
