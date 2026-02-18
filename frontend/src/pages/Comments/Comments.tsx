@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CommentsSection, type CommentApiRow } from '../../components/tables'
 import { buildCommentGroups } from '../../components/features'
-import { CommentsWordCloudCard, PageCard } from '../../components/cards'
-import { ActionButton, DateRangePicker, Dropdown, MultiSelect, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { CommentsWordCloudCard, LlmSummaryCard, PageCard } from '../../components/cards'
+import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
 import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Comments.css'
@@ -18,6 +18,7 @@ type StoredCommentsSettings = {
 
 type CommentSort = 'published_at' | 'likes' | 'reply_count'
 type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
+type SummarySort = 'recency' | 'like_count'
 
 const WORD_TYPE_OPTIONS: Array<{ label: string; value: WordType }> = [
   { label: 'Nouns', value: 'noun' },
@@ -44,8 +45,20 @@ function Comments() {
   const [wordCloudImageUrl, setWordCloudImageUrl] = useState('')
   const [wordCloudLoading, setWordCloudLoading] = useState(false)
   const [wordCloudError, setWordCloudError] = useState<string | null>(null)
+  const [summaryLimitInput, setSummaryLimitInput] = useState('50')
+  const [summarySortBy, setSummarySortBy] = useState<SummarySort>('recency')
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryText, setSummaryText] = useState('')
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
   const groups = useMemo(() => buildCommentGroups(rows), [rows])
+  const summaryLimit = useMemo(() => {
+    const parsed = Number(summaryLimitInput)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null
+    }
+    return Math.floor(parsed)
+  }, [summaryLimitInput])
 
   useEffect(() => {
     async function loadCommentsPage() {
@@ -148,6 +161,39 @@ function Comments() {
     } satisfies StoredCommentsSettings)
   }, [pageSize, sortBy, postedAfter, postedBefore, page, wordTypes])
 
+  useEffect(() => {
+    setSummaryText('')
+    setSummaryError(null)
+  }, [postedAfter, postedBefore, summarySortBy, summaryLimitInput])
+
+  const summarizeComments = async () => {
+    setSummaryLoading(true)
+    setSummaryError(null)
+    try {
+      const payload = {
+        published_after: postedAfter || null,
+        published_before: postedBefore || null,
+        limit_count: summaryLimit,
+        sort_by: summarySortBy,
+      }
+      const response = await fetch('http://127.0.0.1:8000/llm/summarize-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = await response.json()
+      if (!response.ok) {
+        throw new Error(typeof body.detail === 'string' ? body.detail : `Failed to summarize comments (${response.status})`)
+      }
+      setSummaryText(typeof body.summary === 'string' ? body.summary : '')
+    } catch (err) {
+      setSummaryText('')
+      setSummaryError(err instanceof Error ? err.message : 'Failed to summarize comments.')
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
   return (
     <section className="page">
       <header className="page-header">
@@ -198,21 +244,31 @@ function Comments() {
           </PageCard>
         </div>
         <div className="page-row">
-          <PageCard>
-            <CommentsWordCloudCard
-              imageUrl={wordCloudImageUrl}
-              loading={wordCloudLoading}
-              error={wordCloudError}
-              controls={(
-                <MultiSelect
-                  items={WORD_TYPE_OPTIONS}
-                  selected={wordTypes}
-                  onChange={(next) => setWordTypes(next as WordType[])}
-                  placeholder="Word types"
-                />
-              )}
-            />
-          </PageCard>
+          <div className="comments-insights-grid">
+            <PageCard>
+              <LlmSummaryCard
+                loading={summaryLoading}
+                error={summaryError}
+                summary={summaryText}
+                maxComments={summaryLimitInput}
+                onMaxCommentsChange={setSummaryLimitInput}
+                rankBy={summarySortBy}
+                onRankByChange={setSummarySortBy}
+                onSummarize={summarizeComments}
+                disabled={total === 0}
+              />
+            </PageCard>
+            <PageCard>
+              <CommentsWordCloudCard
+                imageUrl={wordCloudImageUrl}
+                loading={wordCloudLoading}
+                error={wordCloudError}
+                wordTypeOptions={WORD_TYPE_OPTIONS}
+                selectedWordTypes={wordTypes}
+                onWordTypesChange={(next) => setWordTypes(next as WordType[])}
+              />
+            </PageCard>
+          </div>
         </div>
         <CommentsSection
           groups={groups}

@@ -33,6 +33,7 @@ backend/
     sync.py              # Sync endpoints
     stats.py             # Stats/DB info endpoints
   src/sync.py            # Sync orchestration
+  llm/                   # LLM provider interfaces/implementations (API-based)
   src/database/          # Schema + DB helpers per table
   src/youtube/           # YouTube API client code
   src/helper/            # Shared utilities (estimates, dates, progress)
@@ -85,6 +86,8 @@ frontend/
 - **Foreign keys**: `playlist_items.video_id` is a raw YouTube ID (no FK to `videos`)
 - **Sync history**: One `sync_runs` row per stage execution, not per full sync
 - **SQLite location**: `backend/data/youtube.db` (from `backend/.env` `DB_PATH`)
+- **LLM provider config location**: `backend/data/<provider>.json` (path resolved in `LLMInterface`, loaded on `initialize`, persisted on `configure`; OpenAI uses `llm_openai.json`)
+- **LLM initialization lifecycle**: Provider `set_defaults()` is invoked from `initialize()`; operational methods assume the backend has been initialized
 - **Video search insights granularity**: `video_search_insights.date` is a month bucket (`YYYY-MM-01`), not per-day rows
 
 ### Sync Behavior
@@ -200,6 +203,7 @@ Standard structure:
 - `Dropdown` - custom select (not native `<select>`)
 - `MultiSelect` - for filter chips
 - `DateRangePicker` - date range inputs
+- `MarkdownTextbox` - read-only markdown/text output area
 - `PageSwitcher` + `PageSizePicker` - pagination
 - `ProfileImage` - profile images with fallback
 
@@ -281,6 +285,14 @@ Standard structure:
 - `GET /stats/overview` - DB metrics (row counts, storage breakdown)
 - `GET /stats/table-details` - table schema + date bounds
 - `GET /stats/table-api-calls` - estimated API usage for sync config
+
+### LLM
+- `GET /llm/schema` - returns provider settings schema (`provider`, `title`, `fields`) for dynamic settings UI
+- `GET /llm/settings` - returns current provider settings values for UI hydration (`model_name`, `temperature`, `base_url`, `has_api_key`)
+- `GET /llm/status` - returns active LLM status and current model
+- `POST /llm/configure` - applies provider settings, persists provider JSON config, and rebuilds the active backend model
+- `POST /llm/summarize-comments` - summarizes comments from DB matching active filters (`published_after`, `published_before`, optional `video_id`, `playlist_id`, `author_channel_id`) with optional `limit_count` and `sort_by` (`recency` or `like_count`)
+- OpenAI `loaded` status requires a successful minimal probe inference call (invalid API keys or unreachable providers keep status as `error`)
 
 ## Code Style
 
@@ -394,6 +406,7 @@ Standard structure:
 - Discovery tab: Multi-series traffic source chart + share card
 - Discovery tab side row includes `Top YouTube search terms` next to traffic source share, scoped to the current video and active date range
 - Comments tab: Flat list (no inline replies), sorts by date/likes/reply_count
+- Comments tab: Shows `LLM Summary` (left) and word-cloud (right) cards above the comments section, scoped to the current video
 
 ### PlaylistDetail (`frontend/src/pages/PlaylistDetail.tsx`)
 - Four tabs: `Metrics`, `Monetization`, `Discovery`, `Comments`
@@ -401,20 +414,35 @@ Standard structure:
 - Items table: Sortable Position/Added/Views columns, hover actions
 - No search input on items view
 - Comments tab: Only comment sorting appears in the tab toolbar row; grouped data + pagination state are page-owned and passed into `CommentsSection`
+- Comments tab: Shows `LLM Summary` (left) and word-cloud (right) cards above the comments section, scoped to the current playlist
 - Discovery side rail includes `Top YouTube search terms` under traffic cards, scoped to videos in the current playlist and active date range
 
 ### Comments (`frontend/src/pages/Comments/Comments.tsx`)
 - Includes a dedicated word-cloud card between filters and comments section
+- Includes an `LLM Summary` card next to the word-cloud card (two-column layout on desktop, stacked on smaller screens)
+- LLM Summary runs only on button click (manual trigger, never automatic)
+- LLM Summary source is all comments in DB matching active page filters (not current page rows only); max comments defaults to `50`
+- LLM Summary controls show explicit labels (`Max comments`, `Rank by`) and do not render a `Using X of Y comments` helper line
+- `Max comments` label includes a tooltip help indicator explaining: `Leave blank to include all comments`
+- LLM Summary output uses an always-visible markdown-rendered textbox (bold/lists/code formatting rendered, not raw markdown text) and stays inside fixed card height with internal scrolling
 - Word cloud card displays backend-generated PNG from `GET /comments/word-cloud/image` using active page filters (not limited to current page rows)
 - Word cloud image colors use the WordCloud library defaults (no backend hardcoded palette)
-- Word cloud card includes a word-type multiselect above the image (nouns, verbs, proper nouns, adjectives, adverbs)
+- Word cloud card includes a labeled `Word types` multiselect above the image (nouns, verbs, proper nouns, adjectives, adverbs)
 - Word-type multiselect spans the full card row width
 - Word cloud image viewport height is responsive and capped on large screens to prevent oversized full-screen rendering
+
+### LLMSettings (`frontend/src/pages/LLMSettings/LLMSettings.tsx`)
+- Loads settings schema from `GET /llm/schema` and renders a dynamic settings form from schema field definitions
+- Hydrates form values from `GET /llm/settings` defaults/current values
+- Saves form values through `POST /llm/configure` to persist and rebuild the active LLM provider
+- Shows schema title only (provider subtitle hidden), uses a full-width `Save settings` button, and does not display a success banner after save
+- Shows a status dot next to the schema title from `GET /llm/status`: green when `loaded`, red otherwise
+- API key is optional when saving settings; leaving it blank keeps the previously stored key
 
 ## Component Reference
 
 **UI primitives** (`frontend/src/components/ui/`):
-- `ActionButton`, `Dropdown`, `MultiSelect`, `DateRangePicker`, `YearInput`
+- `ActionButton`, `Dropdown`, `MultiSelect`, `DateRangePicker`, `YearInput`, `MarkdownTextbox`
 - `PageSwitcher`, `PageSizePicker` (global page size in local storage)
 - `ProfileImage` - profile images with fallback
 
@@ -428,6 +456,7 @@ Standard structure:
 **Card components** (`frontend/src/components/cards/`):
 - `PageCard` - generic card container
 - `CommentsWordCloudCard` - displays backend-rendered word-cloud PNG from filtered comments
+- `LlmSummaryCard` - displays manual LLM-generated summary output and summarize controls for loaded comments
 - `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
 - `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards
 - `TrafficSourceShareCard`, `TrafficSourceTopVideosCard` - traffic source cards

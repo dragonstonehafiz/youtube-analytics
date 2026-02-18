@@ -17,6 +17,23 @@
   align-items: start;
 }
 
+.playlist-comments-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.playlist-comments-insights-grid > .page-card {
+  height: 100%;
+}
+
+.playlist-comments-insights-grid > .page-card > .page-card-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .playlist-detail-side-cards {
   display: flex;
   flex-direction: column;
@@ -85,6 +102,10 @@
 
 @media (max-width: 980px) {
   .playlist-detail-items-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .playlist-comments-insights-grid {
     grid-template-columns: 1fr;
   }
 }

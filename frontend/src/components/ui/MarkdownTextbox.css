@@ -1,0 +1,42 @@
+.markdown-textbox {
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fafc;
+  color: var(--color-ink);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-y: auto;
+}
+
+.markdown-textbox p {
+  margin: 0 0 10px;
+}
+
+.markdown-textbox ul,
+.markdown-textbox ol {
+  margin: 0 0 10px 18px;
+  padding: 0;
+}
+
+.markdown-textbox li {
+  margin: 0 0 4px;
+}
+
+.markdown-textbox strong {
+  font-weight: 700;
+}
+
+.markdown-textbox code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  background: rgba(148, 163, 184, 0.18);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.markdown-textbox-placeholder {
+  color: var(--color-muted);
+}

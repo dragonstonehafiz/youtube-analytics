@@ -4,6 +4,8 @@ import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../comp
 import { DataRangeControl } from '../../components/features'
 import { MetricChartCard } from '../../components/charts'
 import {
+  CommentsWordCloudCard,
+  LlmSummaryCard,
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
   PageCard,
@@ -38,6 +40,8 @@ type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type PlaylistViewMode = 'playlist_views' | 'video_views'
 type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'comments'
 type CommentSort = 'published_at' | 'likes' | 'reply_count'
+type SummarySort = 'recency' | 'like_count'
+type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
 type SeriesPoint = { date: string; value: number }
 type DiscoveryMultiSeries = { key: string; label: string; color: string; points: SeriesPoint[] }
 type TrafficSourceRow = { day: string; traffic_source: string; views: number; watch_time_minutes: number }
@@ -104,6 +108,14 @@ const VIEW_MODE_OPTIONS = [
   { label: 'Playlist Views', value: 'playlist_views' },
   { label: 'Video Views', value: 'video_views' },
 ]
+const WORD_TYPE_OPTIONS: Array<{ label: string; value: WordType }> = [
+  { label: 'Nouns', value: 'noun' },
+  { label: 'Verbs', value: 'verb' },
+  { label: 'Proper nouns', value: 'proper_noun' },
+  { label: 'Adjectives', value: 'adjective' },
+  { label: 'Adverbs', value: 'adverb' },
+]
+const DEFAULT_WORD_TYPES: WordType[] = ['noun', 'verb', 'proper_noun', 'adjective', 'adverb']
 
 function formatDurationSeconds(seconds: number | null | undefined): string {
   const value = Number(seconds ?? 0)
@@ -166,6 +178,15 @@ function PlaylistDetail() {
   const [commentsPageSize, setCommentsPageSize] = useState(() => getSharedPageSize(storedCommentsSettings?.pageSize ?? 10))
   const [commentsSortBy, setCommentsSortBy] = useState<CommentSort>(storedCommentsSettings?.sortBy ?? 'published_at')
   const [commentsTotal, setCommentsTotal] = useState(0)
+  const [wordTypes, setWordTypes] = useState<WordType[]>(DEFAULT_WORD_TYPES)
+  const [wordCloudImageUrl, setWordCloudImageUrl] = useState('')
+  const [wordCloudLoading, setWordCloudLoading] = useState(false)
+  const [wordCloudError, setWordCloudError] = useState<string | null>(null)
+  const [summaryLimitInput, setSummaryLimitInput] = useState('50')
+  const [summarySortBy, setSummarySortBy] = useState<SummarySort>('recency')
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryText, setSummaryText] = useState('')
   const [dailyRows, setDailyRows] = useState<PlaylistDailyRow[]>([])
   const [previousDailyRows, setPreviousDailyRows] = useState<PlaylistDailyRow[]>([])
   const [playlistDailyRows, setPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
@@ -201,6 +222,13 @@ function PlaylistDetail() {
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
   const commentsTotalPages = useMemo(() => Math.max(1, Math.ceil(commentsTotal / commentsPageSize)), [commentsTotal, commentsPageSize])
   const commentsGroups = useMemo(() => buildCommentGroups(commentsRows), [commentsRows])
+  const summaryLimit = useMemo(() => {
+    const parsed = Number(summaryLimitInput)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return null
+    }
+    return Math.floor(parsed)
+  }, [summaryLimitInput])
   const range = useMemo(() => {
     const now = new Date()
     const utcToday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
@@ -457,12 +485,61 @@ function PlaylistDetail() {
   }, [playlistId, commentsPageSize, commentsSortBy])
 
   useEffect(() => {
+    setSummaryText('')
+    setSummaryError(null)
+  }, [playlistId, summarySortBy, summaryLimitInput])
+
+  useEffect(() => {
     setSharedPageSize(pageSize)
   }, [pageSize])
 
   useEffect(() => {
     setSharedPageSize(commentsPageSize)
   }, [commentsPageSize])
+
+  useEffect(() => {
+    if (analyticsTab !== 'comments' || !playlistId) {
+      return
+    }
+    const targetPlaylistId = playlistId
+    let nextObjectUrl = ''
+    async function loadWordCloud() {
+      setWordCloudLoading(true)
+      setWordCloudError(null)
+      try {
+        const params = new URLSearchParams()
+        params.set('playlist_id', targetPlaylistId)
+        params.set('max_words', '120')
+        params.set('min_count', '2')
+        if (wordTypes.length > 0) {
+          params.set('word_types', wordTypes.join(','))
+        }
+        const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+        if (!response.ok) {
+          throw new Error(`Failed to build word cloud (${response.status})`)
+        }
+        const blob = await response.blob()
+        nextObjectUrl = URL.createObjectURL(blob)
+        setWordCloudImageUrl((previousUrl) => {
+          if (previousUrl) {
+            URL.revokeObjectURL(previousUrl)
+          }
+          return nextObjectUrl
+        })
+      } catch (err) {
+        setWordCloudImageUrl('')
+        setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
+      } finally {
+        setWordCloudLoading(false)
+      }
+    }
+    loadWordCloud()
+    return () => {
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl)
+      }
+    }
+  }, [analyticsTab, playlistId, wordTypes])
 
   useEffect(() => {
     setStored('playlistDetailRange', {
@@ -1133,6 +1210,37 @@ function PlaylistDetail() {
     setDirection(key === 'position' ? 'asc' : 'desc')
   }
 
+  const summarizePlaylistComments = async () => {
+    if (!playlistId) {
+      setSummaryError('Missing playlist ID.')
+      return
+    }
+    setSummaryLoading(true)
+    setSummaryError(null)
+    try {
+      const payload = {
+        playlist_id: playlistId,
+        limit_count: summaryLimit,
+        sort_by: summarySortBy,
+      }
+      const response = await fetch('http://127.0.0.1:8000/llm/summarize-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = await response.json()
+      if (!response.ok) {
+        throw new Error(typeof body.detail === 'string' ? body.detail : `Failed to summarize comments (${response.status})`)
+      }
+      setSummaryText(typeof body.summary === 'string' ? body.summary : '')
+    } catch (err) {
+      setSummaryText('')
+      setSummaryError(err instanceof Error ? err.message : 'Failed to summarize comments.')
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
   return (
     <section className="page">
       <header className="page-header">
@@ -1260,6 +1368,33 @@ function PlaylistDetail() {
         </div>
         {analyticsTab === 'comments' ? (
           <>
+            <div className="page-row">
+              <div className="playlist-comments-insights-grid">
+                <PageCard>
+                  <LlmSummaryCard
+                    loading={summaryLoading}
+                    error={summaryError}
+                    summary={summaryText}
+                    maxComments={summaryLimitInput}
+                    onMaxCommentsChange={setSummaryLimitInput}
+                    rankBy={summarySortBy}
+                    onRankByChange={setSummarySortBy}
+                    onSummarize={summarizePlaylistComments}
+                    disabled={commentsTotal === 0}
+                  />
+                </PageCard>
+                <PageCard>
+                  <CommentsWordCloudCard
+                    imageUrl={wordCloudImageUrl}
+                    loading={wordCloudLoading}
+                    error={wordCloudError}
+                    wordTypeOptions={WORD_TYPE_OPTIONS}
+                    selectedWordTypes={wordTypes}
+                    onWordTypesChange={(next) => setWordTypes(next as WordType[])}
+                  />
+                </PageCard>
+              </div>
+            </div>
             <CommentsSection
               groups={commentsGroups}
               loading={commentsLoading}

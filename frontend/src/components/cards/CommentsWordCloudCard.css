@@ -5,7 +5,17 @@
 }
 
 .comments-word-cloud-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   width: 100%;
+}
+
+.comments-word-cloud-control-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
 }
 
 .comments-word-cloud-state {

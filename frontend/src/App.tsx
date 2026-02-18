@@ -7,6 +7,7 @@ import Audience from './pages/Audience'
 import AudienceDetail from './pages/AudienceDetail'
 import Comments from './pages/Comments'
 import Dashboard from './pages/Dashboard'
+import LLMSettings from './pages/LLMSettings'
 import PlaylistDetail from './pages/PlaylistDetail'
 import Playlists from './pages/Playlists'
 import SyncSettings from './pages/SyncSettings'
@@ -50,6 +51,7 @@ function App() {
           <NavLink to="/audience">Audience</NavLink>
           <NavLink to="/analytics">Analytics</NavLink>
           <NavLink to="/sync">Sync</NavLink>
+          <NavLink to="/llm-settings">LLM Settings</NavLink>
         </nav>
       </aside>
       <main className="content">
@@ -64,6 +66,7 @@ function App() {
           <Route path="/videos/:videoId" element={<VideoDetail />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/sync" element={<SyncSettings />} />
+          <Route path="/llm-settings" element={<LLMSettings />} />
         </Routes>
       </main>
     </div>

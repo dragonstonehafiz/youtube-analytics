@@ -1,0 +1,100 @@
+.llm-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.llm-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.llm-settings-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.llm-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.llm-status-loaded {
+  background: #16a34a;
+}
+
+.llm-status-not-loaded {
+  background: #dc2626;
+}
+
+.llm-settings-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.llm-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.llm-settings-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+.llm-settings-input {
+  height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+.llm-settings-field .dropdown-field {
+  width: 100%;
+}
+
+.llm-settings-field .dropdown-trigger {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.llm-settings-footer {
+  display: block;
+  margin-top: 2px;
+}
+
+.llm-settings-footer .action-button {
+  width: 100%;
+}
+
+.llm-settings-message {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.llm-settings-message-error {
+  color: #b91c1c;
+}
