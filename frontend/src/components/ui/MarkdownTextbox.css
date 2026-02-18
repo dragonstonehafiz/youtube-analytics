@@ -16,6 +16,42 @@
   margin: 0 0 10px;
 }
 
+.markdown-textbox h1,
+.markdown-textbox h2,
+.markdown-textbox h3,
+.markdown-textbox h4,
+.markdown-textbox h5,
+.markdown-textbox h6 {
+  margin: 0 0 10px;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.markdown-textbox h1 {
+  font-size: 21px;
+}
+
+.markdown-textbox h2 {
+  font-size: 18px;
+}
+
+.markdown-textbox h3 {
+  font-size: 16px;
+}
+
+.markdown-textbox h4 {
+  font-size: 15px;
+}
+
+.markdown-textbox h5 {
+  font-size: 14px;
+}
+
+.markdown-textbox h6 {
+  font-size: 13px;
+}
+
 .markdown-textbox ul,
 .markdown-textbox ol {
   margin: 0 0 10px 18px;

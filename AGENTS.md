@@ -292,6 +292,7 @@ Standard structure:
 - `GET /llm/status` - returns active LLM status and current model
 - `POST /llm/configure` - applies provider settings, persists provider JSON config, and rebuilds the active backend model
 - `POST /llm/summarize-comments` - summarizes comments from DB matching active filters (`published_after`, `published_before`, optional `video_id`, `playlist_id`, `author_channel_id`) with optional `limit_count` and `sort_by` (`recency` or `like_count`)
+- `POST /llm/summarize-comments` `limit_count` supports `1..1000`; omitted/blank defaults to `1000`
 - OpenAI `loaded` status requires a successful minimal probe inference call (invalid API keys or unreachable providers keep status as `error`)
 
 ## Code Style
@@ -422,9 +423,10 @@ Standard structure:
 - Includes an `LLM Summary` card next to the word-cloud card (two-column layout on desktop, stacked on smaller screens)
 - LLM Summary runs only on button click (manual trigger, never automatic)
 - LLM Summary source is all comments in DB matching active page filters (not current page rows only); max comments defaults to `50`
+- LLM Summary max comments accepts `1..1000` in the input UI; leaving it blank defaults to `1000`
 - LLM Summary controls show explicit labels (`Max comments`, `Rank by`) and do not render a `Using X of Y comments` helper line
-- `Max comments` label includes a tooltip help indicator explaining: `Leave blank to include all comments`
-- LLM Summary output uses an always-visible markdown-rendered textbox (bold/lists/code formatting rendered, not raw markdown text) and stays inside fixed card height with internal scrolling
+- `Max comments` label includes a tooltip help indicator explaining: `Leave blank to default to 1000 comments.`
+- LLM Summary output uses an always-visible markdown-rendered textbox (headings/bold/lists/code formatting rendered, not raw markdown text) and stays inside fixed card height with internal scrolling
 - Word cloud card displays backend-generated PNG from `GET /comments/word-cloud/image` using active page filters (not limited to current page rows)
 - Word cloud image colors use the WordCloud library defaults (no backend hardcoded palette)
 - Word cloud card includes a labeled `Word types` multiselect above the image (nouns, verbs, proper nouns, adjectives, adverbs)

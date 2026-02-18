@@ -170,11 +170,18 @@ function Comments() {
     setSummaryLoading(true)
     setSummaryError(null)
     try {
-      const payload = {
+      const payload: {
+        published_after: string | null
+        published_before: string | null
+        sort_by: SummarySort
+        limit_count?: number
+      } = {
         published_after: postedAfter || null,
         published_before: postedBefore || null,
-        limit_count: summaryLimit,
         sort_by: summarySortBy,
+      }
+      if (summaryLimit !== null) {
+        payload.limit_count = summaryLimit
       }
       const response = await fetch('http://127.0.0.1:8000/llm/summarize-comments', {
         method: 'POST',

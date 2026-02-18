@@ -45,6 +45,14 @@ function MarkdownTextbox({ value, placeholder = '', className = '' }: MarkdownTe
         closeLists()
         continue
       }
+      const headingMatch = /^(#{1,6})\s+(.+)$/.exec(trimmed)
+      if (headingMatch) {
+        closeLists()
+        const level = headingMatch[1].length
+        const content = formatInlineMarkdown(headingMatch[2])
+        htmlParts.push(`<h${level}>${content}</h${level}>`)
+        continue
+      }
       const unorderedMatch = /^[-*]\s+(.+)$/.exec(trimmed)
       if (unorderedMatch) {
         if (inOrderedList) {

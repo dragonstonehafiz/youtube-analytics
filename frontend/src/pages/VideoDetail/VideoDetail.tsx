@@ -729,10 +729,16 @@ function VideoDetail() {
     setSummaryLoading(true)
     setSummaryError(null)
     try {
-      const payload = {
+      const payload: {
+        video_id: string
+        sort_by: SummarySort
+        limit_count?: number
+      } = {
         video_id: videoId,
-        limit_count: summaryLimit,
         sort_by: summarySortBy,
+      }
+      if (summaryLimit !== null) {
+        payload.limit_count = summaryLimit
       }
       const response = await fetch('http://127.0.0.1:8000/llm/summarize-comments', {
         method: 'POST',

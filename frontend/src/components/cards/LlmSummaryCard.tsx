@@ -30,17 +30,32 @@ function LlmSummaryCard({
         <label className="llm-summary-control-field">
           <span className="llm-summary-control-label">
             Max comments
-            <span className="llm-summary-help" title="Leave blank to include all comments">
+            <span className="llm-summary-help" title="Leave blank to default to 1000 comments.">
               ?
             </span>
           </span>
           <input
             className="llm-summary-limit-input"
-            type="text"
+            type="number"
             inputMode="numeric"
+            min={1}
+            max={1000}
+            step={1}
             placeholder="50"
             value={maxComments}
-            onChange={(event) => onMaxCommentsChange(event.target.value)}
+            onChange={(event) => {
+              const raw = event.target.value
+              if (!raw) {
+                onMaxCommentsChange('')
+                return
+              }
+              const parsed = Number(raw)
+              if (!Number.isFinite(parsed)) {
+                return
+              }
+              const clamped = Math.min(1000, Math.max(1, Math.floor(parsed)))
+              onMaxCommentsChange(String(clamped))
+            }}
           />
         </label>
         <label className="llm-summary-control-field">

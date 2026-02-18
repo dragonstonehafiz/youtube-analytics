@@ -13,9 +13,15 @@ router = APIRouter()
 openai_model = LLMOpenAI()
 COMMENTS_SUMMARY_SYSTEM_PROMPT = (
     "You are an analyst summarizing YouTube comments for a creator dashboard. "
-    "Provide a concise summary with: overall sentiment, top recurring themes, "
-    "specific praise points, specific criticism points, and actionable suggestions. "
-    "Use neutral, evidence-based language and do not invent facts."
+    "Return markdown using exactly these section headers in this order: "
+    "'Overall sentiment:', 'Most common positives:', 'Most common negatives:', "
+    "'User requests:'. "
+    "Prefix headers with markdown heading syntax (#, ##, ###). "
+    "In 'User requests:', provide an exhaustive bullet list of distinct concrete requests users are making. "
+    "Include every unique request that appears in the provided comments, even if mentioned only once. "
+    "Merge duplicates, but do not omit low-frequency requests. "
+    "If there are no requests, write a single bullet: '- None identified.' "
+    "Use only evidence from the provided comments, keep it concise, and do not invent facts."
 )
 
 try:
@@ -78,7 +84,7 @@ def summarize_comments(
     video_id: str | None = Body(default=None),
     playlist_id: str | None = Body(default=None),
     author_channel_id: str | None = Body(default=None),
-    limit_count: int | None = Body(default=50),
+    limit_count: int | None = Body(default=1000, ge=1, le=1000),
     sort_by: Literal["recency", "like_count"] = Body(default="recency"),
 ) -> dict:
     """Summarize filtered comments from the database with optional limit/ranking."""
@@ -129,7 +135,8 @@ def summarize_comments(
         raise HTTPException(status_code=400, detail="No comments matched the current filters.")
     if sort_by == "like_count":
         normalized.sort(key=lambda item: int(item.get("like_count") or 0), reverse=True)
-    safe_limit = max(1, min(limit_count, 2000)) if limit_count is not None else len(normalized)
+    effective_limit = 1000 if limit_count is None else limit_count
+    safe_limit = max(1, min(effective_limit, 1000))
     selected = normalized[:safe_limit]
     prompt_lines = [
         f"Summarize the following {len(selected)} YouTube comments.",
