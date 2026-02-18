@@ -112,6 +112,7 @@ function Analytics() {
   const rangeOptions = [
     { label: 'Last 7 days', value: 'range:7d' },
     { label: 'Last 28 days', value: 'range:28d' },
+    { label: 'Last 90 days', value: 'range:90d' },
     { label: 'Last 365 days', value: 'range:365d' },
     { label: 'Full data', value: 'full' },
   ]
@@ -732,7 +733,7 @@ function Analytics() {
           start_date: range.start,
           end_date: range.end,
           traffic_source: trafficTopSource,
-          limit: '5',
+          limit: '10',
         })
         if (contentSelection !== 'all') {
           params.set('content_type', contentSelection)

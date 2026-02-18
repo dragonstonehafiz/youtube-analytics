@@ -206,7 +206,7 @@ Standard structure:
 - `Dropdown` - custom select (not native `<select>`)
 - `MultiSelect` - for filter chips
 - `DateRangePicker` - date range inputs
-- `MarkdownTextbox` - read-only markdown/text output area
+- `MarkdownTextbox` - read-only markdown/text output area with a copy-to-clipboard icon for raw markdown text
 - `PageSwitcher` + `PageSizePicker` - pagination
 - `ProfileImage` - profile images with fallback
 
@@ -401,6 +401,7 @@ Standard structure:
 - Chart range trims to first/last day with data, zero-fills gaps inside
 - Upload markers rebucket to match granularity
 - Discovery tab includes a "Top YouTube search terms" card under traffic source share; it aggregates monthly search insights for all videos in the active date range (optionally filtered by selected content type)
+- Discovery tab traffic-source side rail fetches up to 10 videos for the selected source in "Top videos by traffic source"
 - Top YouTube search terms card displays the top 10 terms by views
 - Hovering the search-terms card `Videos` column uses `UploadPublishTooltip` to show all matching videos for that search term, sorted by views from search (desc)
 

@@ -176,6 +176,7 @@ function VideoDetail() {
   const rangeOptions = [
     { label: 'Last 7 days', value: 'range:7d' },
     { label: 'Last 28 days', value: 'range:28d' },
+    { label: 'Last 90 days', value: 'range:90d' },
     { label: 'Last 365 days', value: 'range:365d' },
     { label: 'Full data', value: 'full' },
   ]
