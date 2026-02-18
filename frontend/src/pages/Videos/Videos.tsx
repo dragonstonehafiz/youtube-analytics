@@ -125,7 +125,7 @@ function Videos() {
                 <label className="filter-field">
                   <input
                     type="text"
-                    placeholder="Title"
+                    placeholder="Title or ID"
                     value={filters.q}
                     onChange={(event) => updateFilter('q', event.target.value)}
                   />

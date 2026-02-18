@@ -24,8 +24,8 @@ def list_playlists(
     where_clauses = []
     params: list[object] = []
     if q:
-        where_clauses.append("p.title LIKE ?")
-        params.append(f"%{q}%")
+        where_clauses.append("(p.title LIKE ? OR p.id LIKE ?)")
+        params.extend([f"%{q}%", f"%{q}%"])
     if privacy_status:
         where_clauses.append("p.privacy_status = ?")
         params.append(privacy_status)

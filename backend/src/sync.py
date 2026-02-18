@@ -39,8 +39,23 @@ from src.youtube.playlists import get_all_playlist_items, get_all_playlists
 from src.youtube.subscribers import extract_public_subscribers
 from src.youtube.videos import safe_get_videos
 from src.youtube.videos import get_short_video_ids
+from src.utils.logger import get_logger
 
 sync_progress = SyncProgress()
+sync_logger = get_logger("sync", filename="sync.log")
+
+
+def _log_sync_error(stage: str, error: Exception, **context: object) -> None:
+    """Log sync errors with stage-specific context metadata."""
+    context_pairs = [f"{key}={value!r}" for key, value in context.items()]
+    context_text = ", ".join(context_pairs) if context_pairs else "no context"
+    sync_logger.error(
+        "Sync stage '%s' failed: %s | %s",
+        stage,
+        str(error),
+        context_text,
+        exc_info=True,
+    )
 
 
 def month_start(iso_date: str) -> str:
@@ -69,12 +84,20 @@ def sync_videos() -> None:
     sync_progress.set_current(0)
     sync_progress.format_message("Pulling videos [{current}/{total}] stage 1/2: loading uploads")
     sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-    videos = safe_get_videos()
+    try:
+        videos = safe_get_videos()
+    except Exception as exc:
+        _log_sync_error("videos", exc, step="load_uploads")
+        raise
     sync_progress.increment()
     sync_progress.format_message("Pulling videos [{current}/{total}] stage 2/2: loading shorts IDs")
     sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-    short_video_ids = get_short_video_ids()
-    upsert_videos(videos, short_video_ids=short_video_ids)
+    try:
+        short_video_ids = get_short_video_ids()
+        upsert_videos(videos, short_video_ids=short_video_ids)
+    except Exception as exc:
+        _log_sync_error("videos", exc, step="load_shorts_ids")
+        raise
     sync_progress.set_current(2)
     sync_progress.format_message("Pulling videos [{current}/{total}] complete")
     return None
@@ -180,15 +203,27 @@ def sync_video_analytics(
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
             if next_start > segment.end:
                 continue
-            rows = fetch_video_daily_metrics(
-                video_id,
-                next_start,
-                segment.end,
-                publish_date=publish_date,
-            )
-            total_rows += upsert_daily_analytics(video_id, rows)
-            latest_by_video[video_id] = segment.end
-            sync_progress.increment()
+            try:
+                rows = fetch_video_daily_metrics(
+                    video_id,
+                    next_start,
+                    segment.end,
+                    publish_date=publish_date,
+                )
+                total_rows += upsert_daily_analytics(video_id, rows)
+                latest_by_video[video_id] = segment.end
+                sync_progress.increment()
+            except Exception as exc:
+                _log_sync_error(
+                    "video_analytics",
+                    exc,
+                    video_id=video_id,
+                    segment_start=segment.start,
+                    segment_end=segment.end,
+                    next_start=next_start,
+                    publish_date=publish_date,
+                )
+                raise
 
     return None
 
@@ -251,15 +286,27 @@ def sync_video_traffic_source(
             publish_date = publish_map.get(video_id)
             traffic_start = find_next_sync_date(latest_traffic_by_video.get(video_id), segment.start)
             if traffic_start <= segment.end:
-                traffic_rows = fetch_video_traffic_source_metrics(
-                    video_id,
-                    traffic_start,
-                    segment.end,
-                    publish_date=publish_date,
-                )
-                total_rows += upsert_video_traffic_source(video_id, traffic_rows)
-                latest_traffic_by_video[video_id] = segment.end
-                sync_progress.increment()
+                try:
+                    traffic_rows = fetch_video_traffic_source_metrics(
+                        video_id,
+                        traffic_start,
+                        segment.end,
+                        publish_date=publish_date,
+                    )
+                    total_rows += upsert_video_traffic_source(video_id, traffic_rows)
+                    latest_traffic_by_video[video_id] = segment.end
+                    sync_progress.increment()
+                except Exception as exc:
+                    _log_sync_error(
+                        "video_traffic_source",
+                        exc,
+                        video_id=video_id,
+                        segment_start=segment.start,
+                        segment_end=segment.end,
+                        traffic_start=traffic_start,
+                        publish_date=publish_date,
+                    )
+                    raise
 
     return None
 
@@ -326,15 +373,27 @@ def sync_video_search_insights(
             segment_start = max(segment.start, date_range.start)
             search_start = find_next_month_sync_date(latest_search_by_video.get(video_id), segment_start)
             if search_start <= segment.end:
-                search_rows = fetch_video_search_insight_metrics(
-                    video_id,
-                    search_start,
-                    segment.end,
-                    publish_date=publish_date,
-                )
-                total_rows += upsert_video_search_insights(video_id, search_rows)
-                latest_search_by_video[video_id] = month_start(segment.end)
-                sync_progress.increment()
+                try:
+                    search_rows = fetch_video_search_insight_metrics(
+                        video_id,
+                        search_start,
+                        segment.end,
+                        publish_date=publish_date,
+                    )
+                    total_rows += upsert_video_search_insights(video_id, search_rows)
+                    latest_search_by_video[video_id] = month_start(segment.end)
+                    sync_progress.increment()
+                except Exception as exc:
+                    _log_sync_error(
+                        "video_search_insights",
+                        exc,
+                        video_id=video_id,
+                        segment_start=segment.start,
+                        segment_end=segment.end,
+                        search_start=search_start,
+                        publish_date=publish_date,
+                    )
+                    raise
 
     return None
 
@@ -368,9 +427,20 @@ def sync_channel_analytics(
             "Channel analytics [{current}/{total}] {detail}",
             detail=f"{segment.start} -> {segment.end} Segment [{index}/{len(segments)}]",
         )
-        rows = fetch_channel_analytics(segment.start, segment.end)
-        total_rows += upsert_channel_daily(rows)
-        sync_progress.increment()
+        try:
+            rows = fetch_channel_analytics(segment.start, segment.end)
+            total_rows += upsert_channel_daily(rows)
+            sync_progress.increment()
+        except Exception as exc:
+            _log_sync_error(
+                "channel_analytics",
+                exc,
+                segment_start=segment.start,
+                segment_end=segment.end,
+                segment_index=index,
+                total_segments=len(segments),
+            )
+            raise
     return None
 
 
@@ -403,9 +473,20 @@ def sync_traffic_sources(
             "Traffic sources [{current}/{total}] {detail}",
             detail=f"{segment.start} -> {segment.end} Segment [{index}/{len(segments)}]",
         )
-        rows = fetch_traffic_sources(segment.start, segment.end)
-        total_rows += upsert_traffic_sources(rows)
-        sync_progress.increment()
+        try:
+            rows = fetch_traffic_sources(segment.start, segment.end)
+            total_rows += upsert_traffic_sources(rows)
+            sync_progress.increment()
+        except Exception as exc:
+            _log_sync_error(
+                "traffic",
+                exc,
+                segment_start=segment.start,
+                segment_end=segment.end,
+                segment_index=index,
+                total_segments=len(segments),
+            )
+            raise
     return None
 
 
@@ -423,23 +504,35 @@ def sync_comments() -> None:
     for index, video_id in enumerate(video_ids, start=1):
         sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
         sync_progress.format_message("Pulling comments... [{current}/{total}]")
-        rows = extract_comments(video_id)
-        total += upsert_comments(rows)
-        sync_progress.increment()
+        try:
+            rows = extract_comments(video_id)
+            total += upsert_comments(rows)
+            sync_progress.increment()
+        except Exception as exc:
+            _log_sync_error("comments", exc, video_id=video_id, index=index, total=total_videos)
+            raise
 
 
 def sync_audience() -> None:
     """Sync public subscribers, then backfill commenter-only audience from comments DB."""
-    subscriber_rows = extract_public_subscribers()
-    upsert_audience(subscriber_rows)
-    upsert_commenters_from_comments()
+    try:
+        subscriber_rows = extract_public_subscribers()
+        upsert_audience(subscriber_rows)
+        upsert_commenters_from_comments()
+    except Exception as exc:
+        _log_sync_error("audience", exc)
+        raise
 
 
 def sync_playlists() -> None:
     """Sync playlists and playlist items, tracking progress per playlist."""
-    playlists = [playlist for playlist in get_all_playlists() if playlist.get("id")]
-    upsert_playlists(playlists)
-    delete_playlists_not_in([str(playlist["id"]) for playlist in playlists if playlist.get("id")])
+    try:
+        playlists = [playlist for playlist in get_all_playlists() if playlist.get("id")]
+        upsert_playlists(playlists)
+        delete_playlists_not_in([str(playlist["id"]) for playlist in playlists if playlist.get("id")])
+    except Exception as exc:
+        _log_sync_error("playlists", exc, step="load_playlists")
+        raise
     total_playlists = max(len(playlists), 1)
     sync_progress.set_total(total_playlists)
     sync_progress.set_current(0)
@@ -448,10 +541,21 @@ def sync_playlists() -> None:
         sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
         playlist_id = str(playlist["id"])
         playlist_title = str(playlist.get("snippet", {}).get("title") or playlist_id)
-        rows = get_all_playlist_items(playlist_id=playlist_id)
-        replace_playlist_items(playlist_id, rows)
-        sync_progress.increment()
-        sync_progress.format_message("Pulling playlists... [{current}/{total}] {title}", title=playlist_title)
+        try:
+            rows = get_all_playlist_items(playlist_id=playlist_id)
+            replace_playlist_items(playlist_id, rows)
+            sync_progress.increment()
+            sync_progress.format_message("Pulling playlists... [{current}/{total}] {title}", title=playlist_title)
+        except Exception as exc:
+            _log_sync_error(
+                "playlists",
+                exc,
+                playlist_id=playlist_id,
+                playlist_title=playlist_title,
+                index=index,
+                total=total_playlists,
+            )
+            raise
 
 
 def sync_playlist_analytics(
@@ -513,14 +617,27 @@ def sync_playlist_analytics(
                 next_date = next_day(latest)
                 if next_date > segment.end:
                     continue
-            rows = fetch_playlist_daily_metrics(
-                playlist_id,
-                next_date if latest and next_date > segment.start else segment.start,
-                segment.end,
-                publish_date=publish_map.get(playlist_id),
-            )
-            upsert_playlist_daily_analytics(playlist_id, rows)
-            sync_progress.increment()
+            query_start = next_date if latest and next_date > segment.start else segment.start
+            try:
+                rows = fetch_playlist_daily_metrics(
+                    playlist_id,
+                    query_start,
+                    segment.end,
+                    publish_date=publish_map.get(playlist_id),
+                )
+                upsert_playlist_daily_analytics(playlist_id, rows)
+                sync_progress.increment()
+            except Exception as exc:
+                _log_sync_error(
+                    "playlist_analytics",
+                    exc,
+                    playlist_id=playlist_id,
+                    segment_start=segment.start,
+                    segment_end=segment.end,
+                    query_start=query_start,
+                    publish_date=publish_map.get(playlist_id),
+                )
+                raise
 
 
 def sync_all(
@@ -546,6 +663,15 @@ def sync_all(
         if _should_run(selected, "playlists"):
             _run_sync_stage("playlists", start_date, end_date, deep_sync, sync_playlists)
         sync_progress.raise_if_stop_requested("Stop requested.")
+        if _should_run(selected, "playlist_analytics"):
+            _run_sync_stage(
+                "playlist_analytics",
+                start_date,
+                end_date,
+                deep_sync,
+                lambda: sync_playlist_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
+            )
+        sync_progress.raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "traffic"):
             _run_sync_stage(
                 "traffic",
@@ -562,15 +688,6 @@ def sync_all(
                 end_date,
                 deep_sync,
                 lambda: sync_channel_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
-            )
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "playlist_analytics"):
-            _run_sync_stage(
-                "playlist_analytics",
-                start_date,
-                end_date,
-                deep_sync,
-                lambda: sync_playlist_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
             )
         sync_progress.raise_if_stop_requested("Stop requested.")
         if _should_run(selected, "video_analytics"):
@@ -629,7 +746,14 @@ def _run_sync_stage(
     except Exception as exc:
         error_trace = traceback.format_exc()
         _finish_sync_run(run_id, "failed", error_trace if error_trace else str(exc))
-        raise
+        _log_sync_error(
+            stage_key,
+            exc,
+            start_date=start_date,
+            end_date=end_date,
+            deep_sync=deep_sync,
+            run_id=run_id,
+        )
 
 
 def _should_run(selected: set[str] | None, key: str) -> bool:

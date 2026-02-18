@@ -114,7 +114,7 @@ function Playlists() {
                 <label className="filter-field">
                   <input
                     type="text"
-                    placeholder="Title"
+                    placeholder="Title or ID"
                     value={filters.q}
                     onChange={(event) => {
                       setFilters((prev) => ({ ...prev, q: event.target.value }))

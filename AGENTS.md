@@ -91,10 +91,13 @@ frontend/
 - **Video search insights granularity**: `video_search_insights.date` is a month bucket (`YYYY-MM-01`), not per-day rows
 
 ### Sync Behavior
-- **Stage order** (immutable): `videos` → `comments` → `audience` → `playlists` → `traffic` → `channel_analytics` → `playlist_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
+- **Stage order** (immutable): `videos` → `comments` → `audience` → `playlists` → `playlist_analytics` → `traffic` → `channel_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
 - **Stop requests**: Cooperative (takes effect before next API call)
 - **Shorts detection**: Uses UUSH playlist, not dimensions (fail-fast if unavailable)
 - **Progress tracking**: In-memory state in `SyncProgress`, persistence in `sync_runs`
+- **Stage failure isolation**: Non-stop stage exceptions are recorded as failed stage runs and sync continues with later selected stages
+- **Overall sync progress status**: Marked `done` after all selected stages are attempted; per-stage failures are reflected in their own `sync_runs` rows
+- **Sync error logging**: Stage failures log contextual metadata (e.g., `video_id`, `playlist_id`, date segment) to `backend/outputs/sync.log` before stage failure is recorded
 - **Video search insights fetch policy**: Monthly queries, sorted by `-views`, capped to one page (`maxResults=25`, `startIndex=1`) per video-month
 
 ### Date/Time Handling
@@ -244,7 +247,7 @@ Standard structure:
 ## API Reference (Key Endpoints)
 
 ### Videos
-- `GET /videos` - paginated list with filters (q, privacy_status, content_type, published range)
+- `GET /videos` - paginated list with filters (q matches title or id, privacy_status, content_type, published range)
 - `GET /videos/{video_id}` - single video metadata
 - `GET /videos/published` - upload markers for charts (supports content_type filter)
 
@@ -260,7 +263,7 @@ Standard structure:
 - `GET /analytics/video-search-insights/videos` - per-search-term video list sorted by search-driven views (supports date range + required `search_term`, optional `video_ids` CSV and `content_type`)
 
 ### Playlists
-- `GET /playlists` - paginated list with computed aggregates
+- `GET /playlists` - paginated list with computed aggregates (q matches title or id)
 - `GET /playlists/{id}` - single playlist
 - `GET /playlists/{id}/items` - paginated playlist items with video analytics
 - `GET /analytics/playlist-daily` - playlist-level daily series

@@ -26,8 +26,8 @@ def list_videos(
     params: list[object] = []
 
     if q:
-        where_clauses.append("title LIKE ?")
-        params.append(f"%{q}%")
+        where_clauses.append("(title LIKE ? OR id LIKE ?)")
+        params.extend([f"%{q}%", f"%{q}%"])
     if published_after:
         where_clauses.append("published_at >= ?")
         params.append(published_after)
