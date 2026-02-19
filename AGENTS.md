@@ -204,7 +204,7 @@ Standard structure:
 **UI primitives** (`frontend/src/components/ui/`):
 - `ActionButton` - standard buttons (primary/soft variants)
 - `Dropdown` - custom select (not native `<select>`)
-- `MultiSelect` - for filter chips
+- `MultiSelect` - for filter chips; closes on outside click
 - `DateRangePicker` - date range inputs
 - `MarkdownTextbox` - read-only markdown/text output area with a copy-to-clipboard icon for raw markdown text
 - `PageSwitcher` + `PageSizePicker` - pagination
@@ -241,6 +241,7 @@ Standard structure:
 - Local component state for UI-only (tabs, modals)
 - Local storage for user preferences (filters, pagination, sort)
 - URL params only for shareable links (not implemented yet)
+- Shared pagination state via `frontend/src/hooks/usePagination.ts` (handles shared page-size persistence and page reset when page size changes)
 
 **Storage keys**: Namespace by page (e.g., `videoDetailGranularity`, `commentsPageSettings`)
 
@@ -449,7 +450,7 @@ Standard structure:
 
 **UI primitives** (`frontend/src/components/ui/`):
 - `ActionButton`, `Dropdown`, `MultiSelect`, `DateRangePicker`, `YearInput`, `MarkdownTextbox`
-- `PageSwitcher`, `PageSizePicker` (global page size in local storage)
+- `PageSwitcher`, `PageSizePicker` (global page size in local storage; page state commonly managed by `frontend/src/hooks/usePagination.ts`)
 - `ProfileImage` - profile images with fallback
 
 **Visualization components** (`frontend/src/components/charts/`):
@@ -478,4 +479,6 @@ Standard structure:
 **Feature components** (`frontend/src/components/features/`):
 - `DataRangeControl` - reusable analytics-style range control (granularity + presets/year/custom)
 - `buildCommentGroups()` - helper for grouping comments by video
+
+
 

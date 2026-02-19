@@ -3,8 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { CommentVideoGroup, type CommentRow, type CommentThread } from '../../components/tables'
 import { PageCard } from '../../components/cards'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../../components/ui'
+import usePagination from '../../hooks/usePagination'
 import { formatDisplayDate } from '../../utils/date'
-import { getSharedPageSize, setSharedPageSize } from '../../utils/storage'
 import '../shared.css'
 import './AudienceDetail.css'
 
@@ -52,10 +52,14 @@ function AudienceDetail() {
   const [commentsError, setCommentsError] = useState<string | null>(null)
   const [commentsSort, setCommentsSort] = useState<'published_at' | 'likes' | 'reply_count'>('published_at')
   const [commentsDirection, setCommentsDirection] = useState<'asc' | 'desc'>('desc')
-  const [commentsPage, setCommentsPage] = useState(1)
   const [commentsTotal, setCommentsTotal] = useState(0)
-  const [commentsPageSize, setCommentsPageSize] = useState(() => getSharedPageSize(10))
-  const commentsTotalPages = useMemo(() => Math.max(1, Math.ceil(commentsTotal / commentsPageSize)), [commentsTotal, commentsPageSize])
+  const {
+    page: commentsPage,
+    setPage: setCommentsPage,
+    pageSize: commentsPageSize,
+    setPageSize: setCommentsPageSize,
+    totalPages: commentsTotalPages,
+  } = usePagination({ total: commentsTotal, defaultPageSize: 10 })
   const commentGroups = useMemo<AudienceCommentGroup[]>(() => {
     const byVideoRows = new Map<string, AudienceCommentRow[]>()
     commentRows.forEach((row) => {
@@ -149,11 +153,7 @@ function AudienceDetail() {
 
   useEffect(() => {
     setCommentsPage(1)
-  }, [commentsSort, commentsDirection, commentsPageSize, channelId])
-
-  useEffect(() => {
-    setSharedPageSize(commentsPageSize)
-  }, [commentsPageSize])
+  }, [commentsSort, commentsDirection, channelId])
 
   return (
     <section className="page">
@@ -276,3 +276,5 @@ function AudienceDetail() {
 }
 
 export default AudienceDetail
+
+

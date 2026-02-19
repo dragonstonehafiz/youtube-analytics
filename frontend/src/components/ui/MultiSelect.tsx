@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './MultiSelect.css'
 
 type MultiSelectItem = {
@@ -15,6 +15,7 @@ type MultiSelectProps = {
 
 function MultiSelect({ items, selected, onChange, placeholder = 'Select' }: MultiSelectProps) {
   const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const label = useMemo(() => {
     if (selected.length === 0) {
       return placeholder
@@ -30,8 +31,22 @@ function MultiSelect({ items, selected, onChange, placeholder = 'Select' }: Mult
     )
   }
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!containerRef.current) {
+        return
+      }
+      if (!containerRef.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   return (
-    <div className="multi-select">
+    <div className="multi-select" ref={containerRef}>
       <button
         type="button"
         className="multi-select-trigger"

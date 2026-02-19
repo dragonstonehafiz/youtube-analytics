@@ -1,9 +1,10 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageCard } from '../../components/cards'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../../components/ui'
+import usePagination from '../../hooks/usePagination'
 import { formatDisplayDate } from '../../utils/date'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Audience.css'
 
@@ -32,15 +33,14 @@ type AudienceSortKey =
 function Audience() {
   const storedSort = getStored('audienceSort', null as { sortKey?: AudienceSortKey; sortDir?: 'asc' | 'desc' } | null)
   const storedFilters = getStored('audienceFilters', null as { q?: string; subscriberOnly?: string } | null)
-  const [pageSize, setPageSize] = useState(() => getSharedPageSize(10))
-  const [page, setPage] = useState(1)
+
   const [rows, setRows] = useState<AudienceRow[]>([])
   const [total, setTotal] = useState(0)
   const [sortKey, setSortKey] = useState<AudienceSortKey>(storedSort?.sortKey ?? 'last_commented_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(storedSort?.sortDir ?? 'desc')
   const [q, setQ] = useState(storedFilters?.q ?? '')
   const [subscriberOnly, setSubscriberOnly] = useState(storedFilters?.subscriberOnly ?? '')
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total, defaultPageSize: 10 })
 
   useEffect(() => {
     async function loadAudience() {
@@ -77,9 +77,6 @@ function Audience() {
     setStored('audienceFilters', { q, subscriberOnly })
   }, [q, subscriberOnly])
 
-  useEffect(() => {
-    setSharedPageSize(pageSize)
-  }, [pageSize])
 
   const toggleSort = (nextKey: AudienceSortKey) => {
     if (sortKey === nextKey) {
@@ -146,37 +143,37 @@ function Audience() {
                   className={`video-sort-button ${sortKey === 'subscribed_at' ? 'active' : ''}`}
                   onClick={() => toggleSort('subscribed_at')}
                 >
-                  Subscribed {sortKey === 'subscribed_at' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Subscribed {sortKey === 'subscribed_at' ? (sortDir === 'asc' ? '?' : '?') : ''}
                 </button>
                 <button
                   className={`video-sort-button ${sortKey === 'first_commented_at' ? 'active' : ''}`}
                   onClick={() => toggleSort('first_commented_at')}
                 >
-                  First comment {sortKey === 'first_commented_at' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  First comment {sortKey === 'first_commented_at' ? (sortDir === 'asc' ? '?' : '?') : ''}
                 </button>
                 <button
                   className={`video-sort-button ${sortKey === 'last_commented_at' ? 'active' : ''}`}
                   onClick={() => toggleSort('last_commented_at')}
                 >
-                  Last comment {sortKey === 'last_commented_at' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Last comment {sortKey === 'last_commented_at' ? (sortDir === 'asc' ? '?' : '?') : ''}
                 </button>
                 <button
                   className={`video-sort-button right ${sortKey === 'comment_count' ? 'active' : ''}`}
                   onClick={() => toggleSort('comment_count')}
                 >
-                  Comments {sortKey === 'comment_count' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Comments {sortKey === 'comment_count' ? (sortDir === 'asc' ? '?' : '?') : ''}
                 </button>
                 <button
                   className={`video-sort-button right ${sortKey === 'total_comment_likes' ? 'active' : ''}`}
                   onClick={() => toggleSort('total_comment_likes')}
                 >
-                  Total likes {sortKey === 'total_comment_likes' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Total likes {sortKey === 'total_comment_likes' ? (sortDir === 'asc' ? '?' : '?') : ''}
                 </button>
                 <button
                   className={`video-sort-button right ${sortKey === 'total_comment_replies' ? 'active' : ''}`}
                   onClick={() => toggleSort('total_comment_replies')}
                 >
-                  Total replies {sortKey === 'total_comment_replies' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                  Total replies {sortKey === 'total_comment_replies' ? (sortDir === 'asc' ? '?' : '?') : ''}
                 </button>
               </div>
               {rows.length === 0 ? (
@@ -223,3 +220,6 @@ function Audience() {
 }
 
 export default Audience
+
+
+

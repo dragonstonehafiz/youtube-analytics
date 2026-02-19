@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
 import { PageCard } from '../../components/cards'
 import { VideoListTable, type VideoRow, type VideoSortKey } from '../../components/tables'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import usePagination from '../../hooks/usePagination'
+import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Videos.css'
 
@@ -15,7 +16,6 @@ type VideoFilters = {
 }
 
 function Videos() {
-  const [pageSize, setPageSize] = useState(() => getSharedPageSize(10))
   const storedSort = getStored('videosSort', null as {
     sortKey?: 'date' | 'views' | 'comments' | 'likes'
     sortDir?: 'asc' | 'desc'
@@ -29,14 +29,13 @@ function Videos() {
     format: storedFilters?.format ?? '',
   }
 
-  const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [sortKey, setSortKey] = useState<VideoSortKey>(storedSort?.sortKey ?? 'date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(storedSort?.sortDir ?? 'desc')
   const [rows, setRows] = useState<VideoRow[]>([])
   const [filters, setFilters] = useState<VideoFilters>(initialFilters)
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total, defaultPageSize: 10 })
 
   useEffect(() => {
     async function loadVideos() {
@@ -74,14 +73,6 @@ function Videos() {
 
     loadVideos()
   }, [page, pageSize, sortKey, sortDir, filters])
-
-  useEffect(() => {
-    setPage(1)
-  }, [pageSize])
-
-  useEffect(() => {
-    setSharedPageSize(pageSize)
-  }, [pageSize])
 
   useEffect(() => {
     setStored('videosSort', { sortKey, sortDir })
@@ -189,3 +180,5 @@ function Videos() {
 }
 
 export default Videos
+
+

@@ -13,9 +13,10 @@ import {
   type TrafficSourceShareItem,
 } from '../../components/cards'
 import { CommentThreadItem, type CommentRow } from '../../components/tables'
+import usePagination from '../../hooks/usePagination'
 import { formatDisplayDate } from '../../utils/date'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './VideoDetail.css'
 
@@ -159,8 +160,13 @@ function VideoDetail() {
   const [commentsError, setCommentsError] = useState<string | null>(null)
   const [comments, setComments] = useState<CommentRow[]>([])
   const [commentsTotal, setCommentsTotal] = useState(0)
-  const [commentsPage, setCommentsPage] = useState(1)
-  const [commentsPageSize, setCommentsPageSize] = useState(() => getSharedPageSize(10))
+  const {
+    page: commentsPage,
+    setPage: setCommentsPage,
+    pageSize: commentsPageSize,
+    setPageSize: setCommentsPageSize,
+    totalPages: commentsTotalPages,
+  } = usePagination({ total: commentsTotal, defaultPageSize: 10 })
   const [commentsSort, setCommentsSort] = useState<CommentSort>(getStored('videoDetailCommentsSort', 'published_at'))
   const [wordTypes, setWordTypes] = useState<WordType[]>(DEFAULT_WORD_TYPES)
   const [wordCloudImageUrl, setWordCloudImageUrl] = useState('')
@@ -217,7 +223,6 @@ function VideoDetail() {
     monetized_playbacks: 0,
     cpm: 0,
   })
-  const commentsTotalPages = useMemo(() => Math.max(1, Math.ceil(commentsTotal / commentsPageSize)), [commentsTotal, commentsPageSize])
   const summaryLimit = useMemo(() => {
     const parsed = Number(summaryLimitInput)
     if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -666,10 +671,6 @@ function VideoDetail() {
   }, [commentsSort])
 
   useEffect(() => {
-    setCommentsPage(1)
-  }, [commentsPageSize])
-
-  useEffect(() => {
     setSummaryText('')
     setSummaryError(null)
   }, [videoId, summarySortBy, summaryLimitInput])
@@ -717,10 +718,6 @@ function VideoDetail() {
       }
     }
   }, [videoId, activeTab, wordTypes])
-
-  useEffect(() => {
-    setSharedPageSize(commentsPageSize)
-  }, [commentsPageSize])
 
   const summarizeVideoComments = async () => {
     if (!videoId) {
@@ -1053,3 +1050,5 @@ function VideoDetail() {
 }
 
 export default VideoDetail
+
+

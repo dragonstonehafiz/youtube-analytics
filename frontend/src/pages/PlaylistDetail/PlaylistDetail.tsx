@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import usePagination from '../../hooks/usePagination'
 import { DataRangeControl } from '../../components/features'
 import { MetricChartCard } from '../../components/charts'
 import {
@@ -22,7 +23,7 @@ import { CommentsSection, PlaylistItemsTable, type CommentApiRow, type PlaylistI
 import { buildCommentGroups } from '../../components/features'
 import { formatDisplayDate } from '../../utils/date'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './PlaylistDetail.css'
 
@@ -138,8 +139,7 @@ function PlaylistDetail() {
   const [loadingItems, setLoadingItems] = useState(false)
   const [errorMeta, setErrorMeta] = useState<string | null>(null)
   const [errorItems, setErrorItems] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(() => getSharedPageSize(10))
+
   const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
@@ -175,10 +175,26 @@ function PlaylistDetail() {
   const [commentsRows, setCommentsRows] = useState<CommentApiRow[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentsError, setCommentsError] = useState<string | null>(null)
-  const [commentsPage, setCommentsPage] = useState(storedCommentsSettings?.page ?? 1)
-  const [commentsPageSize, setCommentsPageSize] = useState(() => getSharedPageSize(storedCommentsSettings?.pageSize ?? 10))
   const [commentsSortBy, setCommentsSortBy] = useState<CommentSort>(storedCommentsSettings?.sortBy ?? 'published_at')
   const [commentsTotal, setCommentsTotal] = useState(0)
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+  } = usePagination({ total, defaultPageSize: 10 })
+  const {
+    page: commentsPage,
+    setPage: setCommentsPage,
+    pageSize: commentsPageSize,
+    setPageSize: setCommentsPageSize,
+    totalPages: commentsTotalPages,
+  } = usePagination({
+    total: commentsTotal,
+    defaultPage: storedCommentsSettings?.page ?? 1,
+    defaultPageSize: storedCommentsSettings?.pageSize ?? 10,
+  })
   const [wordTypes, setWordTypes] = useState<WordType[]>(DEFAULT_WORD_TYPES)
   const [wordCloudImageUrl, setWordCloudImageUrl] = useState('')
   const [wordCloudLoading, setWordCloudLoading] = useState(false)
@@ -220,8 +236,6 @@ function PlaylistDetail() {
   const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
   const [recentPerformingError, setRecentPerformingError] = useState<string | null>(null)
   const [monetizationContentType, setMonetizationContentType] = useState<MonetizationContentType>('video')
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
-  const commentsTotalPages = useMemo(() => Math.max(1, Math.ceil(commentsTotal / commentsPageSize)), [commentsTotal, commentsPageSize])
   const commentsGroups = useMemo(() => buildCommentGroups(commentsRows), [commentsRows])
   const summaryLimit = useMemo(() => {
     const parsed = Number(summaryLimitInput)
@@ -472,31 +486,25 @@ function PlaylistDetail() {
 
   useEffect(() => {
     setPage(1)
-  }, [pageSize, sortBy, direction])
+  }, [sortBy, direction])
 
   useEffect(() => {
     const stored = getStored(commentsSettingsKey, null as StoredPlaylistCommentsSettings | null)
     setCommentsPage(stored?.page ?? 1)
-    setCommentsPageSize(getSharedPageSize(stored?.pageSize ?? 10))
+    if (typeof stored?.pageSize === 'number') {
+      setCommentsPageSize(stored.pageSize)
+    }
     setCommentsSortBy(stored?.sortBy ?? 'published_at')
   }, [commentsSettingsKey])
 
   useEffect(() => {
     setCommentsPage(1)
-  }, [playlistId, commentsPageSize, commentsSortBy])
+  }, [playlistId, commentsSortBy])
 
   useEffect(() => {
     setSummaryText('')
     setSummaryError(null)
   }, [playlistId, summarySortBy, summaryLimitInput])
-
-  useEffect(() => {
-    setSharedPageSize(pageSize)
-  }, [pageSize])
-
-  useEffect(() => {
-    setSharedPageSize(commentsPageSize)
-  }, [commentsPageSize])
 
   useEffect(() => {
     if (analyticsTab !== 'comments' || !playlistId) {
@@ -1614,3 +1622,5 @@ function PlaylistDetail() {
 }
 
 export default PlaylistDetail
+
+

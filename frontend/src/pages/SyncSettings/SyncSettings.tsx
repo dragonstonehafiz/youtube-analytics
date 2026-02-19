@@ -8,9 +8,10 @@ import {
   PageSwitcher,
   YearInput,
 } from '../../components/ui'
+import usePagination from '../../hooks/usePagination'
 import { DonutChart, ProgressBar, RatioBar, type DonutSegmentResolved } from '../../components/charts'
 import { formatDisplayDate } from '../../utils/date'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './SyncSettings.css'
 
@@ -77,9 +78,14 @@ function SyncSettings() {
       pulls: string | null
     }[]
   >([])
-  const [runsPage, setRunsPage] = useState(1)
   const [runsTotal, setRunsTotal] = useState(0)
-  const [runsPageSize, setRunsPageSize] = useState(() => getSharedPageSize(10))
+  const {
+    page: runsPage,
+    setPage: setRunsPage,
+    pageSize: runsPageSize,
+    setPageSize: setRunsPageSize,
+    totalPages: runsTotalPages,
+  } = usePagination({ total: runsTotal, defaultPageSize: 10 })
   const [overview, setOverview] = useState({
     db_size_bytes: 0,
     total_uploads: 0,
@@ -204,14 +210,6 @@ function SyncSettings() {
   useEffect(() => {
     loadRuns()
   }, [runsPage, runsPageSize])
-
-  useEffect(() => {
-    setRunsPage(1)
-  }, [runsPageSize])
-
-  useEffect(() => {
-    setSharedPageSize(runsPageSize)
-  }, [runsPageSize])
 
   useEffect(() => {
     setStored('syncSettings', {
@@ -517,11 +515,6 @@ function SyncSettings() {
 
     loadPullApiCalls()
   }, [selectedPullKeys, selectedSyncPeriod.start, selectedSyncPeriod.end, deepSync])
-
-  const runsTotalPages = useMemo(
-    () => Math.max(1, Math.ceil(runsTotal / runsPageSize)),
-    [runsTotal, runsPageSize]
-  )
 
   useEffect(() => {
     let timer: number | null = null
@@ -963,3 +956,5 @@ function SyncSettings() {
 }
 
 export default SyncSettings
+
+

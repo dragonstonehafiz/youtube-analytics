@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
 import { PageCard } from '../../components/cards'
+import usePagination from '../../hooks/usePagination'
 import { formatDisplayDate } from '../../utils/date'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Playlists.css'
 
@@ -26,13 +27,11 @@ type PlaylistFilters = {
 }
 
 function Playlists() {
-  const [pageSize, setPageSize] = useState(() => getSharedPageSize(10))
   const storedSort = getStored('playlistsSort', null as {
     sortKey?: 'title' | 'item_count' | 'total_playlist_views' | 'total_content_views' | 'last_item_added_at'
     sortDir?: 'asc' | 'desc'
   } | null)
   const storedFilters = getStored('playlistsFilters', null as Partial<PlaylistFilters> | null)
-  const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [rows, setRows] = useState<PlaylistRow[]>([])
   const [sortKey, setSortKey] = useState<'title' | 'item_count' | 'total_playlist_views' | 'total_content_views' | 'last_item_added_at'>(
@@ -44,7 +43,7 @@ function Playlists() {
     privacy_status: storedFilters?.privacy_status ?? '',
   })
   const navigate = useNavigate()
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total, defaultPageSize: 10 })
 
   useEffect(() => {
     async function loadPlaylists() {
@@ -73,14 +72,6 @@ function Playlists() {
 
     loadPlaylists()
   }, [page, pageSize, sortKey, sortDir, filters])
-
-  useEffect(() => {
-    setPage(1)
-  }, [pageSize])
-
-  useEffect(() => {
-    setSharedPageSize(pageSize)
-  }, [pageSize])
 
   useEffect(() => {
     setStored('playlistsSort', { sortKey, sortDir })
@@ -237,3 +228,5 @@ function Playlists() {
 }
 
 export default Playlists
+
+

@@ -3,7 +3,8 @@ import { CommentsSection, type CommentApiRow } from '../../components/tables'
 import { buildCommentGroups } from '../../components/features'
 import { CommentsWordCloudCard, LlmSummaryCard, PageCard } from '../../components/cards'
 import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
-import { getSharedPageSize, getStored, setSharedPageSize, setStored } from '../../utils/storage'
+import usePagination from '../../hooks/usePagination'
+import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Comments.css'
 
@@ -32,12 +33,10 @@ const DEFAULT_WORD_TYPES: WordType[] = ['noun', 'verb', 'proper_noun', 'adjectiv
 
 function Comments() {
   const storedSettings = getStored('commentsPageSettings', null as StoredCommentsSettings | null)
-  const [pageSize, setPageSize] = useState(() => getSharedPageSize(storedSettings?.pageSize ?? 10))
   const [sortBy, setSortBy] = useState<CommentSort>(storedSettings?.sortBy ?? 'published_at')
   const [rows, setRows] = useState<CommentApiRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(storedSettings?.page ?? 1)
   const [total, setTotal] = useState(0)
   const [postedAfter, setPostedAfter] = useState(storedSettings?.postedAfter ?? '')
   const [postedBefore, setPostedBefore] = useState(storedSettings?.postedBefore ?? '')
@@ -50,7 +49,11 @@ function Comments() {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryText, setSummaryText] = useState('')
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
+  const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({
+    total,
+    defaultPage: storedSettings?.page ?? 1,
+    defaultPageSize: storedSettings?.pageSize ?? 10,
+  })
   const groups = useMemo(() => buildCommentGroups(rows), [rows])
   const summaryLimit = useMemo(() => {
     const parsed = Number(summaryLimitInput)
@@ -144,11 +147,7 @@ function Comments() {
 
   useEffect(() => {
     setPage(1)
-  }, [postedAfter, postedBefore, sortBy, pageSize])
-
-  useEffect(() => {
-    setSharedPageSize(pageSize)
-  }, [pageSize])
+  }, [postedAfter, postedBefore, sortBy])
 
   useEffect(() => {
     setStored('commentsPageSettings', {
@@ -298,3 +297,5 @@ function Comments() {
 }
 
 export default Comments
+
+
