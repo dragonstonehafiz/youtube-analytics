@@ -179,6 +179,7 @@ def _build_comments_where(
     author_channel_id: str | None = None,
     published_after: str | None = None,
     published_before: str | None = None,
+    q: str | None = None,
 ) -> tuple[str, list[object]]:
     """Build shared comments WHERE SQL and parameters."""
     where_clauses = []
@@ -206,6 +207,9 @@ def _build_comments_where(
     if published_before:
         where_clauses.append("date(c.published_at) <= ?")
         params.append(published_before)
+    if q:
+        where_clauses.append("LOWER(COALESCE(c.text_display, '')) LIKE ?")
+        params.append(f"%{q.lower()}%")
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     return where_sql, params
 
@@ -259,6 +263,7 @@ def _build_word_counts(texts: list[str], include_word_types: set[str] | None = N
 
 @router.get("/comments")
 def list_comments(
+    q: str | None = None,
     video_id: str | None = None,
     playlist_id: str | None = None,
     author_channel_id: str | None = None,
@@ -269,8 +274,9 @@ def list_comments(
     sort_by: str = Query(default="published_at"),
     direction: str = Query(default="desc"),
 ) -> dict:
-    """Return comments with optional video/playlist/author filters and pagination."""
+    """Return comments with optional text/date/video/playlist/author filters and pagination."""
     where_sql, params = _build_comments_where(
+        q=q,
         video_id=video_id,
         playlist_id=playlist_id,
         author_channel_id=author_channel_id,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
-import { DataRangeControl } from '../../components/features'
+import { ActionButton, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { CommentFilter, DataRangeControl, type CommentSort } from '../../components/features'
 import { MetricChartCard } from '../../components/charts'
 import {
   CommentsWordCloudCard,
@@ -49,7 +49,6 @@ type VideoDailyRow = {
 
 type SeriesPoint = { date: string; value: number }
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type CommentSort = 'published_at' | 'likes' | 'reply_count'
 type SummarySort = 'recency' | 'like_count'
 type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
 type DiscoveryMetric = 'views' | 'watch_time'
@@ -168,6 +167,9 @@ function VideoDetail() {
     totalPages: commentsTotalPages,
   } = usePagination({ total: commentsTotal, defaultPageSize: 10 })
   const [commentsSort, setCommentsSort] = useState<CommentSort>(getStored('videoDetailCommentsSort', 'published_at'))
+  const [commentsSearchText, setCommentsSearchText] = useState(getStored('videoDetailCommentsSearchText', ''))
+  const [commentsPostedAfter, setCommentsPostedAfter] = useState(getStored('videoDetailCommentsPostedAfter', ''))
+  const [commentsPostedBefore, setCommentsPostedBefore] = useState(getStored('videoDetailCommentsPostedBefore', ''))
   const [wordTypes, setWordTypes] = useState<WordType[]>(DEFAULT_WORD_TYPES)
   const [wordCloudImageUrl, setWordCloudImageUrl] = useState('')
   const [wordCloudLoading, setWordCloudLoading] = useState(false)
@@ -358,6 +360,18 @@ function VideoDetail() {
   useEffect(() => {
     setStored('videoDetailCommentsSort', commentsSort)
   }, [commentsSort])
+
+  useEffect(() => {
+    setStored('videoDetailCommentsSearchText', commentsSearchText)
+  }, [commentsSearchText])
+
+  useEffect(() => {
+    setStored('videoDetailCommentsPostedAfter', commentsPostedAfter)
+  }, [commentsPostedAfter])
+
+  useEffect(() => {
+    setStored('videoDetailCommentsPostedBefore', commentsPostedBefore)
+  }, [commentsPostedBefore])
 
   useEffect(() => {
     async function loadVideoAnalytics() {
@@ -647,9 +661,23 @@ function VideoDetail() {
       setCommentsError(null)
       try {
         const offset = (commentsPage - 1) * commentsPageSize
-        const response = await fetch(
-          `http://127.0.0.1:8000/comments?video_id=${videoId}&limit=${commentsPageSize}&offset=${offset}&sort_by=${commentsSort}`
-        )
+        const params = new URLSearchParams({
+          video_id: videoId,
+          limit: String(commentsPageSize),
+          offset: String(offset),
+          sort_by: commentsSort,
+          direction: 'desc',
+        })
+        if (commentsSearchText.trim()) {
+          params.set('q', commentsSearchText.trim())
+        }
+        if (commentsPostedAfter) {
+          params.set('published_after', commentsPostedAfter)
+        }
+        if (commentsPostedBefore) {
+          params.set('published_before', commentsPostedBefore)
+        }
+        const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load comments (${response.status})`)
         }
@@ -664,16 +692,16 @@ function VideoDetail() {
     }
 
     loadComments()
-  }, [videoId, activeTab, commentsPage, commentsPageSize, commentsSort])
+  }, [videoId, activeTab, commentsPage, commentsPageSize, commentsSort, commentsSearchText, commentsPostedAfter, commentsPostedBefore])
 
   useEffect(() => {
     setCommentsPage(1)
-  }, [commentsSort])
+  }, [commentsSort, commentsSearchText, commentsPostedAfter, commentsPostedBefore])
 
   useEffect(() => {
     setSummaryText('')
     setSummaryError(null)
-  }, [videoId, summarySortBy, summaryLimitInput])
+  }, [videoId, commentsPostedAfter, commentsPostedBefore, summarySortBy, summaryLimitInput])
 
   useEffect(() => {
     if (!videoId || activeTab !== 'comments') {
@@ -689,6 +717,12 @@ function VideoDetail() {
         params.set('video_id', targetVideoId)
         params.set('max_words', '120')
         params.set('min_count', '2')
+        if (commentsPostedAfter) {
+          params.set('published_after', commentsPostedAfter)
+        }
+        if (commentsPostedBefore) {
+          params.set('published_before', commentsPostedBefore)
+        }
         if (wordTypes.length > 0) {
           params.set('word_types', wordTypes.join(','))
         }
@@ -717,7 +751,7 @@ function VideoDetail() {
         URL.revokeObjectURL(nextObjectUrl)
       }
     }
-  }, [videoId, activeTab, wordTypes])
+  }, [videoId, activeTab, commentsPostedAfter, commentsPostedBefore, wordTypes])
 
   const summarizeVideoComments = async () => {
     if (!videoId) {
@@ -729,10 +763,14 @@ function VideoDetail() {
     try {
       const payload: {
         video_id: string
+        published_after: string | null
+        published_before: string | null
         sort_by: SummarySort
         limit_count?: number
       } = {
         video_id: videoId,
+        published_after: commentsPostedAfter || null,
+        published_before: commentsPostedBefore || null,
         sort_by: summarySortBy,
       }
       if (summaryLimit !== null) {
@@ -869,22 +907,34 @@ function VideoDetail() {
                   presetPlaceholder="Full data"
                 />
               </div>
-            ) : activeTab === 'comments' ? (
-              <div className="analytics-range-controls">
-                <Dropdown
-                  value={commentsSort}
-                  onChange={(value) => setCommentsSort(value as CommentSort)}
-                  placeholder="Sort by date"
-                  items={[
-                    { type: 'option' as const, label: 'Sort: Date posted', value: 'published_at' },
-                    { type: 'option' as const, label: 'Sort: Likes', value: 'likes' },
-                    { type: 'option' as const, label: 'Sort: Reply count', value: 'reply_count' },
-                  ]}
-                />
-              </div>
             ) : null}
           </div>
         </div>
+        {activeTab === 'comments' ? (
+          <div className="page-row">
+            <PageCard>
+              <CommentFilter
+                showTitle
+                searchText={commentsSearchText}
+                onSearchTextChange={setCommentsSearchText}
+                postedAfter={commentsPostedAfter}
+                postedBefore={commentsPostedBefore}
+                onDateRangeChange={(startDate, endDate) => {
+                  setCommentsPostedAfter(startDate)
+                  setCommentsPostedBefore(endDate)
+                }}
+                sortBy={commentsSort}
+                onSortByChange={setCommentsSort}
+                onReset={() => {
+                  setCommentsSearchText('')
+                  setCommentsPostedAfter('')
+                  setCommentsPostedBefore('')
+                  setCommentsSort('published_at')
+                }}
+              />
+            </PageCard>
+          </div>
+        ) : null}
         <div className="page-row">
           {activeTab === 'comments' ? (
             <div className="video-comments-insights-grid">

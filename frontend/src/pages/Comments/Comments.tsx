@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CommentsSection, type CommentApiRow } from '../../components/tables'
-import { buildCommentGroups } from '../../components/features'
+import { CommentFilter, buildCommentGroups, type CommentSort } from '../../components/features'
 import { CommentsWordCloudCard, LlmSummaryCard, PageCard } from '../../components/cards'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
@@ -11,13 +11,13 @@ import './Comments.css'
 type StoredCommentsSettings = {
   pageSize?: number
   sortBy?: CommentSort
+  searchText?: string
   postedAfter?: string
   postedBefore?: string
   page?: number
   wordTypes?: WordType[]
 }
 
-type CommentSort = 'published_at' | 'likes' | 'reply_count'
 type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
 type SummarySort = 'recency' | 'like_count'
 
@@ -38,6 +38,7 @@ function Comments() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [total, setTotal] = useState(0)
+  const [searchText, setSearchText] = useState(storedSettings?.searchText ?? '')
   const [postedAfter, setPostedAfter] = useState(storedSettings?.postedAfter ?? '')
   const [postedBefore, setPostedBefore] = useState(storedSettings?.postedBefore ?? '')
   const [wordTypes, setWordTypes] = useState<WordType[]>(storedSettings?.wordTypes ?? DEFAULT_WORD_TYPES)
@@ -81,6 +82,9 @@ function Comments() {
         if (postedBefore) {
           params.set('published_before', postedBefore)
         }
+        if (searchText.trim()) {
+          params.set('q', searchText.trim())
+        }
         const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load comments (${response.status})`)
@@ -96,7 +100,7 @@ function Comments() {
     }
 
     loadCommentsPage()
-  }, [page, pageSize, postedAfter, postedBefore, sortBy])
+  }, [page, pageSize, postedAfter, postedBefore, sortBy, searchText])
 
   useEffect(() => {
     let nextObjectUrl = ''
@@ -147,18 +151,19 @@ function Comments() {
 
   useEffect(() => {
     setPage(1)
-  }, [postedAfter, postedBefore, sortBy])
+  }, [searchText, postedAfter, postedBefore, sortBy])
 
   useEffect(() => {
     setStored('commentsPageSettings', {
       pageSize,
       sortBy,
+      searchText,
       postedAfter,
       postedBefore,
       page,
       wordTypes,
     } satisfies StoredCommentsSettings)
-  }, [pageSize, sortBy, postedAfter, postedBefore, page, wordTypes])
+  }, [pageSize, sortBy, searchText, postedAfter, postedBefore, page, wordTypes])
 
   useEffect(() => {
     setSummaryText('')
@@ -208,45 +213,25 @@ function Comments() {
       <div className="page-body">
         <div className="page-row">
           <PageCard>
-            <div className="filter-section">
-              <div className="filter-title">Filters</div>
-              <div className="filter-grid filter-grid-compact">
-                <div className="filter-field filter-date">
-                  <DateRangePicker
-                    startDate={postedAfter}
-                    endDate={postedBefore}
-                    onChange={(startDate, endDate) => {
-                      setPostedAfter(startDate)
-                      setPostedBefore(endDate)
-                    }}
-                  />
-                </div>
-                <div className="filter-field">
-                  <Dropdown
-                    value={sortBy}
-                    onChange={(value) => setSortBy(value as CommentSort)}
-                    placeholder="Date posted"
-                    items={[
-                      { type: 'option' as const, label: 'Date posted', value: 'published_at' },
-                      { type: 'option' as const, label: 'Likes', value: 'likes' },
-                      { type: 'option' as const, label: 'Reply count', value: 'reply_count' },
-                    ]}
-                  />
-                </div>
-                <div className="filter-actions">
-                  <ActionButton
-                    label="Reset"
-                    onClick={() => {
-                      setPostedAfter('')
-                      setPostedBefore('')
-                      setSortBy('published_at')
-                    }}
-                    variant="soft"
-                    className="filter-action"
-                  />
-                </div>
-              </div>
-            </div>
+            <CommentFilter
+              showTitle
+              searchText={searchText}
+              onSearchTextChange={setSearchText}
+              postedAfter={postedAfter}
+              postedBefore={postedBefore}
+              onDateRangeChange={(startDate, endDate) => {
+                setPostedAfter(startDate)
+                setPostedBefore(endDate)
+              }}
+              sortBy={sortBy}
+              onSortByChange={setSortBy}
+              onReset={() => {
+                setSearchText('')
+                setPostedAfter('')
+                setPostedBefore('')
+                setSortBy('published_at')
+              }}
+            />
           </PageCard>
         </div>
         <div className="page-row">

@@ -1,3 +1,5 @@
 export { default as DataRangeControl } from './DataRangeControl'
+export { default as CommentFilter } from './CommentFilter'
+export type { CommentSort } from './CommentFilter'
 export { buildCommentGroups } from './commentGroups'
 export type { CommentApiRow, CommentGroup } from './commentGroups'

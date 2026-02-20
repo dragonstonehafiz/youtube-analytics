@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { ActionButton, PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
-import { DataRangeControl } from '../../components/features'
+import { CommentFilter, DataRangeControl, type CommentSort } from '../../components/features'
 import { MetricChartCard } from '../../components/charts'
 import {
   CommentsWordCloudCard,
@@ -40,7 +40,6 @@ type PlaylistMeta = {
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type PlaylistViewMode = 'playlist_views' | 'video_views'
 type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'comments'
-type CommentSort = 'published_at' | 'likes' | 'reply_count'
 type SummarySort = 'recency' | 'like_count'
 type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
 type SeriesPoint = { date: string; value: number }
@@ -95,6 +94,9 @@ type TopSearchResponseItem = {
 type StoredPlaylistCommentsSettings = {
   pageSize?: number
   sortBy?: CommentSort
+  searchText?: string
+  postedAfter?: string
+  postedBefore?: string
   page?: number
 }
 const GRANULARITY_OPTIONS = [
@@ -176,6 +178,9 @@ function PlaylistDetail() {
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentsError, setCommentsError] = useState<string | null>(null)
   const [commentsSortBy, setCommentsSortBy] = useState<CommentSort>(storedCommentsSettings?.sortBy ?? 'published_at')
+  const [commentsSearchText, setCommentsSearchText] = useState(storedCommentsSettings?.searchText ?? '')
+  const [commentsPostedAfter, setCommentsPostedAfter] = useState(storedCommentsSettings?.postedAfter ?? '')
+  const [commentsPostedBefore, setCommentsPostedBefore] = useState(storedCommentsSettings?.postedBefore ?? '')
   const [commentsTotal, setCommentsTotal] = useState(0)
   const {
     page,
@@ -379,6 +384,15 @@ function PlaylistDetail() {
           sort_by: commentsSortBy,
           direction: 'desc',
         })
+        if (commentsSearchText.trim()) {
+          params.set('q', commentsSearchText.trim())
+        }
+        if (commentsPostedAfter) {
+          params.set('published_after', commentsPostedAfter)
+        }
+        if (commentsPostedBefore) {
+          params.set('published_before', commentsPostedBefore)
+        }
         const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load playlist comments (${response.status})`)
@@ -396,7 +410,7 @@ function PlaylistDetail() {
     if (analyticsTab === 'comments') {
       loadComments()
     }
-  }, [analyticsTab, playlistId, commentsPage, commentsPageSize, commentsSortBy])
+  }, [analyticsTab, playlistId, commentsPage, commentsPageSize, commentsSortBy, commentsSearchText, commentsPostedAfter, commentsPostedBefore])
 
   useEffect(() => {
     async function loadTopPerformingItems() {
@@ -495,16 +509,19 @@ function PlaylistDetail() {
       setCommentsPageSize(stored.pageSize)
     }
     setCommentsSortBy(stored?.sortBy ?? 'published_at')
+    setCommentsSearchText(stored?.searchText ?? '')
+    setCommentsPostedAfter(stored?.postedAfter ?? '')
+    setCommentsPostedBefore(stored?.postedBefore ?? '')
   }, [commentsSettingsKey])
 
   useEffect(() => {
     setCommentsPage(1)
-  }, [playlistId, commentsSortBy])
+  }, [playlistId, commentsSortBy, commentsSearchText, commentsPostedAfter, commentsPostedBefore])
 
   useEffect(() => {
     setSummaryText('')
     setSummaryError(null)
-  }, [playlistId, summarySortBy, summaryLimitInput])
+  }, [playlistId, commentsPostedAfter, commentsPostedBefore, summarySortBy, summaryLimitInput])
 
   useEffect(() => {
     if (analyticsTab !== 'comments' || !playlistId) {
@@ -520,6 +537,12 @@ function PlaylistDetail() {
         params.set('playlist_id', targetPlaylistId)
         params.set('max_words', '120')
         params.set('min_count', '2')
+        if (commentsPostedAfter) {
+          params.set('published_after', commentsPostedAfter)
+        }
+        if (commentsPostedBefore) {
+          params.set('published_before', commentsPostedBefore)
+        }
         if (wordTypes.length > 0) {
           params.set('word_types', wordTypes.join(','))
         }
@@ -548,7 +571,7 @@ function PlaylistDetail() {
         URL.revokeObjectURL(nextObjectUrl)
       }
     }
-  }, [analyticsTab, playlistId, wordTypes])
+  }, [analyticsTab, playlistId, commentsPostedAfter, commentsPostedBefore, wordTypes])
 
   useEffect(() => {
     setStored('playlistDetailRange', {
@@ -577,9 +600,12 @@ function PlaylistDetail() {
     setStored(commentsSettingsKey, {
       pageSize: commentsPageSize,
       sortBy: commentsSortBy,
+      searchText: commentsSearchText,
+      postedAfter: commentsPostedAfter,
+      postedBefore: commentsPostedBefore,
       page: commentsPage,
     } satisfies StoredPlaylistCommentsSettings)
-  }, [commentsSettingsKey, commentsPageSize, commentsSortBy, commentsPage])
+  }, [commentsSettingsKey, commentsPageSize, commentsSortBy, commentsSearchText, commentsPostedAfter, commentsPostedBefore, commentsPage])
 
   useEffect(() => {
     async function loadYears() {
@@ -1229,10 +1255,14 @@ function PlaylistDetail() {
     try {
       const payload: {
         playlist_id: string
+        published_after: string | null
+        published_before: string | null
         sort_by: SummarySort
         limit_count?: number
       } = {
         playlist_id: playlistId,
+        published_after: commentsPostedAfter || null,
+        published_before: commentsPostedBefore || null,
         sort_by: summarySortBy,
       }
       if (summaryLimit !== null) {
@@ -1337,18 +1367,7 @@ function PlaylistDetail() {
               </button>
             </div>
             <div className="analytics-range-controls">
-                {analyticsTab === 'comments' ? (
-                  <Dropdown
-                    value={commentsSortBy}
-                    onChange={(value) => setCommentsSortBy(value as CommentSort)}
-                    placeholder="Date posted"
-                    items={[
-                      { type: 'option' as const, label: 'Date posted', value: 'published_at' },
-                      { type: 'option' as const, label: 'Likes', value: 'likes' },
-                      { type: 'option' as const, label: 'Reply count', value: 'reply_count' },
-                    ]}
-                  />
-                ) : (
+                {analyticsTab === 'comments' ? null : (
                   <DataRangeControl
                     granularity={granularity}
                     onGranularityChange={(value) => setGranularity(value as Granularity)}
@@ -1383,6 +1402,29 @@ function PlaylistDetail() {
         </div>
         {analyticsTab === 'comments' ? (
           <>
+            <div className="page-row">
+              <PageCard>
+                <CommentFilter
+                  showTitle
+                  searchText={commentsSearchText}
+                  onSearchTextChange={setCommentsSearchText}
+                  postedAfter={commentsPostedAfter}
+                  postedBefore={commentsPostedBefore}
+                  onDateRangeChange={(startDate, endDate) => {
+                    setCommentsPostedAfter(startDate)
+                    setCommentsPostedBefore(endDate)
+                  }}
+                  sortBy={commentsSortBy}
+                  onSortByChange={setCommentsSortBy}
+                  onReset={() => {
+                    setCommentsSearchText('')
+                    setCommentsPostedAfter('')
+                    setCommentsPostedBefore('')
+                    setCommentsSortBy('published_at')
+                  }}
+                />
+              </PageCard>
+            </div>
             <div className="page-row">
               <div className="playlist-comments-insights-grid">
                 <PageCard>
