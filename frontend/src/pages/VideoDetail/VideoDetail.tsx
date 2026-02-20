@@ -52,6 +52,7 @@ type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type SummarySort = 'recency' | 'like_count'
 type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
 type DiscoveryMetric = 'views' | 'watch_time'
+type VideoDetailTab = 'analytics' | 'monetization' | 'discovery' | 'comments'
 type TrafficSourceRow = {
   day: string
   traffic_source: string
@@ -149,7 +150,7 @@ function buildTrafficSeries(
 function VideoDetail() {
   const { videoId } = useParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<'analytics' | 'monetization' | 'discovery' | 'comments'>('analytics')
+  const [activeTab, setActiveTab] = useState<VideoDetailTab>(getStored('videoDetailTab', 'analytics'))
   const [video, setVideo] = useState<VideoMetadata | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -339,10 +340,6 @@ function VideoDetail() {
   }, [videoId, activeTab])
 
   useEffect(() => {
-    setActiveTab('analytics')
-  }, [videoId])
-
-  useEffect(() => {
     setStored('videoDetailRange', {
       mode,
       presetSelection,
@@ -352,6 +349,10 @@ function VideoDetail() {
       customEnd,
     })
   }, [mode, presetSelection, yearSelection, monthSelection, customStart, customEnd])
+
+  useEffect(() => {
+    setStored('videoDetailTab', activeTab)
+  }, [activeTab])
 
   useEffect(() => {
     setStored('videoDetailGranularity', granularity)
@@ -701,57 +702,15 @@ function VideoDetail() {
   useEffect(() => {
     setSummaryText('')
     setSummaryError(null)
-  }, [videoId, commentsPostedAfter, commentsPostedBefore, summarySortBy, summaryLimitInput])
+  }, [videoId, commentsSearchText, commentsPostedAfter, commentsPostedBefore, summarySortBy, summaryLimitInput])
 
   useEffect(() => {
-    if (!videoId || activeTab !== 'comments') {
-      return
-    }
-    const targetVideoId = videoId
-    let nextObjectUrl = ''
-    async function loadWordCloud() {
-      setWordCloudLoading(true)
-      setWordCloudError(null)
-      try {
-        const params = new URLSearchParams()
-        params.set('video_id', targetVideoId)
-        params.set('max_words', '120')
-        params.set('min_count', '2')
-        if (commentsPostedAfter) {
-          params.set('published_after', commentsPostedAfter)
-        }
-        if (commentsPostedBefore) {
-          params.set('published_before', commentsPostedBefore)
-        }
-        if (wordTypes.length > 0) {
-          params.set('word_types', wordTypes.join(','))
-        }
-        const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error(`Failed to build word cloud (${response.status})`)
-        }
-        const blob = await response.blob()
-        nextObjectUrl = URL.createObjectURL(blob)
-        setWordCloudImageUrl((previousUrl) => {
-          if (previousUrl) {
-            URL.revokeObjectURL(previousUrl)
-          }
-          return nextObjectUrl
-        })
-      } catch (err) {
-        setWordCloudImageUrl('')
-        setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
-      } finally {
-        setWordCloudLoading(false)
-      }
-    }
-    loadWordCloud()
     return () => {
-      if (nextObjectUrl) {
-        URL.revokeObjectURL(nextObjectUrl)
+      if (wordCloudImageUrl) {
+        URL.revokeObjectURL(wordCloudImageUrl)
       }
     }
-  }, [videoId, activeTab, commentsPostedAfter, commentsPostedBefore, wordTypes])
+  }, [wordCloudImageUrl])
 
   const summarizeVideoComments = async () => {
     if (!videoId) {
@@ -762,12 +721,14 @@ function VideoDetail() {
     setSummaryError(null)
     try {
       const payload: {
+        q: string | null
         video_id: string
         published_after: string | null
         published_before: string | null
         sort_by: SummarySort
         limit_count?: number
       } = {
+        q: commentsSearchText.trim() || null,
         video_id: videoId,
         published_after: commentsPostedAfter || null,
         published_before: commentsPostedBefore || null,
@@ -791,6 +752,49 @@ function VideoDetail() {
       setSummaryError(err instanceof Error ? err.message : 'Failed to summarize comments.')
     } finally {
       setSummaryLoading(false)
+    }
+  }
+
+  const generateVideoWordCloud = async () => {
+    if (!videoId || activeTab !== 'comments') {
+      return
+    }
+    setWordCloudLoading(true)
+    setWordCloudError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('video_id', videoId)
+      params.set('max_words', '120')
+      params.set('min_count', '2')
+      if (commentsPostedAfter) {
+        params.set('published_after', commentsPostedAfter)
+      }
+      if (commentsPostedBefore) {
+        params.set('published_before', commentsPostedBefore)
+      }
+      if (commentsSearchText.trim()) {
+        params.set('q', commentsSearchText.trim())
+      }
+      if (wordTypes.length > 0) {
+        params.set('word_types', wordTypes.join(','))
+      }
+      const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`Failed to build word cloud (${response.status})`)
+      }
+      const blob = await response.blob()
+      const nextObjectUrl = URL.createObjectURL(blob)
+      setWordCloudImageUrl((previousUrl) => {
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl)
+        }
+        return nextObjectUrl
+      })
+    } catch (err) {
+      setWordCloudImageUrl('')
+      setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
+    } finally {
+      setWordCloudLoading(false)
     }
   }
 
@@ -959,6 +963,8 @@ function VideoDetail() {
                   wordTypeOptions={WORD_TYPE_OPTIONS}
                   selectedWordTypes={wordTypes}
                   onWordTypesChange={(next) => setWordTypes(next as WordType[])}
+                  onGenerate={generateVideoWordCloud}
+                  generateDisabled={commentsTotal === 0}
                 />
               </PageCard>
             </div>

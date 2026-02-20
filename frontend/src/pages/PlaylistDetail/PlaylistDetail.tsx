@@ -521,57 +521,15 @@ function PlaylistDetail() {
   useEffect(() => {
     setSummaryText('')
     setSummaryError(null)
-  }, [playlistId, commentsPostedAfter, commentsPostedBefore, summarySortBy, summaryLimitInput])
+  }, [playlistId, commentsSearchText, commentsPostedAfter, commentsPostedBefore, summarySortBy, summaryLimitInput])
 
   useEffect(() => {
-    if (analyticsTab !== 'comments' || !playlistId) {
-      return
-    }
-    const targetPlaylistId = playlistId
-    let nextObjectUrl = ''
-    async function loadWordCloud() {
-      setWordCloudLoading(true)
-      setWordCloudError(null)
-      try {
-        const params = new URLSearchParams()
-        params.set('playlist_id', targetPlaylistId)
-        params.set('max_words', '120')
-        params.set('min_count', '2')
-        if (commentsPostedAfter) {
-          params.set('published_after', commentsPostedAfter)
-        }
-        if (commentsPostedBefore) {
-          params.set('published_before', commentsPostedBefore)
-        }
-        if (wordTypes.length > 0) {
-          params.set('word_types', wordTypes.join(','))
-        }
-        const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error(`Failed to build word cloud (${response.status})`)
-        }
-        const blob = await response.blob()
-        nextObjectUrl = URL.createObjectURL(blob)
-        setWordCloudImageUrl((previousUrl) => {
-          if (previousUrl) {
-            URL.revokeObjectURL(previousUrl)
-          }
-          return nextObjectUrl
-        })
-      } catch (err) {
-        setWordCloudImageUrl('')
-        setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
-      } finally {
-        setWordCloudLoading(false)
-      }
-    }
-    loadWordCloud()
     return () => {
-      if (nextObjectUrl) {
-        URL.revokeObjectURL(nextObjectUrl)
+      if (wordCloudImageUrl) {
+        URL.revokeObjectURL(wordCloudImageUrl)
       }
     }
-  }, [analyticsTab, playlistId, commentsPostedAfter, commentsPostedBefore, wordTypes])
+  }, [wordCloudImageUrl])
 
   useEffect(() => {
     setStored('playlistDetailRange', {
@@ -1254,12 +1212,14 @@ function PlaylistDetail() {
     setSummaryError(null)
     try {
       const payload: {
+        q: string | null
         playlist_id: string
         published_after: string | null
         published_before: string | null
         sort_by: SummarySort
         limit_count?: number
       } = {
+        q: commentsSearchText.trim() || null,
         playlist_id: playlistId,
         published_after: commentsPostedAfter || null,
         published_before: commentsPostedBefore || null,
@@ -1283,6 +1243,49 @@ function PlaylistDetail() {
       setSummaryError(err instanceof Error ? err.message : 'Failed to summarize comments.')
     } finally {
       setSummaryLoading(false)
+    }
+  }
+
+  const generatePlaylistWordCloud = async () => {
+    if (analyticsTab !== 'comments' || !playlistId) {
+      return
+    }
+    setWordCloudLoading(true)
+    setWordCloudError(null)
+    try {
+      const params = new URLSearchParams()
+      params.set('playlist_id', playlistId)
+      params.set('max_words', '120')
+      params.set('min_count', '2')
+      if (commentsPostedAfter) {
+        params.set('published_after', commentsPostedAfter)
+      }
+      if (commentsPostedBefore) {
+        params.set('published_before', commentsPostedBefore)
+      }
+      if (commentsSearchText.trim()) {
+        params.set('q', commentsSearchText.trim())
+      }
+      if (wordTypes.length > 0) {
+        params.set('word_types', wordTypes.join(','))
+      }
+      const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`Failed to build word cloud (${response.status})`)
+      }
+      const blob = await response.blob()
+      const nextObjectUrl = URL.createObjectURL(blob)
+      setWordCloudImageUrl((previousUrl) => {
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl)
+        }
+        return nextObjectUrl
+      })
+    } catch (err) {
+      setWordCloudImageUrl('')
+      setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
+    } finally {
+      setWordCloudLoading(false)
     }
   }
 
@@ -1448,6 +1451,8 @@ function PlaylistDetail() {
                     wordTypeOptions={WORD_TYPE_OPTIONS}
                     selectedWordTypes={wordTypes}
                     onWordTypesChange={(next) => setWordTypes(next as WordType[])}
+                    onGenerate={generatePlaylistWordCloud}
+                    generateDisabled={commentsTotal === 0}
                   />
                 </PageCard>
               </div>

@@ -103,51 +103,12 @@ function Comments() {
   }, [page, pageSize, postedAfter, postedBefore, sortBy, searchText])
 
   useEffect(() => {
-    let nextObjectUrl = ''
-    async function loadWordCloud() {
-      setWordCloudLoading(true)
-      setWordCloudError(null)
-      try {
-        const params = new URLSearchParams({
-          max_words: '120',
-          min_count: '2',
-        })
-        if (postedAfter) {
-          params.set('published_after', postedAfter)
-        }
-        if (postedBefore) {
-          params.set('published_before', postedBefore)
-        }
-        if (wordTypes.length > 0) {
-          params.set('word_types', wordTypes.join(','))
-        }
-        const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
-        if (!response.ok) {
-          throw new Error(`Failed to build word cloud (${response.status})`)
-        }
-        const blob = await response.blob()
-        nextObjectUrl = URL.createObjectURL(blob)
-        setWordCloudImageUrl((previousUrl) => {
-          if (previousUrl) {
-            URL.revokeObjectURL(previousUrl)
-          }
-          return nextObjectUrl
-        })
-      } catch (err) {
-        setWordCloudImageUrl('')
-        setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
-      } finally {
-        setWordCloudLoading(false)
-      }
-    }
-
-    loadWordCloud()
     return () => {
-      if (nextObjectUrl) {
-        URL.revokeObjectURL(nextObjectUrl)
+      if (wordCloudImageUrl) {
+        URL.revokeObjectURL(wordCloudImageUrl)
       }
     }
-  }, [postedAfter, postedBefore, wordTypes])
+  }, [wordCloudImageUrl])
 
   useEffect(() => {
     setPage(1)
@@ -168,18 +129,20 @@ function Comments() {
   useEffect(() => {
     setSummaryText('')
     setSummaryError(null)
-  }, [postedAfter, postedBefore, summarySortBy, summaryLimitInput])
+  }, [searchText, postedAfter, postedBefore, summarySortBy, summaryLimitInput])
 
   const summarizeComments = async () => {
     setSummaryLoading(true)
     setSummaryError(null)
     try {
       const payload: {
+        q: string | null
         published_after: string | null
         published_before: string | null
         sort_by: SummarySort
         limit_count?: number
       } = {
+        q: searchText.trim() || null,
         published_after: postedAfter || null,
         published_before: postedBefore || null,
         sort_by: summarySortBy,
@@ -202,6 +165,46 @@ function Comments() {
       setSummaryError(err instanceof Error ? err.message : 'Failed to summarize comments.')
     } finally {
       setSummaryLoading(false)
+    }
+  }
+
+  const generateWordCloud = async () => {
+    setWordCloudLoading(true)
+    setWordCloudError(null)
+    try {
+      const params = new URLSearchParams({
+        max_words: '120',
+        min_count: '2',
+      })
+      if (postedAfter) {
+        params.set('published_after', postedAfter)
+      }
+      if (postedBefore) {
+        params.set('published_before', postedBefore)
+      }
+      if (searchText.trim()) {
+        params.set('q', searchText.trim())
+      }
+      if (wordTypes.length > 0) {
+        params.set('word_types', wordTypes.join(','))
+      }
+      const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+      if (!response.ok) {
+        throw new Error(`Failed to build word cloud (${response.status})`)
+      }
+      const blob = await response.blob()
+      const nextObjectUrl = URL.createObjectURL(blob)
+      setWordCloudImageUrl((previousUrl) => {
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl)
+        }
+        return nextObjectUrl
+      })
+    } catch (err) {
+      setWordCloudImageUrl('')
+      setWordCloudError(err instanceof Error ? err.message : 'Failed to build word cloud.')
+    } finally {
+      setWordCloudLoading(false)
     }
   }
 
@@ -257,6 +260,8 @@ function Comments() {
                 wordTypeOptions={WORD_TYPE_OPTIONS}
                 selectedWordTypes={wordTypes}
                 onWordTypesChange={(next) => setWordTypes(next as WordType[])}
+                onGenerate={generateWordCloud}
+                generateDisabled={total === 0}
               />
             </PageCard>
           </div>

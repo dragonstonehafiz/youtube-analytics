@@ -220,6 +220,7 @@ def _load_filtered_comment_texts(
     author_channel_id: str | None = None,
     published_after: str | None = None,
     published_before: str | None = None,
+    q: str | None = None,
 ) -> tuple[list[str], int]:
     """Load comment text_display rows matching filters."""
     where_sql, params = _build_comments_where(
@@ -228,6 +229,7 @@ def _load_filtered_comment_texts(
         author_channel_id=author_channel_id,
         published_after=published_after,
         published_before=published_before,
+        q=q,
     )
     with get_connection() as conn:
         rows = conn.execute(
@@ -313,6 +315,7 @@ def list_comments(
 
 @router.get("/comments/word-cloud/image")
 def render_comments_word_cloud_image(
+    q: str | None = None,
     video_id: str | None = None,
     playlist_id: str | None = None,
     author_channel_id: str | None = None,
@@ -326,6 +329,7 @@ def render_comments_word_cloud_image(
 ) -> Response:
     """Render a word-cloud PNG from all comments matching active filters."""
     texts, _ = _load_filtered_comment_texts(
+        q=q,
         video_id=video_id,
         playlist_id=playlist_id,
         author_channel_id=author_channel_id,

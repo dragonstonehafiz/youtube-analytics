@@ -1,4 +1,4 @@
-import { MultiSelect } from '../ui'
+import { ActionButton, MultiSelect } from '../ui'
 import './CommentsWordCloudCard.css'
 
 type CommentsWordCloudCardProps = {
@@ -8,6 +8,8 @@ type CommentsWordCloudCardProps = {
   wordTypeOptions: Array<{ label: string; value: string }>
   selectedWordTypes: string[]
   onWordTypesChange: (next: string[]) => void
+  onGenerate: () => void
+  generateDisabled?: boolean
 }
 
 function CommentsWordCloudCard({
@@ -17,6 +19,8 @@ function CommentsWordCloudCard({
   wordTypeOptions,
   selectedWordTypes,
   onWordTypesChange,
+  onGenerate,
+  generateDisabled = false,
 }: CommentsWordCloudCardProps) {
   return (
     <section className="comments-word-cloud-card">
@@ -29,11 +33,20 @@ function CommentsWordCloudCard({
           placeholder="Word types"
         />
       </label>
+      <ActionButton
+        label={loading ? 'Generating word cloud...' : 'Generate word cloud'}
+        onClick={onGenerate}
+        disabled={generateDisabled || loading}
+        variant="primary"
+        className="comments-word-cloud-generate"
+      />
       {loading ? <div className="comments-word-cloud-state">Building word cloud...</div> : null}
       {error ? <div className="comments-word-cloud-state">{error}</div> : null}
       {!loading && !error ? (
         !imageUrl ? (
-          <div className="comments-word-cloud-state">No terms available for current filtered comments.</div>
+          <div className="comments-word-cloud-list">
+            <div className="comments-word-cloud-empty">Click generate to build the word cloud.</div>
+          </div>
         ) : (
           <div className="comments-word-cloud-list">
             <img className="comments-word-cloud-image" src={imageUrl} alt="Word cloud generated from filtered comments" />

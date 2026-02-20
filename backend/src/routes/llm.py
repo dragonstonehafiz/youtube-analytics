@@ -79,6 +79,7 @@ def configure_llm(settings: dict[str, object] = Body(...)) -> dict:
 
 @router.post("/llm/summarize-comments")
 def summarize_comments(
+    q: str | None = Body(default=None),
     published_after: str | None = Body(default=None),
     published_before: str | None = Body(default=None),
     video_id: str | None = Body(default=None),
@@ -113,6 +114,9 @@ def summarize_comments(
     if published_before:
         where_clauses.append("date(c.published_at) <= ?")
         params.append(published_before)
+    if q:
+        where_clauses.append("LOWER(COALESCE(c.text_display, '')) LIKE ?")
+        params.append(f"%{q.lower()}%")
     where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
     order_sql = "COALESCE(c.like_count, 0) DESC, c.published_at DESC" if sort_by == "like_count" else "c.published_at DESC, c.id DESC"
     with get_connection() as conn:

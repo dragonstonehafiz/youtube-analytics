@@ -18,6 +18,10 @@
   color: var(--color-muted);
 }
 
+.comments-word-cloud-generate {
+  width: 100%;
+}
+
 .comments-word-cloud-state {
   color: var(--color-muted);
   font-size: 13px;
@@ -41,4 +45,15 @@
   height: 100%;
   object-fit: contain;
   background: #ffffff;
+}
+
+.comments-word-cloud-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 13px;
+  padding: 12px;
 }

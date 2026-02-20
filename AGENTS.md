@@ -277,7 +277,7 @@ Standard structure:
 
 ### Comments
 - `GET /comments` - paginated comments with optional `q` (matches `text_display` only), `video_id`, `playlist_id`, `author_channel_id`, and date filters
-- `GET /comments/word-cloud/image` - renders a PNG word-cloud image from all comments matching active filters; supports optional `word_types` CSV (`noun,verb,proper_noun,adjective,adverb`)
+- `GET /comments/word-cloud/image` - renders a PNG word-cloud image from all comments matching active filters; supports optional `q` (matches `text_display` only) and optional `word_types` CSV (`noun,verb,proper_noun,adjective,adverb`)
 
 ### Sync
 - `POST /sync` - trigger sync (accepts pulls array, date range, deep_sync flag)
@@ -295,7 +295,7 @@ Standard structure:
 - `GET /llm/settings` - returns current provider settings values for UI hydration (`model_name`, `temperature`, `base_url`, `has_api_key`)
 - `GET /llm/status` - returns active LLM status and current model
 - `POST /llm/configure` - applies provider settings, persists provider JSON config, and rebuilds the active backend model
-- `POST /llm/summarize-comments` - summarizes comments from DB matching active filters (`published_after`, `published_before`, optional `video_id`, `playlist_id`, `author_channel_id`) with optional `limit_count` and `sort_by` (`recency` or `like_count`)
+- `POST /llm/summarize-comments` - summarizes comments from DB matching active filters (`q`, `published_after`, `published_before`, optional `video_id`, `playlist_id`, `author_channel_id`) with optional `limit_count` and `sort_by` (`recency` or `like_count`)
 - `POST /llm/summarize-comments` `limit_count` supports `1..1000`; omitted/blank defaults to `1000`
 - OpenAI `loaded` status requires a successful minimal probe inference call (invalid API keys or unreachable providers keep status as `error`)
 
@@ -408,11 +408,11 @@ Standard structure:
 
 ### VideoDetail (`frontend/src/pages/VideoDetail.tsx`)
 - Three tabs: `Analytics`, `Monetization`, `Discovery` (local state, not URL)
-- Default tab: `Analytics` on each navigation
+- Selected tab persists in local storage (`videoDetailTab`) across navigations
 - Discovery tab: Multi-series traffic source chart + share card
 - Discovery tab side row includes `Top YouTube search terms` next to traffic source share, scoped to the current video and active date range
 - Comments tab: Flat list (no inline replies), sorts by date/likes/reply_count
-- Comments tab includes the reusable `CommentFilter` (search text, posted date range, sort, reset); search matches comment text only
+- Comments tab includes the reusable `CommentFilter` (search text, posted date range, sort, reset); the same filter set drives list, word-cloud, and LLM summary
 - Comments tab: Shows `LLM Summary` (left) and word-cloud (right) cards above the comments section, scoped to the current video
 
 ### PlaylistDetail (`frontend/src/pages/PlaylistDetail.tsx`)
@@ -420,13 +420,13 @@ Standard structure:
 - Content selector: `Playlist Views` vs `Video Views` (different data sources)
 - Items table: Sortable Position/Added/Views columns, hover actions
 - No search input on items view
-- Comments tab: Uses the reusable `CommentFilter` (search text, posted date range, sort, reset); grouped data + pagination state are page-owned and passed into `CommentsSection`
+- Comments tab: Uses the reusable `CommentFilter` (search text, posted date range, sort, reset); the same filter set drives list, word-cloud, and LLM summary; grouped data + pagination state are page-owned and passed into `CommentsSection`
 - Comments tab: Shows `LLM Summary` (left) and word-cloud (right) cards above the comments section, scoped to the current playlist
 - Discovery side rail includes `Top YouTube search terms` under traffic cards, scoped to videos in the current playlist and active date range
 
 ### Comments (`frontend/src/pages/Comments/Comments.tsx`)
 - Includes a dedicated word-cloud card between filters and comments section
-- Filter row includes a left-aligned `Search comment text` input that filters the comments list by comment text only
+- Filter row includes a left-aligned `Search comment text` input; the same filter set drives comments list, word-cloud, and LLM summary
 - Includes an `LLM Summary` card next to the word-cloud card (two-column layout on desktop, stacked on smaller screens)
 - LLM Summary runs only on button click (manual trigger, never automatic)
 - LLM Summary source is all comments in DB matching active page filters (not current page rows only); max comments defaults to `50`
@@ -438,6 +438,7 @@ Standard structure:
 - Word cloud image colors use the WordCloud library defaults (no backend hardcoded palette)
 - Word cloud card includes a labeled `Word types` multiselect above the image (nouns, verbs, proper nouns, adjectives, adverbs)
 - Word-type multiselect spans the full card row width
+- Word cloud generation is manual via a full-width `Generate word cloud` button below the `Word types` multiselect (never auto-runs on filter changes)
 - Word cloud image viewport height is responsive and capped on large screens to prevent oversized full-screen rendering
 
 ### LLMSettings (`frontend/src/pages/LLMSettings/LLMSettings.tsx`)
@@ -464,7 +465,7 @@ Standard structure:
 
 **Card components** (`frontend/src/components/cards/`):
 - `PageCard` - generic card container
-- `CommentsWordCloudCard` - displays backend-rendered word-cloud PNG from filtered comments
+- `CommentsWordCloudCard` - displays backend-rendered word-cloud PNG from filtered comments; includes `Word types` multiselect and manual generate button
 - `LlmSummaryCard` - displays manual LLM-generated summary output and summarize controls for loaded comments
 - `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
 - `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards

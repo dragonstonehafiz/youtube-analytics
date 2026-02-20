@@ -116,3 +116,13 @@
 .markdown-textbox-placeholder {
   color: var(--color-muted);
 }
+
+.llm-summary-output .markdown-textbox-content {
+  min-height: 100%;
+}
+
+.llm-summary-output .markdown-textbox-placeholder {
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+}
