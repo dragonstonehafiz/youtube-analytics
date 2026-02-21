@@ -890,7 +890,7 @@ function SyncSettings() {
               </div>
             ) : null}
             <div className="sync-table-header">
-              <span>Start</span>
+              <span>Date</span>
               <span>Range</span>
               <span>Pulls</span>
               <span>Deep Sync</span>
@@ -909,7 +909,25 @@ function SyncSettings() {
                     <span>{run.pulls ? run.pulls : 'All'}</span>
                     <span>{run.deep_sync ? 'Yes' : 'No'}</span>
                     <span className="right">{formatDuration(run.started_at, run.finished_at)}</span>
-                    <span className="right">{run.status}</span>
+                    <span className="right">
+                      <span className="sync-run-status">
+                        {run.status === 'manual_stop' ? (
+                          <span className="sync-run-status-stop" aria-hidden="true" />
+                        ) : (
+                          <span
+                            className={[
+                              'sync-run-status-dot',
+                              run.status === 'success'
+                                ? 'success'
+                                : run.status === 'failed'
+                                  ? 'failed'
+                                  : 'neutral',
+                            ].join(' ')}
+                          />
+                        )}
+                        <span>{run.status}</span>
+                      </span>
+                    </span>
                     <span>
                       {run.error ? (
                         <button

@@ -177,7 +177,8 @@ def sync_video_analytics(
             if publish_date and publish_date > segment.end:
                 continue
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
-            if next_start > segment.end:
+            query_start = max(next_start, segment.start)
+            if query_start > segment.end:
                 continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
@@ -201,12 +202,13 @@ def sync_video_analytics(
             )
             publish_date = publish_map.get(video_id)
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
-            if next_start > segment.end:
+            query_start = max(next_start, segment.start)
+            if query_start > segment.end:
                 continue
             try:
                 rows = fetch_video_daily_metrics(
                     video_id,
-                    next_start,
+                    query_start,
                     segment.end,
                     publish_date=publish_date,
                 )
@@ -221,6 +223,7 @@ def sync_video_analytics(
                     segment_start=segment.start,
                     segment_end=segment.end,
                     next_start=next_start,
+                    query_start=query_start,
                     publish_date=publish_date,
                 )
                 raise
@@ -261,7 +264,8 @@ def sync_video_traffic_source(
             if publish_date and publish_date > segment.end:
                 continue
             traffic_start = find_next_sync_date(latest_traffic_by_video.get(video_id), segment.start)
-            if traffic_start > segment.end:
+            query_start = max(traffic_start, segment.start)
+            if query_start > segment.end:
                 continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
@@ -285,11 +289,12 @@ def sync_video_traffic_source(
             )
             publish_date = publish_map.get(video_id)
             traffic_start = find_next_sync_date(latest_traffic_by_video.get(video_id), segment.start)
-            if traffic_start <= segment.end:
+            query_start = max(traffic_start, segment.start)
+            if query_start <= segment.end:
                 try:
                     traffic_rows = fetch_video_traffic_source_metrics(
                         video_id,
-                        traffic_start,
+                        query_start,
                         segment.end,
                         publish_date=publish_date,
                     )
@@ -304,6 +309,7 @@ def sync_video_traffic_source(
                         segment_start=segment.start,
                         segment_end=segment.end,
                         traffic_start=traffic_start,
+                        query_start=query_start,
                         publish_date=publish_date,
                     )
                     raise
@@ -346,7 +352,8 @@ def sync_video_search_insights(
                 continue
             segment_start = max(segment.start, date_range.start)
             search_start = find_next_month_sync_date(latest_search_by_video.get(video_id), segment_start)
-            if search_start > segment.end:
+            query_start = max(search_start, segment_start)
+            if query_start > segment.end:
                 continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
@@ -372,11 +379,12 @@ def sync_video_search_insights(
             publish_date = publish_map.get(video_id)
             segment_start = max(segment.start, date_range.start)
             search_start = find_next_month_sync_date(latest_search_by_video.get(video_id), segment_start)
-            if search_start <= segment.end:
+            query_start = max(search_start, segment_start)
+            if query_start <= segment.end:
                 try:
                     search_rows = fetch_video_search_insight_metrics(
                         video_id,
-                        search_start,
+                        query_start,
                         segment.end,
                         publish_date=publish_date,
                     )
@@ -391,6 +399,7 @@ def sync_video_search_insights(
                         segment_start=segment.start,
                         segment_end=segment.end,
                         search_start=search_start,
+                        query_start=query_start,
                         publish_date=publish_date,
                     )
                     raise
@@ -588,10 +597,10 @@ def sync_playlist_analytics(
             if publish_date and publish_date > segment.end:
                 continue
             latest = latest_by_playlist.get(playlist_id)
-            if latest:
-                next_date = next_day(latest)
-                if next_date > segment.end:
-                    continue
+            resume_start = next_day(latest) if latest else segment.start
+            query_start = max(resume_start, segment.start)
+            if query_start > segment.end:
+                continue
             segment_playlists.append(playlist_id)
         segment_playlist_sets.append(segment_playlists)
         total_playlists += len(segment_playlists)
@@ -613,11 +622,10 @@ def sync_playlist_analytics(
                 detail=f"{segment.start} -> {segment.end} Playlist [{playlist_index}/{segment_total}]",
             )
             latest = latest_by_playlist.get(playlist_id)
-            if latest:
-                next_date = next_day(latest)
-                if next_date > segment.end:
-                    continue
-            query_start = next_date if latest and next_date > segment.start else segment.start
+            resume_start = next_day(latest) if latest else segment.start
+            query_start = max(resume_start, segment.start)
+            if query_start > segment.end:
+                continue
             try:
                 rows = fetch_playlist_daily_metrics(
                     playlist_id,
@@ -746,14 +754,6 @@ def _run_sync_stage(
     except Exception as exc:
         error_trace = traceback.format_exc()
         _finish_sync_run(run_id, "failed", error_trace if error_trace else str(exc))
-        _log_sync_error(
-            stage_key,
-            exc,
-            start_date=start_date,
-            end_date=end_date,
-            deep_sync=deep_sync,
-            run_id=run_id,
-        )
 
 
 def _should_run(selected: set[str] | None, key: str) -> bool:

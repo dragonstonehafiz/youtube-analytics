@@ -97,8 +97,9 @@ frontend/
 - **Progress tracking**: In-memory state in `SyncProgress`, persistence in `sync_runs`
 - **Stage failure isolation**: Non-stop stage exceptions are recorded as failed stage runs and sync continues with later selected stages
 - **Overall sync progress status**: Marked `done` after all selected stages are attempted; per-stage failures are reflected in their own `sync_runs` rows
-- **Sync error logging**: Stage failures log contextual metadata (e.g., `video_id`, `playlist_id`, date segment) to `backend/outputs/sync.log` before stage failure is recorded
+- **Sync error logging**: Stage failures are logged from the failing sync step with local context (e.g., `video_id`, `playlist_id`, date segment) to `backend/outputs/sync.log`; `_run_sync_stage` does not emit a second duplicate error log
 - **Video search insights fetch policy**: Monthly queries, sorted by `-views`, capped to one page (`maxResults=25`, `startIndex=1`) per video-month
+- **Segmented analytics query bounds**: `video_analytics`, `video_traffic_source`, `video_search_insights`, and `playlist_analytics` clamp per-request `query_start` to the active segment start (in addition to resume checkpoints) so each API call stays within segment bounds
 
 ### Date/Time Handling
 - **Backend**: ISO date strings (`YYYY-MM-DD`), no timestamps unless required
@@ -394,6 +395,10 @@ Standard structure:
 - Database Overview: Donut chart (storage) + table metrics grid (row counts)
 - API estimate bars: Normalized to quotas (Data API = 10k, Analytics = 100k)
 - Sync Runs table shows per-stage execution history (not per-sync aggregates)
+- Sync Runs table headers are center-aligned
+- Sync Runs row content is centered for `Pulls`, `Deep Sync`, and `Error` columns
+- Sync Runs status column uses indicators: green dot = `success`, red dot = `failed`, square stop icon = `manual_stop`
+- Sync Runs table column widths are weighted toward `Range` and `Pulls` while keeping short columns (`Deep Sync`, `Duration`, `Status`, `Error`) compact
 
 ### Analytics (`frontend/src/pages/Analytics.tsx`)
 - Three tabs: `Metrics`, `Monetization`, `Discovery`
