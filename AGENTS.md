@@ -94,6 +94,7 @@ frontend/
 - **Stage order** (immutable): `videos` → `comments` → `audience` → `playlists` → `playlist_analytics` → `traffic` → `channel_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
 - **Stop requests**: Cooperative (takes effect before next API call)
 - **Shorts detection**: Uses UUSH playlist, not dimensions (fail-fast if unavailable)
+- **Video sync reconciliation fallback**: After uploads-playlist sync/upsert, `videos` stage checks `playlist_items` for missing `video_id`s, fetches those via `videos.list`, and upserts recoverable rows
 - **Progress tracking**: In-memory state in `SyncProgress`, persistence in `sync_runs`
 - **Stage failure isolation**: Non-stop stage exceptions are recorded as failed stage runs and sync continues with later selected stages
 - **Overall sync progress status**: Marked `done` after all selected stages are attempted; per-stage failures are reflected in their own `sync_runs` rows

@@ -23,7 +23,7 @@ from src.database.playlists import delete_playlists_not_in, replace_playlist_ite
 from src.database.traffic_sources import upsert_traffic_sources
 from src.database.video_search_insights import upsert_video_search_insights
 from src.database.video_traffic_source import upsert_video_traffic_source
-from src.database.videos import upsert_videos
+from src.database.videos import list_playlist_video_ids_missing_video_rows, upsert_videos
 from src.youtube.analytics import (
     DateRange,
     chunk_date_range,
@@ -37,8 +37,7 @@ from src.youtube.analytics import (
 from src.youtube.comments import extract_comments
 from src.youtube.playlists import get_all_playlist_items, get_all_playlists
 from src.youtube.subscribers import extract_public_subscribers
-from src.youtube.videos import safe_get_videos
-from src.youtube.videos import get_short_video_ids
+from src.youtube.videos import fetch_video_details, get_short_video_ids, safe_get_videos
 from src.utils.logger import get_logger
 
 sync_progress = SyncProgress()
@@ -80,9 +79,9 @@ def find_next_month_sync_date(latest_date: str | None, fallback_start: str) -> s
 
 def sync_videos() -> None:
     """Sync all video metadata into the database."""
-    sync_progress.set_total(2)
+    sync_progress.set_total(3)
     sync_progress.set_current(0)
-    sync_progress.format_message("Pulling videos [{current}/{total}] stage 1/2: loading uploads")
+    sync_progress.format_message("Pulling videos [{current}/{total}] stage 1/3: loading uploads")
     sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
     try:
         videos = safe_get_videos()
@@ -90,7 +89,7 @@ def sync_videos() -> None:
         _log_sync_error("videos", exc, step="load_uploads")
         raise
     sync_progress.increment()
-    sync_progress.format_message("Pulling videos [{current}/{total}] stage 2/2: loading shorts IDs")
+    sync_progress.format_message("Pulling videos [{current}/{total}] stage 2/3: loading shorts IDs")
     sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
     try:
         short_video_ids = get_short_video_ids()
@@ -98,7 +97,21 @@ def sync_videos() -> None:
     except Exception as exc:
         _log_sync_error("videos", exc, step="load_shorts_ids")
         raise
-    sync_progress.set_current(2)
+    sync_progress.increment()
+    sync_progress.format_message("Pulling videos [{current}/{total}] stage 3/3: reconciling playlist items")
+    sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+    try:
+        missing_video_ids = list_playlist_video_ids_missing_video_rows()
+        recovered_videos: list[dict] = []
+        for index in range(0, len(missing_video_ids), 50):
+            sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+            recovered_videos.extend(fetch_video_details(missing_video_ids[index : index + 50]))
+        if recovered_videos:
+            upsert_videos(recovered_videos, short_video_ids=short_video_ids)
+    except Exception as exc:
+        _log_sync_error("videos", exc, step="reconcile_playlist_items")
+        raise
+    sync_progress.set_current(3)
     sync_progress.format_message("Pulling videos [{current}/{total}] complete")
     return None
 

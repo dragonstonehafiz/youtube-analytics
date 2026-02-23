@@ -4,6 +4,23 @@ from src.database.db import get_connection
 from src.youtube.videos import parse_duration_to_seconds
 
 
+def list_playlist_video_ids_missing_video_rows() -> list[str]:
+    """Return playlist-item video IDs that do not yet exist in videos table."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT pi.video_id
+            FROM playlist_items pi
+            LEFT JOIN videos v ON v.id = pi.video_id
+            WHERE pi.video_id IS NOT NULL
+              AND pi.video_id != ''
+              AND v.id IS NULL
+            ORDER BY pi.video_id ASC
+            """
+        ).fetchall()
+    return [str(row["video_id"]) for row in rows if row["video_id"]]
+
+
 def upsert_videos(items: list[dict], short_video_ids: set[str] | None = None) -> int:
     """Insert or update video rows and return the number of rows processed."""
     if not items:
