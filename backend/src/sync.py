@@ -52,8 +52,7 @@ def _log_sync_error(stage: str, error: Exception, **context: object) -> None:
         "Sync stage '%s' failed: %s | %s",
         stage,
         str(error),
-        context_text,
-        exc_info=True,
+        context_text
     )
 
 

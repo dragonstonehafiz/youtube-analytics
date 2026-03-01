@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Body, HTTPException
 
-from llm import LLMOpenAI
+from src.llm import LLMOpenAI
 from src.database.db import get_connection
 
 router = APIRouter()

@@ -47,7 +47,7 @@ def extract_comments(video_id: str) -> list[dict]:
             error_text = str(exc)
         # Skip videos where comments cannot be fetched (disabled, live streams, processing failures, etc.)
         if any(keyword in error_text for keyword in ["commentsDisabled", "processingFailure", "forbidden", "disabled"]):
-            logger.warning(f"Skipping comments for video {video_id}: {error_text[:150]}")
+            logger.warning(f"Skipping comments for video {video_id}")
             return []
         raise RuntimeError(f"YouTube API error: {exc}") from exc
     return [row for row in comments if row.get("id")]

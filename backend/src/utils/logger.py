@@ -9,14 +9,13 @@ def get_logger(
     name: str,
     level: Optional[int] = None,
     filename: Optional[str] = None,
-    console: bool = True,
 ) -> logging.Logger:
-    """Return a logger that writes to console and an optional file."""
+    """Return a logger that writes to a log file only."""
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
 
-    log_level = level if level is not None else logging.INFO
+    log_level = level if level is not None else logging.WARNING
     logger.setLevel(log_level)
 
     formatter = logging.Formatter(
@@ -24,18 +23,12 @@ def get_logger(
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    if console:
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(formatter)
-        logger.addHandler(stream_handler)
-
-    if filename:
-        outputs_dir = Path(__file__).resolve().parents[2] / "outputs"
-        outputs_dir.mkdir(parents=True, exist_ok=True)
-        file_path = outputs_dir / filename
-        file_handler = logging.FileHandler(file_path, encoding="utf-8")
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+    outputs_dir = Path(__file__).resolve().parents[2] / "outputs"
+    outputs_dir.mkdir(parents=True, exist_ok=True)
+    file_path = outputs_dir / (filename or "app.log")
+    file_handler = logging.FileHandler(file_path, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
     logger.propagate = False
     return logger
