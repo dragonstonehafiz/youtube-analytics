@@ -985,17 +985,17 @@ function Analytics() {
                         value: formatCurrency(totals.estimated_revenue),
                       },
                     ]}
-                    series={{
-                      views: series.views ?? [],
-                      watch_time: series.watch_time ?? [],
-                      subscribers: series.subscribers ?? [],
-                      revenue: series.revenue ?? [],
+                    seriesByMetric={{
+                      views: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views ?? [] }],
+                      watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time ?? [] }],
+                      subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers ?? [] }],
+                      revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue ?? [] }],
                     }}
-                    previousSeries={{
-                      views: previousSeries.views ?? [],
-                      watch_time: previousSeries.watch_time ?? [],
-                      subscribers: previousSeries.subscribers ?? [],
-                      revenue: previousSeries.revenue ?? [],
+                    previousSeriesByMetric={{
+                      views: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views ?? [] }],
+                      watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time ?? [] }],
+                      subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
+                      revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue ?? [] }],
                     }}
                     publishedDates={publishedDatesDaily}
                   />
@@ -1048,17 +1048,17 @@ function Analytics() {
                       value: formatCurrency(monetizationTotals.cpm),
                     },
                   ]}
-                  series={{
-                    estimated_revenue: monetizationSeries.estimated_revenue ?? [],
-                    ad_impressions: monetizationSeries.ad_impressions ?? [],
-                    monetized_playbacks: monetizationSeries.monetized_playbacks ?? [],
-                    cpm: monetizationSeries.cpm ?? [],
+                  seriesByMetric={{
+                    estimated_revenue: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue ?? [] }],
+                    ad_impressions: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions ?? [] }],
+                    monetized_playbacks: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks ?? [] }],
+                    cpm: [{ key: 'cpm', label: '', color: '#0ea5e9', points: monetizationSeries.cpm ?? [] }],
                   }}
-                  previousSeries={{
-                    estimated_revenue: previousMonetizationSeries.estimated_revenue ?? [],
-                    ad_impressions: previousMonetizationSeries.ad_impressions ?? [],
-                    monetized_playbacks: previousMonetizationSeries.monetized_playbacks ?? [],
-                    cpm: previousMonetizationSeries.cpm ?? [],
+                  previousSeriesByMetric={{
+                    estimated_revenue: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue ?? [] }],
+                    ad_impressions: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions ?? [] }],
+                    monetized_playbacks: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks ?? [] }],
+                    cpm: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousMonetizationSeries.cpm ?? [] }],
                   }}
                   comparisonAggregation={{ cpm: 'avg' }}
                   publishedDates={publishedDatesDaily}
@@ -1085,9 +1085,8 @@ function Analytics() {
                 <MetricChartCard
                   granularity={granularity}
                   metrics={discoveryMetrics}
-                  series={{}}
-                  multiSeriesByMetric={discoverySeriesByMetric}
-                  previousMultiSeriesByMetric={previousDiscoverySeriesByMetric}
+                  seriesByMetric={discoverySeriesByMetric}
+                  previousSeriesByMetric={previousDiscoverySeriesByMetric}
                   publishedDates={publishedDatesDaily}
                 />
               </PageCard>

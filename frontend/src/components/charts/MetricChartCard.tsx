@@ -17,7 +17,7 @@ type SeriesPoint = {
   value: number
 }
 
-type MultiSeries = {
+export type LineSeries = {
   key: string
   label: string
   color: string
@@ -35,7 +35,7 @@ type AggregatedSeries = {
 }
 
 type AggregatedMultiSeries = {
-  lines: MultiSeries[]
+  lines: LineSeries[]
   rawDays: string[]
   bucketMeta: Record<string, BucketMeta>
   dayToBucket: Map<string, string>
@@ -44,10 +44,8 @@ type AggregatedMultiSeries = {
 type MetricChartCardProps = {
   metrics: MetricSummary[]
   granularity: Granularity
-  series?: Record<string, SeriesPoint[]>
-  previousSeries?: Record<string, SeriesPoint[]>
-  multiSeriesByMetric?: Record<string, MultiSeries[]>
-  previousMultiSeriesByMetric?: Record<string, MultiSeries[]>
+  seriesByMetric?: Record<string, LineSeries[]>
+  previousSeriesByMetric?: Record<string, LineSeries[]>
   comparisonAggregation?: Record<string, 'sum' | 'avg'>
   publishedDates?: Record<string, PublishedItem[]>
 }
@@ -162,7 +160,7 @@ function aggregateFilledSeries(
 }
 
 function aggregateFilledMultiSeries(
-  rawLines: MultiSeries[],
+  rawLines: LineSeries[],
   granularity: Granularity,
   aggregation: 'sum' | 'avg'
 ): AggregatedMultiSeries {
@@ -214,10 +212,8 @@ function aggregateFilledMultiSeries(
 function MetricChartCard({
   metrics,
   granularity,
-  series = {},
-  previousSeries = {},
-  multiSeriesByMetric = {},
-  previousMultiSeriesByMetric = {},
+  seriesByMetric = {},
+  previousSeriesByMetric = {},
   comparisonAggregation = {},
   publishedDates = {},
 }: MetricChartCardProps) {
@@ -250,58 +246,34 @@ function MetricChartCard({
     }
   }, [metrics, activeMetric])
 
-  const aggregatedSeriesByMetric = useMemo(() => {
-    const next: Record<string, AggregatedSeries> = {}
-    const keys = new Set<string>([...Object.keys(series), ...Object.keys(previousSeries), ...metrics.map((metric) => metric.key)])
-    keys.forEach((key) => {
-      const aggregation = comparisonAggregation[key] ?? 'sum'
-      next[key] = aggregateFilledSeries(series[key] ?? [], granularity, aggregation)
-    })
-    return next
-  }, [series, previousSeries, metrics, granularity, comparisonAggregation])
-
-  const previousAggregatedSeriesByMetric = useMemo(() => {
-    const next: Record<string, AggregatedSeries> = {}
-    const keys = new Set<string>([...Object.keys(series), ...Object.keys(previousSeries), ...metrics.map((metric) => metric.key)])
-    keys.forEach((key) => {
-      const aggregation = comparisonAggregation[key] ?? 'sum'
-      next[key] = aggregateFilledSeries(previousSeries[key] ?? [], granularity, aggregation)
-    })
-    return next
-  }, [series, previousSeries, metrics, granularity, comparisonAggregation])
-
-  const aggregatedMultiByMetric = useMemo(() => {
+  const aggregatedByMetric = useMemo(() => {
     const next: Record<string, AggregatedMultiSeries> = {}
-    const keys = new Set<string>([...Object.keys(multiSeriesByMetric), ...Object.keys(previousMultiSeriesByMetric), ...metrics.map((metric) => metric.key)])
+    const keys = new Set<string>([...Object.keys(seriesByMetric), ...Object.keys(previousSeriesByMetric), ...metrics.map((metric) => metric.key)])
     keys.forEach((key) => {
       const aggregation = comparisonAggregation[key] ?? 'sum'
-      next[key] = aggregateFilledMultiSeries(multiSeriesByMetric[key] ?? [], granularity, aggregation)
+      next[key] = aggregateFilledMultiSeries(seriesByMetric[key] ?? [], granularity, aggregation)
     })
     return next
-  }, [multiSeriesByMetric, previousMultiSeriesByMetric, metrics, granularity, comparisonAggregation])
+  }, [seriesByMetric, previousSeriesByMetric, metrics, granularity, comparisonAggregation])
 
-  const previousAggregatedMultiByMetric = useMemo(() => {
+  const previousAggregatedByMetric = useMemo(() => {
     const next: Record<string, AggregatedMultiSeries> = {}
-    const keys = new Set<string>([...Object.keys(multiSeriesByMetric), ...Object.keys(previousMultiSeriesByMetric), ...metrics.map((metric) => metric.key)])
+    const keys = new Set<string>([...Object.keys(seriesByMetric), ...Object.keys(previousSeriesByMetric), ...metrics.map((metric) => metric.key)])
     keys.forEach((key) => {
       const aggregation = comparisonAggregation[key] ?? 'sum'
-      next[key] = aggregateFilledMultiSeries(previousMultiSeriesByMetric[key] ?? [], granularity, aggregation)
+      next[key] = aggregateFilledMultiSeries(previousSeriesByMetric[key] ?? [], granularity, aggregation)
     })
     return next
-  }, [multiSeriesByMetric, previousMultiSeriesByMetric, metrics, granularity, comparisonAggregation])
+  }, [seriesByMetric, previousSeriesByMetric, metrics, granularity, comparisonAggregation])
 
-  const points = aggregatedSeriesByMetric[activeMetric]?.points ?? []
-  const activeMultiSeries = aggregatedMultiByMetric[activeMetric]?.lines ?? []
-  const isMulti = activeMultiSeries.length > 0
-  const chartRawDays = isMulti
-    ? aggregatedMultiByMetric[activeMetric]?.rawDays ?? []
-    : aggregatedSeriesByMetric[activeMetric]?.rawDays ?? []
-  const chartDayToBucket = isMulti
-    ? aggregatedMultiByMetric[activeMetric]?.dayToBucket ?? new Map<string, string>()
-    : aggregatedSeriesByMetric[activeMetric]?.dayToBucket ?? new Map<string, string>()
-  const chartBucketMeta = isMulti
-    ? aggregatedMultiByMetric[activeMetric]?.bucketMeta ?? {}
-    : aggregatedSeriesByMetric[activeMetric]?.bucketMeta ?? {}
+  const activeLines = aggregatedByMetric[activeMetric]?.lines ?? []
+  const isMulti = activeLines.length > 1
+  const points = activeLines[0]?.points ?? []
+  const singleLineColor = activeLines[0]?.color ?? '#0ea5e9'
+  const chartData = aggregatedByMetric[activeMetric]
+  const chartRawDays = chartData?.rawDays ?? []
+  const chartDayToBucket = chartData?.dayToBucket ?? new Map<string, string>()
+  const chartBucketMeta = chartData?.bucketMeta ?? {}
 
   const chartHeight = 300
   const padding = { top: 12, right: 0, bottom: 48, left: 56 }
@@ -311,13 +283,13 @@ function MetricChartCard({
   const dates = useMemo(() => {
     if (isMulti) {
       const allDates = new Set<string>()
-      activeMultiSeries.forEach((line) => {
+      activeLines.forEach((line) => {
         line.points.forEach((point) => allDates.add(point.date))
       })
       return Array.from(allDates).sort((a, b) => a.localeCompare(b))
     }
     return points.map((point) => point.date)
-  }, [isMulti, activeMultiSeries, points])
+  }, [isMulti, activeLines, points])
 
   const singleByDate = useMemo(() => {
     const map = new Map<string, number>()
@@ -325,15 +297,15 @@ function MetricChartCard({
     return map
   }, [points])
 
-  const valueByMultiSeries = useMemo(() => {
+  const valueByLine = useMemo(() => {
     const map = new Map<string, Map<string, number>>()
-    activeMultiSeries.forEach((line) => {
+    activeLines.forEach((line) => {
       const byDate = new Map<string, number>()
       line.points.forEach((point) => byDate.set(point.date, point.value))
       map.set(line.key, byDate)
     })
     return map
-  }, [activeMultiSeries])
+  }, [activeLines])
 
   const displayDates = useMemo(() => {
     if (!isMulti || dates.length === 0) {
@@ -343,7 +315,7 @@ function MetricChartCard({
     let last = -1
     for (let i = 0; i < dates.length; i += 1) {
       const day = dates[i]
-      const hasValue = activeMultiSeries.some((line) => (valueByMultiSeries.get(line.key)?.get(day) ?? 0) > 0)
+      const hasValue = activeLines.some((line) => (valueByLine.get(line.key)?.get(day) ?? 0) > 0)
       if (hasValue) {
         first = i
         break
@@ -351,7 +323,7 @@ function MetricChartCard({
     }
     for (let i = dates.length - 1; i >= 0; i -= 1) {
       const day = dates[i]
-      const hasValue = activeMultiSeries.some((line) => (valueByMultiSeries.get(line.key)?.get(day) ?? 0) > 0)
+      const hasValue = activeLines.some((line) => (valueByLine.get(line.key)?.get(day) ?? 0) > 0)
       if (hasValue) {
         last = i
         break
@@ -361,11 +333,11 @@ function MetricChartCard({
       return dates
     }
     return dates.slice(first, last + 1)
-  }, [isMulti, dates, activeMultiSeries, valueByMultiSeries])
+  }, [isMulti, dates, activeLines, valueByLine])
 
   const { minValue, maxValue, ticks } = useMemo(() => {
     const values = isMulti
-      ? activeMultiSeries.flatMap((line) => line.points.map((point) => point.value))
+      ? activeLines.flatMap((line) => line.points.map((point) => point.value))
       : points.map((point) => point.value)
     const min = values.length ? Math.min(...values) : 0
     const max = values.length ? Math.max(...values) : 1
@@ -375,7 +347,7 @@ function MetricChartCard({
     const step = (paddedMax - paddedMin) / tickCount
     const tickValues = Array.from({ length: tickCount + 1 }, (_, idx) => paddedMin + step * idx)
     return { minValue: paddedMin, maxValue: paddedMax, ticks: tickValues }
-  }, [isMulti, activeMultiSeries, points])
+  }, [isMulti, activeLines, points])
 
   const xScale = (index: number) => {
     if (displayDates.length <= 1) {
@@ -419,8 +391,8 @@ function MetricChartCard({
     if (!isMulti) {
       return [] as Array<{ key: string; color: string; path: string }>
     }
-    return activeMultiSeries.map((line) => {
-      const byDate = valueByMultiSeries.get(line.key) ?? new Map<string, number>()
+    return activeLines.map((line) => {
+      const byDate = valueByLine.get(line.key) ?? new Map<string, number>()
       const path = displayDates
         .map((day, index) => {
           const x = xScale(index)
@@ -430,7 +402,7 @@ function MetricChartCard({
         .join(' ')
       return { key: line.key, color: line.color, path }
     })
-  }, [isMulti, activeMultiSeries, valueByMultiSeries, displayDates, maxValue, minValue, innerWidth, innerHeight])
+  }, [isMulti, activeLines, valueByLine, displayDates, maxValue, minValue, innerWidth, innerHeight])
 
   const activeDay = hoverIndex !== null && hoverIndex >= 0 && hoverIndex < displayDates.length ? displayDates[hoverIndex] : null
   const activeValue = activeDay ? singleByDate.get(activeDay) ?? 0 : null
@@ -583,33 +555,20 @@ function MetricChartCard({
 
   const computeComparison = (metricKey: string) => {
     const aggregation = comparisonAggregation[metricKey] ?? 'sum'
-    const currentMulti = aggregatedMultiByMetric[metricKey]?.lines ?? []
-    const previousMulti = previousAggregatedMultiByMetric[metricKey]?.lines ?? []
-    const currentSingle = aggregatedSeriesByMetric[metricKey]?.points ?? []
-    const previousSingle = previousAggregatedSeriesByMetric[metricKey]?.points ?? []
-    const getSingleValue = (input: SeriesPoint[]) => {
-      if (input.length === 0) {
-        return 0
-      }
-      if (aggregation === 'avg') {
-        return input.reduce((sum, point) => sum + point.value, 0) / input.length
-      }
-      return input.reduce((sum, point) => sum + point.value, 0)
-    }
-    const getMultiValue = (lines: MultiSeries[]) => {
+    const currentLines = aggregatedByMetric[metricKey]?.lines ?? []
+    const previousLines = previousAggregatedByMetric[metricKey]?.lines ?? []
+
+    const getValue = (lines: LineSeries[]) => {
       const values = lines.flatMap((line) => line.points.map((point) => point.value))
-      if (values.length === 0) {
-        return 0
-      }
-      if (aggregation === 'avg') {
-        return values.reduce((sum, value) => sum + value, 0) / values.length
-      }
+      if (values.length === 0) return 0
+      if (aggregation === 'avg') return values.reduce((sum, value) => sum + value, 0) / values.length
       return values.reduce((sum, value) => sum + value, 0)
     }
-    const currentValue = currentMulti.length > 0 ? getMultiValue(currentMulti) : getSingleValue(currentSingle)
-    const previousValue = previousMulti.length > 0 ? getMultiValue(previousMulti) : getSingleValue(previousSingle)
-    const hasCurrentData = currentMulti.length > 0 || currentSingle.length > 0
-    const hasPreviousData = previousMulti.length > 0 || previousSingle.length > 0
+
+    const currentValue = getValue(currentLines)
+    const previousValue = getValue(previousLines)
+    const hasCurrentData = currentLines.length > 0
+    const hasPreviousData = previousLines.length > 0
     if (!hasCurrentData && !hasPreviousData) {
       return undefined
     }
@@ -681,9 +640,9 @@ function MetricChartCard({
     if (!isMulti || activeX === null) {
       return null
     }
-    const estimatedHeight = 34 + activeMultiSeries.length * 26
+    const estimatedHeight = 34 + activeLines.length * 26
     return getTooltipPosition(activeX, padding.top + 12, 300, estimatedHeight, false)
-  }, [isMulti, activeX, activeMultiSeries.length, padding.top, chartWidth, chartHeight])
+  }, [isMulti, activeX, activeLines.length, padding.top, chartWidth, chartHeight])
 
   return (
     <div className="metric-chart-card" ref={containerRef}>
@@ -725,8 +684,8 @@ function MetricChartCard({
         >
           <defs>
             <linearGradient id="areaFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
+              <stop offset="0%" stopColor={singleLineColor} stopOpacity="0.2" />
+              <stop offset="100%" stopColor={singleLineColor} stopOpacity="0.02" />
             </linearGradient>
           </defs>
           {ticks.map((tick) => (
@@ -744,7 +703,7 @@ function MetricChartCard({
             </g>
           ))}
           {areaPath ? <path d={areaPath} fill="url(#areaFill)" /> : null}
-          {linePath ? <path d={linePath} fill="none" stroke="#0ea5e9" strokeWidth="2" /> : null}
+          {linePath ? <path d={linePath} fill="none" stroke={singleLineColor} strokeWidth="2" /> : null}
           {multiLinePaths.map((line) => (
             <path key={line.key} d={line.path} fill="none" stroke={line.color} strokeWidth="2" opacity="0.9" />
           ))}
@@ -758,7 +717,7 @@ function MetricChartCard({
                 stroke="#94a3b8"
                 strokeDasharray="4 4"
               />
-              <circle cx={activeX} cy={activeY} r="4" fill="#0ea5e9" />
+              <circle cx={activeX} cy={activeY} r="4" fill={singleLineColor} />
             </g>
           ) : null}
           {displayDates.map((day, index) => {
@@ -826,8 +785,8 @@ function MetricChartCard({
             }}
           >
             <div className="tooltip-date">{activeDay}</div>
-            {activeMultiSeries.map((line) => {
-              const value = valueByMultiSeries.get(line.key)?.get(activeDay) ?? 0
+            {activeLines.map((line) => {
+              const value = valueByLine.get(line.key)?.get(activeDay) ?? 0
               return (
                 <div key={`tooltip-${line.key}`} className="multiline-tooltip-row">
                   <span className="multiline-legend-dot" style={{ background: line.color }} />
