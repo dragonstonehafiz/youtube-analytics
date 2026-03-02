@@ -49,6 +49,7 @@ type MetricChartCardProps = {
   comparisonAggregation?: Record<string, 'sum' | 'avg'>
   durationMetrics?: string[]
   publishedDates?: Record<string, PublishedItem[]>
+  showYearMarkers?: boolean
 }
 
 const DECIMAL_METRICS = new Set(['revenue', 'estimated_revenue', 'cpm', 'rpm', 'playback_based_cpm'])
@@ -218,6 +219,7 @@ function MetricChartCard({
   comparisonAggregation = {},
   durationMetrics = [],
   publishedDates = {},
+  showYearMarkers = true,
 }: MetricChartCardProps) {
   const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -411,6 +413,19 @@ function MetricChartCard({
   const activeX = hoverIndex !== null && hoverIndex >= 0 && hoverIndex < displayDates.length ? xScale(hoverIndex) : null
   const activeY = activeValue !== null && activeX !== null ? yScale(activeValue) : null
   const labelStep = Math.max(1, Math.ceil(displayDates.length / 8))
+
+  const yearMarkers = useMemo(() => {
+    if (!showYearMarkers || displayDates.length === 0) return []
+    const markers: Array<{ index: number; year: string }> = []
+    for (let i = 1; i < displayDates.length; i++) {
+      const prevYear = displayDates[i - 1].slice(0, 4)
+      const currYear = displayDates[i].slice(0, 4)
+      if (currYear !== prevYear) {
+        markers.push({ index: i, year: currYear })
+      }
+    }
+    return markers
+  }, [showYearMarkers, displayDates])
 
   const rebucketedPublished = useMemo(() => {
     const rebucketed: Record<string, PublishedItem[]> = {}
@@ -705,6 +720,29 @@ function MetricChartCard({
               </text>
             </g>
           ))}
+          {yearMarkers.map(({ index, year }) => {
+            const x = xScale(index)
+            return (
+              <g key={`year-${year}`}>
+                <line
+                  x1={x} x2={x}
+                  y1={padding.top} y2={padding.top + innerHeight}
+                  stroke="#94a3b8"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <text
+                  x={x + 4}
+                  y={padding.top + 12}
+                  fontSize="11"
+                  fill="#94a3b8"
+                  fontWeight="600"
+                >
+                  {year}
+                </text>
+              </g>
+            )
+          })}
           {areaPath ? <path d={areaPath} fill="url(#areaFill)" /> : null}
           {linePath ? <path d={linePath} fill="none" stroke={singleLineColor} strokeWidth="2" /> : null}
           {multiLinePaths.map((line) => (
