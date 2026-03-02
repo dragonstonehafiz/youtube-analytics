@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { DataRangeControl } from '../../components/features'
 import { MetricChartCard } from '../../components/charts'
 import {
+  ContentInsightsCard,
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
   PageCard,
@@ -10,6 +11,7 @@ import {
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
   VideoDetailListCard,
+  type ContentInsights,
   type SearchInsightsTopTerm,
   type TopTrafficVideo,
   type TrafficSourceShareItem,
@@ -161,6 +163,7 @@ function Analytics() {
       views: string
     }[]
   >([])
+  const [contentInsights, setContentInsights] = useState<ContentInsights | null>(null)
   const [monetizationTotals, setMonetizationTotals] = useState<MonetizationTotalsState>({
     estimated_revenue: 0,
     ad_impressions: 0,
@@ -468,7 +471,22 @@ function Analytics() {
       }
     }
 
+    async function loadContentInsights() {
+      try {
+        const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
+        const response = await fetch(
+          `http://127.0.0.1:8000/analytics/content-insights?start_date=${range.start}&end_date=${range.end}${contentParam}`
+        )
+        const data = await response.json()
+        setContentInsights(data)
+      } catch (error) {
+        console.error('Failed to load content insights', error)
+        setContentInsights(null)
+      }
+    }
+
     loadTopContent()
+    loadContentInsights()
   }, [range.start, range.end, contentSelection])
 
   useEffect(() => {
@@ -999,6 +1017,9 @@ function Analytics() {
                     }}
                     publishedDates={publishedDatesDaily}
                   />
+                </PageCard>
+              <PageCard>
+                  <ContentInsightsCard data={contentInsights} onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)} />
                 </PageCard>
               <PageCard>
                   <TopContentTable items={topContent} />

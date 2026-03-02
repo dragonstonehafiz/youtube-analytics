@@ -6,6 +6,7 @@ import { CommentFilter, DataRangeControl, type CommentSort } from '../../compone
 import { MetricChartCard } from '../../components/charts'
 import {
   CommentsWordCloudCard,
+  ContentInsightsCard,
   LlmSummaryCard,
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
@@ -14,6 +15,7 @@ import {
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
   VideoDetailListCard,
+  type ContentInsights,
   type SearchInsightsTopTerm,
   type TopTrafficVideo,
   type TrafficSourceShareItem,
@@ -227,6 +229,7 @@ function PlaylistDetail() {
   const [searchTopTerms, setSearchTopTerms] = useState<SearchInsightsTopTerm[]>([])
   const [searchTopTermsLoading, setSearchTopTermsLoading] = useState(false)
   const [searchTopTermsError, setSearchTopTermsError] = useState<string | null>(null)
+  const [contentInsights, setContentInsights] = useState<ContentInsights | null>(null)
   const [publishedDates, setPublishedDates] = useState<Record<string, PublishedItem[]>>({})
   const [totals, setTotals] = useState({
     views: 0,
@@ -1080,6 +1083,25 @@ function PlaylistDetail() {
     loadTopSearchTerms()
   }, [playlistId, analyticsTab, range.start, range.end, playlistVideoIds])
 
+  useEffect(() => {
+    async function loadContentInsights() {
+      if (!playlistId) {
+        setContentInsights(null)
+        return
+      }
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:8000/analytics/content-insights?start_date=${range.start}&end_date=${range.end}&playlist_id=${playlistId}`
+        )
+        const data = await response.json()
+        setContentInsights(data)
+      } catch {
+        setContentInsights(null)
+      }
+    }
+    loadContentInsights()
+  }, [playlistId, range.start, range.end])
+
   const monetizationSeries = useMemo(() => {
     const sorted = [...videoDailyRows]
       .filter((item) => typeof item.day === 'string' && item.day >= range.start && item.day <= range.end)
@@ -1563,23 +1585,28 @@ function PlaylistDetail() {
         </div>
         <div className="page-row">
           <div className="playlist-detail-items-layout">
-            <PageCard>
-              {loadingItems ? (
-                <div className="video-detail-state">Loading playlist items...</div>
-              ) : errorItems ? (
-                <div className="video-detail-state">{errorItems}</div>
-              ) : (
-                <PlaylistItemsTable items={items} sortBy={sortBy} direction={direction} onToggleSort={toggleSort} />
-              )}
-              <div className="pagination-footer">
-                <div className="pagination-main">
-                  <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+            <div className="playlist-detail-main-column">
+              <PageCard>
+                <ContentInsightsCard data={contentInsights} />
+              </PageCard>
+              <PageCard>
+                {loadingItems ? (
+                  <div className="video-detail-state">Loading playlist items...</div>
+                ) : errorItems ? (
+                  <div className="video-detail-state">{errorItems}</div>
+                ) : (
+                  <PlaylistItemsTable items={items} sortBy={sortBy} direction={direction} onToggleSort={toggleSort} />
+                )}
+                <div className="pagination-footer">
+                  <div className="pagination-main">
+                    <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                  </div>
+                  <div className="pagination-size">
+                    <PageSizePicker value={pageSize} onChange={setPageSize} />
+                  </div>
                 </div>
-                <div className="pagination-size">
-                  <PageSizePicker value={pageSize} onChange={setPageSize} />
-                </div>
-              </div>
-            </PageCard>
+              </PageCard>
+            </div>
             <div className="playlist-detail-side-cards">
               {analyticsTab === 'monetization' ? (
                 <>

@@ -6,6 +6,7 @@ import {
   MultiSelect,
   PageSizePicker,
   PageSwitcher,
+  StatCard,
   YearInput,
 } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
@@ -38,24 +39,6 @@ function SyncSettings() {
       .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
       .join(' ')
   }
-  const getTableApiUsage = (table: string): string => {
-    const usage: Record<string, string[]> = {
-      videos: ['YouTube Data API v3'],
-      comments: ['YouTube Data API v3'],
-      audience: ['YouTube Data API v3'],
-      playlists: ['YouTube Data API v3'],
-      playlist_items: ['YouTube Data API v3'],
-      video_analytics: ['YouTube Analytics API v2'],
-      channel_analytics: ['YouTube Analytics API v2'],
-      playlist_daily_analytics: ['YouTube Analytics API v2'],
-      traffic_sources_daily: ['YouTube Analytics API v2'],
-      video_traffic_source: ['YouTube Analytics API v2'],
-      video_search_insights: ['YouTube Analytics API v2'],
-    }
-    const lines = usage[table] ?? ['Project database only']
-    return `This uses:\n${lines.map((line) => `- ${line}`).join('\n')}`
-  }
-
   const [isSyncing, setIsSyncing] = useState(false)
   const storedSync = getStored('syncSettings', null as {
     rangeMode?: string
@@ -758,15 +741,11 @@ function SyncSettings() {
               </div>
               <div className="db-overview-table-metrics db-overview-pane">
                 {orderedTableRowCounts.map((item) => (
-                  <div key={item.table} className="db-overview-table-metric">
-                    <div className="sync-stat-label-row">
-                      <div className="sync-stat-label">{formatTableMetricLabel(item.table)}</div>
-                      <span className="sync-help sync-metric-help" title={getTableApiUsage(item.table)}>
-                        i
-                      </span>
-                    </div>
-                    <div className="sync-stat-value">{item.rows.toLocaleString()}</div>
-                  </div>
+                  <StatCard
+                    key={item.table}
+                    label={formatTableMetricLabel(item.table)}
+                    value={item.rows.toLocaleString()}
+                  />
                 ))}
               </div>
             </div>
@@ -822,18 +801,14 @@ function SyncSettings() {
             </div>
             <div className="db-overview-details">
               <div className="db-overview-date-grid">
-                <div className="db-overview-detail-card">
-                  <div className="sync-stat-label">Oldest item</div>
-                  <div className="sync-stat-value">
-                    {tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.oldest_item_date ?? null)}
-                  </div>
-                </div>
-                <div className="db-overview-detail-card">
-                  <div className="sync-stat-label">Newest item</div>
-                  <div className="sync-stat-value">
-                    {tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.newest_item_date ?? null)}
-                  </div>
-                </div>
+                <StatCard
+                  label="Oldest item"
+                  value={tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.oldest_item_date ?? null)}
+                />
+                <StatCard
+                  label="Newest item"
+                  value={tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.newest_item_date ?? null)}
+                />
               </div>
               {showTableColumns ? (
                 <div className="db-overview-columns-wrap">

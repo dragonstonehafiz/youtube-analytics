@@ -606,3 +606,113 @@ def list_top_content(
             }
         )
     return {"items": items}
+
+
+@router.get("/analytics/content-insights")
+def get_content_insights(
+    start_date: str,
+    end_date: str,
+    content_type: str | None = None,
+    playlist_id: str | None = None,
+) -> dict:
+    """Return aggregate performance insights for all videos in a date range."""
+    where_sql = "a.date >= ? AND a.date <= ?"
+    params: list[object] = [start_date, end_date]
+    if content_type:
+        where_sql += " AND v.content_type = ?"
+        params.append(content_type)
+
+    playlist_join = ""
+    if playlist_id:
+        playlist_join = "JOIN playlist_items pi ON pi.video_id = v.id AND pi.playlist_id = ?"
+        params.insert(0, playlist_id)
+        # WHERE params still refer to a.date columns so no reorder needed for them,
+        # but playlist param must come before the date params in the JOIN position.
+        # Rebuild cleanly:
+        params = [playlist_id, start_date, end_date]
+        if content_type:
+            params.append(content_type)
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                v.id AS video_id,
+                v.title AS title,
+                v.published_at AS published_at,
+                v.thumbnail_url AS thumbnail_url,
+                v.content_type AS content_type,
+                SUM(a.views) AS views
+            FROM video_analytics a
+            JOIN videos v ON v.id = a.video_id
+            {playlist_join}
+            WHERE {where_sql}
+            GROUP BY v.id
+            ORDER BY views DESC
+            """,
+            tuple(params),
+        ).fetchall()
+
+    empty = {
+        "total_videos": 0,
+        "in_period_views": 0, "in_period_pct": 0.0,
+        "catalog_views": 0, "catalog_pct": 0.0,
+        "in_period_videos": [],
+        "shortform_views": 0, "shortform_pct": 0.0,
+        "longform_views": 0, "longform_pct": 0.0,
+        "median_views": 0, "mean_views": 0.0,
+        "p90_threshold": 0, "outlier_count": 0, "outlier_videos": [],
+        "outlier_share_pct": 0.0, "videos_with_views": 0,
+    }
+    if not rows:
+        return empty
+
+    views_list = [row["views"] or 0 for row in rows]
+    total_views = sum(views_list)
+    n = len(rows)
+
+    # "in period" = videos published within the selected date range
+    in_period_rows = [row for row in rows if start_date <= (row["published_at"] or "")[:10] <= end_date]
+    catalog_rows = [row for row in rows if (row["published_at"] or "")[:10] < start_date]
+    in_period_views = sum(row["views"] or 0 for row in in_period_rows)
+    catalog_views = sum(row["views"] or 0 for row in catalog_rows)
+
+    shortform_views = sum(row["views"] or 0 for row in rows if (row["content_type"] or "") == "short")
+    longform_views = sum(row["views"] or 0 for row in rows if (row["content_type"] or "") != "short")
+
+    sorted_views = sorted(views_list)
+    median_views = sorted_views[n // 2]
+    mean_views = total_views / n
+
+    p90_index = max(0, int(n * 0.9))
+    p90_threshold = sorted_views[min(p90_index, n - 1)]
+    outlier_rows = [row for row in rows if (row["views"] or 0) >= p90_threshold]
+    outlier_views = sum(row["views"] or 0 for row in outlier_rows)
+
+    def video_item(row: object) -> dict:
+        return {
+            "video_id": row["video_id"],
+            "title": row["title"] or "(untitled)",
+            "views": row["views"] or 0,
+            "thumbnail_url": row["thumbnail_url"] or "",
+        }
+
+    return {
+        "total_videos": n,
+        "in_period_views": in_period_views,
+        "in_period_pct": round(in_period_views / total_views * 100, 1) if total_views else 0.0,
+        "catalog_views": catalog_views,
+        "catalog_pct": round(catalog_views / total_views * 100, 1) if total_views else 0.0,
+        "in_period_videos": [video_item(r) for r in in_period_rows],
+        "shortform_views": shortform_views,
+        "shortform_pct": round(shortform_views / total_views * 100, 1) if total_views else 0.0,
+        "longform_views": longform_views,
+        "longform_pct": round(longform_views / total_views * 100, 1) if total_views else 0.0,
+        "median_views": median_views,
+        "mean_views": round(mean_views, 1),
+        "p90_threshold": p90_threshold,
+        "outlier_count": len(outlier_rows),
+        "outlier_videos": [video_item(r) for r in outlier_rows],
+        "outlier_share_pct": round(outlier_views / total_views * 100, 1) if total_views else 0.0,
+        "videos_with_views": n,
+    }

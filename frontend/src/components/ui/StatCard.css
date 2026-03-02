@@ -1,0 +1,41 @@
+.stat-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  padding: 14px;
+  text-align: center;
+  min-height: 94px;
+}
+
+.stat-card-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin-bottom: 6px;
+}
+
+.stat-card-value {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.stat-card-sub {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-top: 4px;
+}
+
+.stat-card-hoverable {
+  cursor: default;
+  transition: background 0.12s;
+}
+
+.stat-card-hoverable:hover {
+  background: rgba(148, 163, 184, 0.15);
+}

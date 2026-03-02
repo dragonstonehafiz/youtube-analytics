@@ -1,0 +1,29 @@
+.content-insights-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.content-insights-empty {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.content-insights-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.content-insights-split-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.content-insights-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
