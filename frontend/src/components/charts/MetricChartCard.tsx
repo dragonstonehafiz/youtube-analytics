@@ -47,6 +47,7 @@ type MetricChartCardProps = {
   seriesByMetric?: Record<string, LineSeries[]>
   previousSeriesByMetric?: Record<string, LineSeries[]>
   comparisonAggregation?: Record<string, 'sum' | 'avg'>
+  durationMetrics?: string[]
   publishedDates?: Record<string, PublishedItem[]>
 }
 
@@ -215,6 +216,7 @@ function MetricChartCard({
   seriesByMetric = {},
   previousSeriesByMetric = {},
   comparisonAggregation = {},
+  durationMetrics = [],
   publishedDates = {},
 }: MetricChartCardProps) {
   const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
@@ -542,8 +544,9 @@ function MetricChartCard({
   }
 
   const formatChartValue = (value: number) => {
-    if (activeMetric === 'avg_duration') {
-      return `${formatDecimalNumber(value / 60)} min`
+    if (activeMetric === 'avg_duration' || durationMetrics.includes(activeMetric)) {
+      const secs = Math.round(value)
+      return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
     }
     return DECIMAL_METRICS.has(activeMetric) ? formatDecimalNumber(value) : formatWholeNumber(Math.round(value))
   }

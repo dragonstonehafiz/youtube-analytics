@@ -293,7 +293,7 @@ def list_daily_summary(start_date: str, end_date: str, content_type: str | None 
                     THEN SUM(COALESCE(a.cpm, 0) * COALESCE(a.ad_impressions, 0)) / SUM(COALESCE(a.ad_impressions, 0))
                     ELSE AVG(a.cpm)
                 END AS cpm,
-                SUM(a.average_view_duration_seconds) AS average_view_duration_seconds,
+                AVG(a.average_view_duration_seconds) AS average_view_duration_seconds,
                 SUM(a.likes) AS likes,
                 SUM(a.comments) AS comments,
                 SUM(a.shares) AS shares,

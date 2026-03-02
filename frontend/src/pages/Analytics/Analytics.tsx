@@ -29,8 +29,15 @@ type SeriesPoint = { date: string; value: number }
 type TotalsState = {
   views: number
   watch_time_minutes: number
-  subscribers_net: number
+  avg_view_duration_seconds: number
   estimated_revenue: number
+}
+
+function formatDurationSeconds(seconds: number): string {
+  if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return '-'
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 type LatestContentItem = {
   video_id: string
@@ -145,7 +152,7 @@ function Analytics() {
   const [totals, setTotals] = useState<TotalsState>({
     views: 0,
     watch_time_minutes: 0,
-    subscribers_net: 0,
+    avg_view_duration_seconds: 0,
     estimated_revenue: 0,
   })
   const [latestLongform, setLatestLongform] = useState<LatestContentItem[]>([])
@@ -313,12 +320,13 @@ function Analytics() {
         ])
         const [data, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
         const items = Array.isArray(data.items) ? data.items : []
-        const gained = data.totals?.subscribers_gained ?? 0
-        const lost = data.totals?.subscribers_lost ?? 0
+        const avgDuration = items.length > 0
+          ? items.reduce((sum: number, item: any) => sum + (item.average_view_duration_seconds ?? 0), 0) / items.length
+          : 0
         const nextTotals: TotalsState = {
           views: data.totals?.views ?? 0,
           watch_time_minutes: data.totals?.watch_time_minutes ?? 0,
-          subscribers_net: gained - lost,
+          avg_view_duration_seconds: avgDuration,
           estimated_revenue: data.totals?.estimated_revenue ?? 0,
         }
         setTotals(nextTotals)
@@ -363,7 +371,7 @@ function Analytics() {
         }))
         const dailySubscribers = days.map((day) => ({
           date: day,
-          value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0),
+          value: byDay.get(day)?.average_view_duration_seconds ?? 0,
         }))
         const dailyRevenue = days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 }))
         setSeries({
@@ -399,7 +407,7 @@ function Analytics() {
         }))
         const previousDailySubscribers = previousDays.map((day) => ({
           date: day,
-          value: (previousByDay.get(day)?.subscribers_gained ?? 0) - (previousByDay.get(day)?.subscribers_lost ?? 0),
+          value: previousByDay.get(day)?.average_view_duration_seconds ?? 0,
         }))
         const previousDailyRevenue = previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.estimated_revenue ?? 0 }))
         setPreviousSeries({
@@ -996,7 +1004,7 @@ function Analytics() {
                         label: 'Watch time (hours)',
                         value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
                       },
-                      { key: 'subscribers', label: 'Subscribers', value: formatWholeNumber(totals.subscribers_net) },
+                      { key: 'subscribers', label: 'Avg view duration', value: formatDurationSeconds(totals.avg_view_duration_seconds) },
                       {
                         key: 'revenue',
                         label: 'Estimated revenue',
@@ -1015,6 +1023,8 @@ function Analytics() {
                       subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
                       revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue ?? [] }],
                     }}
+                    comparisonAggregation={{ subscribers: 'avg' }}
+                    durationMetrics={['subscribers']}
                     publishedDates={publishedDatesDaily}
                   />
                 </PageCard>

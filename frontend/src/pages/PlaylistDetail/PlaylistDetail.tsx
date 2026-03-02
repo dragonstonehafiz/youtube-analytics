@@ -1546,6 +1546,8 @@ function PlaylistDetail() {
                   subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
                   revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue ?? [] }],
                 }}
+                comparisonAggregation={viewMode === 'playlist_views' ? { subscribers: 'avg', revenue: 'avg' } : {}}
+                durationMetrics={viewMode === 'playlist_views' ? ['subscribers', 'revenue'] : []}
                 publishedDates={publishedDates}
               />
             ) : analyticsTab === 'monetization' ? (
