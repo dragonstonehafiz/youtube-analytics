@@ -1,0 +1,9 @@
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <!-- axes -->
+  <path d="M5 4v15a2 2 0 0 0 2 2h14" />
+  <!-- trend -->
+  <path d="M8 15l4-4 3 3 4-5" />
+  <!-- arrow head (outline) -->
+  <path d="M16.4 9h3v3" />
+</svg>
