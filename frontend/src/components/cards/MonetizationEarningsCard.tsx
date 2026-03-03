@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useHideMonetaryValues } from '../../hooks/usePrivacyMode'
 import './MonetizationEarningsCard.css'
 
 type MonetizationMonthly = {
@@ -18,6 +19,7 @@ function formatNumber(value: number): string {
 function MonetizationEarningsCard({ items }: MonetizationEarningsCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [cardWidth, setCardWidth] = useState(0)
+  const hideMonetaryValues = useHideMonetaryValues()
   const maxAmount = items.length > 0 ? Math.max(...items.map((entry) => entry.amount)) : 0
   const MIN_VISIBLE_RATIO = 0.08
   const HIDE_BARS_WIDTH = 420
@@ -52,7 +54,7 @@ function MonetizationEarningsCard({ items }: MonetizationEarningsCardProps) {
                   <span className="earnings-card-bar" style={{ width }} />
                 </div>
               ) : null}
-              <strong>${formatNumber(item.amount)}</strong>
+              <strong>{hideMonetaryValues ? '••••••' : `$${formatNumber(item.amount)}`}</strong>
             </div>
           )
         })}

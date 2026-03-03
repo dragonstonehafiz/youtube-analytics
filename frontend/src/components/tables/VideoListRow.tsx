@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { ActionButton } from '../ui'
 import { formatDisplayDate } from '../../utils/date'
+import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
 
 export type VideoRow = {
   id: string
@@ -21,11 +22,16 @@ type VideoListRowProps = {
 
 function VideoListRow({ video }: VideoListRowProps) {
   const navigate = useNavigate()
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+  const hideDescription = useHideDescription()
 
   return (
     <div className="video-table-row">
       <div className="video-cell">
-        {video.thumbnail_url ? (
+        {hideVideoThumbnails ? (
+          <div className="video-thumb" />
+        ) : video.thumbnail_url ? (
           <img className="video-thumb" src={video.thumbnail_url} alt={video.title} />
         ) : (
           <div className="video-thumb" />
@@ -36,10 +42,10 @@ function VideoListRow({ video }: VideoListRowProps) {
             className="video-title-button"
             onClick={() => navigate(`/videos/${video.id}`)}
           >
-            {video.title}
+            {hideVideoTitles ? '••••••' : video.title}
           </button>
           <div className="video-detail-sub">
-            <div className="video-desc">{video.description ? video.description : '-'}</div>
+            <div className="video-desc">{hideDescription ? '-' : (video.description ? video.description : '-')}</div>
             <div className="video-actions">
               <ActionButton
                 label="Open in YouTube"

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ActionButton from '../ui/ActionButton'
+import { useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
 import './VideoDetailListCard.css'
 
 export type VideoDetailListItem = {
@@ -109,6 +110,8 @@ function VideoDetailListCard({
   showTypicalRange = true,
   metrics = ['views', 'avg_duration'],
 }: VideoDetailListCardProps) {
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
   const [activeIndex, setActiveIndex] = useState(0)
 
   useEffect(() => {
@@ -134,12 +137,14 @@ function VideoDetailListCard({
       {activeItem ? (
         <>
           <div className="video-detail-list-thumb-wrap">
-            {activeItem.thumbnail_url ? (
+            {hideVideoThumbnails ? (
+              <div className="video-detail-list-thumb" />
+            ) : activeItem.thumbnail_url ? (
               <img className="video-detail-list-thumb" src={activeItem.thumbnail_url} alt={activeItem.title} />
             ) : (
               <div className="video-detail-list-thumb" />
             )}
-            <div className="video-detail-list-thumb-title">{activeItem.title}</div>
+            <div className="video-detail-list-thumb-title">{hideVideoTitles ? '••••••' : activeItem.title}</div>
           </div>
           <div className="video-detail-list-metrics">
             {[
