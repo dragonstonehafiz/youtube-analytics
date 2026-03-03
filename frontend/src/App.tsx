@@ -7,7 +7,7 @@ import Audience from './pages/Audience'
 import AudienceDetail from './pages/AudienceDetail'
 import Comments from './pages/Comments'
 import Dashboard from './pages/Dashboard'
-import LLMSettings from './pages/LLMSettings'
+import Settings from './pages/Settings'
 import PlaylistDetail from './pages/PlaylistDetail'
 import Playlists from './pages/Playlists'
 import SyncSettings from './pages/SyncSettings'
@@ -32,7 +32,7 @@ function App() {
           <Route path="/videos/:videoId" element={<VideoDetail />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/sync" element={<SyncSettings />} />
-          <Route path="/llm-settings" element={<LLMSettings />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
     </div>

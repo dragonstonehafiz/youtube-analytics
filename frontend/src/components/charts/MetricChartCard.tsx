@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDecimalNumber, formatWholeNumber } from '../../utils/number'
+import { useHideMonetaryValues } from '../../hooks/usePrivacyMode'
 import UploadPublishMarkers, { type ClusteredPublishMarker } from './UploadPublishMarkers'
 import UploadPublishTooltip, { type UploadHoverState } from './UploadPublishTooltip'
 import './MetricChartCard.css'
@@ -221,6 +222,7 @@ function MetricChartCard({
   publishedDates = {},
   showYearMarkers = true,
 }: MetricChartCardProps) {
+  const hideMonetaryValues = useHideMonetaryValues()
   const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [hoverPublish, setHoverPublish] = useState<UploadHoverState | null>(null)
@@ -559,6 +561,9 @@ function MetricChartCard({
   }
 
   const formatChartValue = (value: number) => {
+    if (hideMonetaryValues && DECIMAL_METRICS.has(activeMetric)) {
+      return '••••••'
+    }
     if (activeMetric === 'avg_duration' || durationMetrics.includes(activeMetric)) {
       const secs = Math.round(value)
       return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
@@ -667,6 +672,7 @@ function MetricChartCard({
       <div className="metric-row">
         {metrics.map((metric) => {
           const comparison = computeComparison(metric.key)
+          const displayValue = hideMonetaryValues && DECIMAL_METRICS.has(metric.key) ? '••••••' : metric.value
           return (
             <button
               key={metric.key}
@@ -678,7 +684,7 @@ function MetricChartCard({
             >
               <span className="metric-label">{metric.label}</span>
               <span className="metric-value-row">
-                <span className="metric-value">{metric.value}</span>
+                <span className="metric-value">{displayValue}</span>
                 {comparison ? (
                   <span
                     className={`metric-trend-icon metric-trend-${comparison.direction}`}

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
 import CommentThreadItem, { type CommentThread } from './CommentThreadItem'
 
 type CommentVideoGroupProps = {
@@ -9,17 +10,22 @@ type CommentVideoGroupProps = {
 }
 
 function CommentVideoGroup({ videoId, videoTitle, videoThumbnailUrl, comments }: CommentVideoGroupProps) {
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+
   return (
     <section className="comments-group">
       <header className="comments-group-header">
         <div className="comments-group-video">
-          {videoThumbnailUrl ? (
+          {hideVideoThumbnails ? (
+            <div className="comments-group-thumb" />
+          ) : videoThumbnailUrl ? (
             <img className="comments-group-thumb" src={videoThumbnailUrl} alt={videoTitle} />
           ) : (
             <div className="comments-group-thumb" />
           )}
           <Link to={`/videos/${videoId}`} className="comments-group-title">
-            {videoTitle}
+            {hideVideoTitles ? '••••••' : videoTitle}
           </Link>
         </div>
         <span className="comments-group-count">{comments.length.toLocaleString()} threads</span>

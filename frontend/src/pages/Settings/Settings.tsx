@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PageCard } from '../../components/cards'
 import { ActionButton, Dropdown } from '../../components/ui'
-import SettingsIcon from '../../assets/settings-tool-svgrepo-com.svg?react'
 import '../shared.css'
-import './LLMSettings.css'
+import './Settings.css'
 
 type LlmSchemaOption = {
   label: string
@@ -42,14 +41,29 @@ type LlmStatusResponse = {
   model_name?: string
 }
 
-function LLMSettings() {
+function Settings() {
   const [schema, setSchema] = useState<LlmSettingsSchema | null>(null)
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [llmStatus, setLlmStatus] = useState<'loaded' | 'not_loaded' | 'error'>('not_loaded')
-  const [privacyMode, setPrivacyMode] = useState(false)
+  const [hideMonetaryValues, setHideMonetaryValues] = useState(() => {
+    const stored = localStorage.getItem('hideMonetaryValues')
+    return stored ? JSON.parse(stored) : false
+  })
+  const [hideVideoTitles, setHideVideoTitles] = useState(() => {
+    const stored = localStorage.getItem('hideVideoTitles')
+    return stored ? JSON.parse(stored) : false
+  })
+  const [hideVideoThumbnails, setHideVideoThumbnails] = useState(() => {
+    const stored = localStorage.getItem('hideVideoThumbnails')
+    return stored ? JSON.parse(stored) : false
+  })
+  const [hideDescription, setHideDescription] = useState(() => {
+    const stored = localStorage.getItem('hideDescription')
+    return stored ? JSON.parse(stored) : false
+  })
 
   const loadStatus = async () => {
     const statusResponse = await fetch('http://127.0.0.1:8000/llm/status')
@@ -60,6 +74,22 @@ function LLMSettings() {
     const nextStatus = statusData.status === 'loaded' ? 'loaded' : statusData.status === 'error' ? 'error' : 'not_loaded'
     setLlmStatus(nextStatus)
   }
+
+  useEffect(() => {
+    localStorage.setItem('hideMonetaryValues', JSON.stringify(hideMonetaryValues))
+  }, [hideMonetaryValues])
+
+  useEffect(() => {
+    localStorage.setItem('hideVideoTitles', JSON.stringify(hideVideoTitles))
+  }, [hideVideoTitles])
+
+  useEffect(() => {
+    localStorage.setItem('hideVideoThumbnails', JSON.stringify(hideVideoThumbnails))
+  }, [hideVideoThumbnails])
+
+  useEffect(() => {
+    localStorage.setItem('hideDescription', JSON.stringify(hideDescription))
+  }, [hideDescription])
 
   useEffect(() => {
     async function loadSchemaAndSettings() {
@@ -188,54 +218,71 @@ function LLMSettings() {
       <div className="page-body">
         <div className="page-row">
           <PageCard>
-            <div className="llm-settings-layout">
-              <div className="llm-settings-header">
-                <div>
-                  <h2 className="llm-settings-title">
-                    {schema?.title ?? 'Model Configuration'}
-                    <span className={llmStatus === 'loaded' ? 'llm-status-dot llm-status-loaded' : 'llm-status-dot llm-status-not-loaded'} />
-                  </h2>
+            <div className="settings-layout">
+              <div className="settings-section">
+                <div className="llm-settings-header">
+                  <div>
+                    <h2 className="llm-settings-title">
+                      {schema?.title ?? 'Model Configuration'}
+                      <span className={llmStatus === 'loaded' ? 'llm-status-dot llm-status-loaded' : 'llm-status-dot llm-status-not-loaded'} />
+                    </h2>
+                  </div>
+                </div>
+                {loading ? <div className="llm-settings-message">Loading settings…</div> : null}
+                {!loading && error ? <div className="llm-settings-message llm-settings-message-error">{error}</div> : null}
+                {!loading ? (
+                  <div className="llm-settings-form">
+                    {fieldList.map((field) => (
+                      <label className="llm-settings-field" key={field.key}>
+                        <span className="llm-settings-label">{field.label}</span>
+                        {renderField(field)}
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="llm-settings-footer">
+                  <ActionButton label={saving ? 'Saving...' : 'Save settings'} onClick={saveSettings} disabled={loading || saving} variant="primary" />
                 </div>
               </div>
-              {loading ? <div className="llm-settings-message">Loading settings…</div> : null}
-              {!loading && error ? <div className="llm-settings-message llm-settings-message-error">{error}</div> : null}
-              {!loading ? (
-                <div className="llm-settings-form">
-                  {fieldList.map((field) => (
-                    <label className="llm-settings-field" key={field.key}>
-                      <span className="llm-settings-label">{field.label}</span>
-                      {renderField(field)}
-                    </label>
-                  ))}
+
+              <div className="settings-divider" />
+
+              <div className="settings-section">
+                <h2 className="privacy-mode-title">Privacy Settings</h2>
+                <div className="privacy-mode-item">
+                  <label className="privacy-mode-toggle">
+                    <input
+                      type="checkbox"
+                      checked={hideMonetaryValues}
+                      onChange={(e) => setHideMonetaryValues(e.target.checked)}
+                    />
+                    <span className="privacy-mode-label">Hide monetary values</span>
+                  </label>
+                  <label className="privacy-mode-toggle">
+                    <input
+                      type="checkbox"
+                      checked={hideVideoTitles}
+                      onChange={(e) => setHideVideoTitles(e.target.checked)}
+                    />
+                    <span className="privacy-mode-label">Hide video titles</span>
+                  </label>
+                  <label className="privacy-mode-toggle">
+                    <input
+                      type="checkbox"
+                      checked={hideVideoThumbnails}
+                      onChange={(e) => setHideVideoThumbnails(e.target.checked)}
+                    />
+                    <span className="privacy-mode-label">Hide video thumbnails</span>
+                  </label>
+                  <label className="privacy-mode-toggle">
+                    <input
+                      type="checkbox"
+                      checked={hideDescription}
+                      onChange={(e) => setHideDescription(e.target.checked)}
+                    />
+                    <span className="privacy-mode-label">Hide descriptions</span>
+                  </label>
                 </div>
-              ) : null}
-              <div className="llm-settings-footer">
-                <ActionButton label={saving ? 'Saving...' : 'Save settings'} onClick={saveSettings} disabled={loading || saving} variant="primary" />
-              </div>
-            </div>
-          </PageCard>
-        </div>
-        <div className="page-row">
-          <PageCard>
-            <div className="privacy-mode-layout">
-              <div className="privacy-mode-header">
-                <div className="privacy-mode-title-row">
-                  <SettingsIcon className="privacy-mode-icon" />
-                  <h2 className="privacy-mode-title">Privacy Mode</h2>
-                </div>
-              </div>
-              <div className="privacy-mode-content">
-                <label className="privacy-mode-toggle">
-                  <input
-                    type="checkbox"
-                    checked={privacyMode}
-                    onChange={(e) => setPrivacyMode(e.target.checked)}
-                  />
-                  <span className="privacy-mode-label">Enable privacy mode</span>
-                </label>
-                <p className="privacy-mode-description">
-                  When enabled, data processing will be limited to your local instance without external API calls.
-                </p>
               </div>
             </div>
           </PageCard>
@@ -245,4 +292,4 @@ function LLMSettings() {
   )
 }
 
-export default LLMSettings
+export default Settings

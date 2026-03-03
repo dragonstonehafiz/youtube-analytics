@@ -1,5 +1,6 @@
 import './TopContentTable.css'
 import { Link } from 'react-router-dom'
+import { useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
 
 type TopContentItem = {
   video_id: string
@@ -18,6 +19,9 @@ type TopContentTableProps = {
 }
 
 function TopContentTable({ items }: TopContentTableProps) {
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+
   return (
     <div className="top-content">
       <div className="top-content-title">Your top content in this period</div>
@@ -32,14 +36,16 @@ function TopContentTable({ items }: TopContentTableProps) {
           <div key={item.rank} className="top-content-row">
             <div className="content-cell">
               <div className="rank">{item.rank}</div>
-              {item.thumbnail_url ? (
+              {hideVideoThumbnails ? (
+                <div className="thumb" />
+              ) : item.thumbnail_url ? (
                 <img className="thumb" src={item.thumbnail_url} alt={item.title} />
               ) : (
                 <div className="thumb" />
               )}
               <div className="meta">
                 <Link className="title top-content-link" to={`/videos/${item.video_id}`}>
-                  {item.title}
+                  {hideVideoTitles ? '••••••' : item.title}
                 </Link>
               </div>
             </div>

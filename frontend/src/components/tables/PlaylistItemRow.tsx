@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { ActionButton } from '../ui'
 import { formatDisplayDate } from '../../utils/date'
+import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
 
 export type PlaylistItemRowData = {
   id: string
@@ -33,16 +34,22 @@ type PlaylistItemRowProps = {
 
 function PlaylistItemRow({ item }: PlaylistItemRowProps) {
   const navigate = useNavigate()
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+  const hideDescription = useHideDescription()
   const title = item.video_title || item.title || '(untitled)'
-  const description = item.video_description || item.description || '-'
+  const description = hideDescription ? '-' : (item.video_description || item.description || '-')
   const thumb = item.video_thumbnail_url || item.thumbnail_url
   const hasVideo = Boolean(item.video_id)
+  const displayTitle = hideVideoTitles ? '••••••' : title
 
   return (
     <div className="playlist-items-row">
       <span className="right">{item.position ?? '-'}</span>
       <div className="video-cell">
-        {thumb ? (
+        {hideVideoThumbnails ? (
+          <div className="video-thumb" />
+        ) : thumb ? (
           <img className="video-thumb" src={thumb} alt={title} />
         ) : (
           <div className="video-thumb" />
@@ -54,10 +61,10 @@ function PlaylistItemRow({ item }: PlaylistItemRowProps) {
               className="video-title-button"
               onClick={() => navigate(`/videos/${item.video_id}`)}
             >
-              {title}
+              {displayTitle}
             </button>
           ) : (
-            <div className="video-title">{title}</div>
+            <div className="video-title">{displayTitle}</div>
           )}
           {hasVideo ? (
             <div className="video-detail-sub">

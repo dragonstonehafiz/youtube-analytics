@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useHideMonetaryValues, useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
 
 type MonetizationContentType = 'video' | 'short'
 
@@ -41,6 +42,9 @@ function MonetizationContentPerformanceCard({
 }: MonetizationContentPerformanceCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [cardWidth, setCardWidth] = useState(0)
+  const hideMonetaryValues = useHideMonetaryValues()
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
   const active = performance[contentType]
   const visibleItems = active.items.slice(0, itemCount)
   const revenueValues = visibleItems.map((entry) => entry.revenue)
@@ -49,9 +53,9 @@ function MonetizationContentPerformanceCard({
   const MIN_VISIBLE_RATIO = 0.08
   const isCompact = cardWidth > 0 && cardWidth <= COMPACT_WIDTH
   const kpis = [
-    { key: 'estimated_revenue', label: 'Estimated revenue', value: `$${formatCurrency(active.estimated_revenue)}` },
+    { key: 'estimated_revenue', label: 'Estimated revenue', value: hideMonetaryValues ? '••••••' : `$${formatCurrency(active.estimated_revenue)}` },
     { key: 'views', label: 'Views', value: formatViews(active.views) },
-    { key: 'rpm', label: 'Revenue per 1K views (RPM)', value: `$${formatCurrency(active.rpm)}` },
+    { key: 'rpm', label: 'Revenue per 1K views (RPM)', value: hideMonetaryValues ? '••••••' : `$${formatCurrency(active.rpm)}` },
   ]
 
   useEffect(() => {
@@ -111,7 +115,9 @@ function MonetizationContentPerformanceCard({
           return (
             <div key={item.video_id} className={showBar ? 'analytics-content-top-row' : 'analytics-content-top-row compact'}>
               <div className="analytics-content-video">
-                {item.thumbnail_url ? (
+                {hideVideoThumbnails ? (
+                  <div className="analytics-content-video-fallback" />
+                ) : item.thumbnail_url ? (
                   <img src={item.thumbnail_url} alt={item.title} />
                 ) : (
                   <div className="analytics-content-video-fallback" />
@@ -120,9 +126,9 @@ function MonetizationContentPerformanceCard({
                   type="button"
                   className="analytics-content-video-title"
                   onClick={() => onOpenVideo(item.video_id)}
-                  title={item.title}
+                  title={hideVideoTitles ? '••••••' : item.title}
                 >
-                  {item.title}
+                  {hideVideoTitles ? '••••••' : item.title}
                 </button>
               </div>
               <div className={showBar ? 'analytics-content-revenue' : 'analytics-content-revenue compact'}>
@@ -131,7 +137,7 @@ function MonetizationContentPerformanceCard({
                     <span className="analytics-content-revenue-bar" style={{ width }} />
                   </span>
                 ) : null}
-                <strong>${formatCurrency(item.revenue)}</strong>
+                <strong>{hideMonetaryValues ? '••••••' : `$${formatCurrency(item.revenue)}`}</strong>
               </div>
             </div>
           )

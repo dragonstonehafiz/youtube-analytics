@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ActionButton, ProfileImage } from '../ui'
 import { formatDisplayDate } from '../../utils/date'
+import { useHideDescription } from '../../hooks/usePrivacyMode'
 import './CommentThreadItem.css'
 
 export type CommentRow = {
@@ -47,6 +48,7 @@ function buildYouTubeCommentUrl(videoId: string, commentId: string): string {
 }
 
 function CommentThreadItem({ thread, videoId }: Props) {
+  const hideDescription = useHideDescription()
   const resolvedVideoId = videoId || (thread.parent.video_id ?? '')
   const commentUrl = resolvedVideoId && thread.parent.id ? buildYouTubeCommentUrl(resolvedVideoId, thread.parent.id) : ''
   return (
@@ -72,7 +74,7 @@ function CommentThreadItem({ thread, videoId }: Props) {
             )}
             <div className="comment-thread-date">{formatPostedAt(thread.parent.published_at)}</div>
           </header>
-          <div className="comment-thread-text">{thread.parent.text_display || ''}</div>
+          <div className="comment-thread-text">{hideDescription ? '' : (thread.parent.text_display || '')}</div>
           <div className="comment-thread-meta">
             <span className="comment-thread-likes">{formatLikeCount(thread.parent.like_count)} likes</span>
             <span className="comment-thread-replies-count">Replies: {thread.repliesTotal.toLocaleString()}</span>

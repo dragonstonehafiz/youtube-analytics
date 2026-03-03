@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ActionButton, ProfileImage } from '../ui'
+import { useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
 import './CommentsPreviewCard.css'
 
 type CommentPreview = {
@@ -44,6 +45,8 @@ function toHandle(value: string | null): string {
 
 function CommentsPreviewCard() {
   const navigate = useNavigate()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+  const hideDescription = useHideDescription()
   const [items, setItems] = useState<CommentPreview[]>([])
 
   const handleOpenAudience = (channelId: string | null) => {
@@ -118,10 +121,12 @@ function CommentsPreviewCard() {
                     <span className="dashboard-comment-sep">-</span>
                     <span className="dashboard-comment-time">{formatRelativeTime(item.published_at)}</span>
                   </div>
-                  <div className="dashboard-comment-text">{item.text_display ?? ''}</div>
+                  <div className="dashboard-comment-text">{hideDescription ? '' : (item.text_display ?? '')}</div>
                 </div>
               </div>
-              {item.video_thumbnail_url ? (
+              {hideVideoThumbnails ? (
+                <div className="dashboard-comment-video-thumb" />
+              ) : item.video_thumbnail_url ? (
                 <img className="dashboard-comment-video-thumb" src={item.video_thumbnail_url} alt="" />
               ) : (
                 <div className="dashboard-comment-video-thumb" />

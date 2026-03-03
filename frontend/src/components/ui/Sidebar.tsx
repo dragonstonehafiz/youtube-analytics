@@ -4,10 +4,10 @@ import AnalyticsIcon from '../../assets/analytics.svg?react'
 import AudienceIcon from '../../assets/audience.svg?react'
 import CommentsIcon from '../../assets/comments.svg?react'
 import DashboardIcon from '../../assets/dashboard.svg?react'
-import LlmIcon from '../../assets/llm.svg?react'
 import PlaylistIcon from '../../assets/playlist.svg?react'
 import SidebarCloseIcon from '../../assets/sidebar-close.svg?react'
 import SidebarOpenIcon from '../../assets/sidebar-open.svg?react'
+import SettingsIcon from '../../assets/settings-tool-svgrepo-com.svg?react'
 import SyncIcon from '../../assets/sync.svg?react'
 import VideosIcon from '../../assets/videos.svg?react'
 
@@ -67,9 +67,9 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           <SyncIcon className="nav-icon" />
           <span className="nav-label">Sync</span>
         </NavLink>
-        <NavLink to="/llm-settings">
-          <LlmIcon className="nav-icon" />
-          <span className="nav-label">LLM Settings</span>
+        <NavLink to="/settings">
+          <SettingsIcon className="nav-icon" />
+          <span className="nav-label">Settings</span>
         </NavLink>
       </nav>
     </aside>
