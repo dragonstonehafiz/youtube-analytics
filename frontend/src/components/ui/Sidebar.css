@@ -1,0 +1,138 @@
+.sidebar {
+  background: linear-gradient(180deg, var(--color-brand-2) 0%, var(--color-brand) 100%);
+  color: #e2e8f0;
+  padding: 14px 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  align-self: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: var(--z-sticky);
+  transition: width 0.22s ease;
+  width: 240px;
+}
+
+.brand {
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 0 18px;
+}
+
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+  color: #ffffff;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-toggle-row {
+  display: none;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  color: #cbd5f5;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nav a.active {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Collapsed state */
+.sidebar.collapsed {
+  width: 56px;
+}
+
+.sidebar.collapsed .brand-row {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-toggle-row {
+  display: flex;
+}
+
+.sidebar.collapsed .nav a {
+  justify-content: flex-start;
+  padding: 9px 10px;
+}
+
+.sidebar.collapsed .nav-label {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    height: auto;
+    width: 100%;
+  }
+
+  .nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .sidebar-toggle-row,
+  .brand-collapse-toggle {
+    display: none;
+  }
+
+  .sidebar.collapsed {
+    width: 100%;
+  }
+}
