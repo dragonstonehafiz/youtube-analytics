@@ -143,37 +143,37 @@ function Audience() {
                   className={`video-sort-button ${sortKey === 'subscribed_at' ? 'active' : ''}`}
                   onClick={() => toggleSort('subscribed_at')}
                 >
-                  Subscribed {sortKey === 'subscribed_at' ? (sortDir === 'asc' ? '?' : '?') : ''}
+                  Subscribed {sortKey === 'subscribed_at' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   className={`video-sort-button ${sortKey === 'first_commented_at' ? 'active' : ''}`}
                   onClick={() => toggleSort('first_commented_at')}
                 >
-                  First comment {sortKey === 'first_commented_at' ? (sortDir === 'asc' ? '?' : '?') : ''}
+                  First comment {sortKey === 'first_commented_at' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   className={`video-sort-button ${sortKey === 'last_commented_at' ? 'active' : ''}`}
                   onClick={() => toggleSort('last_commented_at')}
                 >
-                  Last comment {sortKey === 'last_commented_at' ? (sortDir === 'asc' ? '?' : '?') : ''}
+                  Last comment {sortKey === 'last_commented_at' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   className={`video-sort-button right ${sortKey === 'comment_count' ? 'active' : ''}`}
                   onClick={() => toggleSort('comment_count')}
                 >
-                  Comments {sortKey === 'comment_count' ? (sortDir === 'asc' ? '?' : '?') : ''}
+                  Comments {sortKey === 'comment_count' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   className={`video-sort-button right ${sortKey === 'total_comment_likes' ? 'active' : ''}`}
                   onClick={() => toggleSort('total_comment_likes')}
                 >
-                  Total likes {sortKey === 'total_comment_likes' ? (sortDir === 'asc' ? '?' : '?') : ''}
+                  Total likes {sortKey === 'total_comment_likes' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
                 <button
                   className={`video-sort-button right ${sortKey === 'total_comment_replies' ? 'active' : ''}`}
                   onClick={() => toggleSort('total_comment_replies')}
                 >
-                  Total replies {sortKey === 'total_comment_replies' ? (sortDir === 'asc' ? '?' : '?') : ''}
+                  Total replies {sortKey === 'total_comment_replies' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
                 </button>
               </div>
               {rows.length === 0 ? (
