@@ -85,7 +85,7 @@ function Comments() {
         if (searchText.trim()) {
           params.set('q', searchText.trim())
         }
-        const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load comments (${response.status})`)
         }
@@ -150,7 +150,7 @@ function Comments() {
       if (summaryLimit !== null) {
         payload.limit_count = summaryLimit
       }
-      const response = await fetch('http://127.0.0.1:8000/llm/summarize-comments', {
+      const response = await fetch('http://localhost:8000/llm/summarize-comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -188,7 +188,7 @@ function Comments() {
       if (wordTypes.length > 0) {
         params.set('word_types', wordTypes.join(','))
       }
-      const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+      const response = await fetch(`http://localhost:8000/comments/word-cloud/image?${params.toString()}`)
       if (!response.ok) {
         throw new Error(`Failed to build word cloud (${response.status})`)
       }

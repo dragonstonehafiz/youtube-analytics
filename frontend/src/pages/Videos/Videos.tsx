@@ -62,7 +62,7 @@ function Videos() {
         if (filters.format) {
           params.set('content_type', filters.format)
         }
-        const response = await fetch(`http://127.0.0.1:8000/videos?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/videos?${params.toString()}`)
         const data = await response.json()
         setRows(Array.isArray(data.items) ? data.items : [])
         setTotal(typeof data.total === 'number' ? data.total : 0)

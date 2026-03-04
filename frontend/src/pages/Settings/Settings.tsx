@@ -66,7 +66,7 @@ function Settings() {
   })
 
   const loadStatus = async () => {
-    const statusResponse = await fetch('http://127.0.0.1:8000/llm/status')
+    const statusResponse = await fetch('http://localhost:8000/llm/status')
     if (!statusResponse.ok) {
       throw new Error(`Failed to load LLM status (${statusResponse.status})`)
     }
@@ -97,8 +97,8 @@ function Settings() {
       setError(null)
       try {
         const [schemaResponse, settingsResponse] = await Promise.all([
-          fetch('http://127.0.0.1:8000/llm/schema'),
-          fetch('http://127.0.0.1:8000/llm/settings'),
+          fetch('http://localhost:8000/llm/schema'),
+          fetch('http://localhost:8000/llm/settings'),
         ])
         if (!schemaResponse.ok) {
           throw new Error(`Failed to load LLM schema (${schemaResponse.status})`)
@@ -162,7 +162,7 @@ function Settings() {
           payload[field.key] = rawValue
         }
       }
-      const response = await fetch('http://127.0.0.1:8000/llm/configure', {
+      const response = await fetch('http://localhost:8000/llm/configure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

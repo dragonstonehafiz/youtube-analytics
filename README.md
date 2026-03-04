@@ -56,3 +56,28 @@ npm run start
 Frontend runs on `http://localhost:5173`
 
 For detailed setup, see [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md).
+
+## Docker Setup
+
+To run the application with Docker Compose:
+
+```bash
+docker-compose -p youtube-analytics up --build
+```
+
+This will:
+- Build and start both backend and frontend containers
+- Mount `backend/data`, `backend/secrets`, and `backend/outputs` folders for persistence
+- Backend runs on `http://127.0.0.1:8000`
+- Frontend runs on `http://localhost:5173`
+
+To build from scratch without cache:
+```bash
+docker-compose -p youtube-analytics build --no-cache
+docker-compose -p youtube-analytics up
+```
+
+Stop containers with:
+```bash
+docker-compose -p youtube-analytics down
+```

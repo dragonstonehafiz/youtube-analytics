@@ -317,7 +317,7 @@ function PlaylistDetail() {
       setLoadingMeta(true)
       setErrorMeta(null)
       try {
-        const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}`)
+        const response = await fetch(`http://localhost:8000/playlists/${playlistId}`)
         if (!response.ok) {
           throw new Error(`Failed to load playlist (${response.status})`)
         }
@@ -351,7 +351,7 @@ function PlaylistDetail() {
           sort_by: sortBy,
           direction,
         })
-        const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}/items?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load playlist items (${response.status})`)
         }
@@ -396,7 +396,7 @@ function PlaylistDetail() {
         if (commentsPostedBefore) {
           params.set('published_before', commentsPostedBefore)
         }
-        const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load playlist comments (${response.status})`)
         }
@@ -430,7 +430,7 @@ function PlaylistDetail() {
           sort_by: 'views',
           direction: 'desc',
         })
-        const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}/items?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load top playlist content (${response.status})`)
         }
@@ -473,7 +473,7 @@ function PlaylistDetail() {
           sort_by: 'recent_views',
           direction: 'desc',
         })
-        const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}/items?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load recent top playlist content (${response.status})`)
         }
@@ -571,7 +571,7 @@ function PlaylistDetail() {
   useEffect(() => {
     async function loadYears() {
       try {
-        const response = await fetch('http://127.0.0.1:8000/analytics/years')
+        const response = await fetch('http://localhost:8000/analytics/years')
         const data = await response.json()
         if (Array.isArray(data.years) && data.years.length > 0) {
           setYears(data.years)
@@ -623,16 +623,16 @@ function PlaylistDetail() {
           videoPreviousResponse,
         ] = await Promise.all([
           fetch(
-            `http://127.0.0.1:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
+            `http://localhost:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
           ),
           fetch(
-            `http://127.0.0.1:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
+            `http://localhost:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
           ),
           fetch(
-            `http://127.0.0.1:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
+            `http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
           ),
           fetch(
-            `http://127.0.0.1:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
+            `http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
           ),
         ])
         if (!playlistCurrentResponse.ok || !playlistPreviousResponse.ok || !videoCurrentResponse.ok || !videoPreviousResponse.ok) {
@@ -684,8 +684,8 @@ function PlaylistDetail() {
         return
       }
       try {
-        const currentUrl = `http://127.0.0.1:8000/analytics/playlist-traffic-sources?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
-        const previousUrl = `http://127.0.0.1:8000/analytics/playlist-traffic-sources?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
+        const currentUrl = `http://localhost:8000/analytics/playlist-traffic-sources?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`
+        const previousUrl = `http://localhost:8000/analytics/playlist-traffic-sources?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`
         const [currentResponse, previousResponse] = await Promise.all([fetch(currentUrl), fetch(previousUrl)])
         if (!currentResponse.ok || !previousResponse.ok) {
           throw new Error('Failed to load playlist discovery traffic data.')
@@ -824,7 +824,7 @@ function PlaylistDetail() {
       }
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/playlists/${playlistId}/published?start_date=${range.start}&end_date=${range.end}`
+          `http://localhost:8000/playlists/${playlistId}/published?start_date=${range.start}&end_date=${range.end}`
         )
         if (!response.ok) {
           throw new Error(`Failed to load playlist published dates (${response.status})`)
@@ -970,7 +970,7 @@ function PlaylistDetail() {
             sort_by: 'position',
             direction: 'asc',
           })
-          const response = await fetch(`http://127.0.0.1:8000/playlists/${playlistId}/items?${params.toString()}`)
+          const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
           if (!response.ok) {
             throw new Error(`Failed to load playlist items for search scope (${response.status})`)
           }
@@ -1015,7 +1015,7 @@ function PlaylistDetail() {
           traffic_source: trafficTopSource,
           limit: '5',
         })
-        const response = await fetch(`http://127.0.0.1:8000/analytics/playlist-video-traffic-source-top-videos?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/analytics/playlist-video-traffic-source-top-videos?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load playlist traffic-source videos (${response.status})`)
         }
@@ -1058,7 +1058,7 @@ function PlaylistDetail() {
           end_date: range.end,
           video_ids: playlistVideoIds.join(','),
         })
-        const response = await fetch(`http://127.0.0.1:8000/analytics/video-search-insights?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/analytics/video-search-insights?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load top search terms (${response.status})`)
         }
@@ -1091,7 +1091,7 @@ function PlaylistDetail() {
       }
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/analytics/content-insights?start_date=${range.start}&end_date=${range.end}&playlist_id=${playlistId}`
+          `http://localhost:8000/analytics/content-insights?start_date=${range.start}&end_date=${range.end}&playlist_id=${playlistId}`
         )
         const data = await response.json()
         setContentInsights(data)
@@ -1250,7 +1250,7 @@ function PlaylistDetail() {
       if (summaryLimit !== null) {
         payload.limit_count = summaryLimit
       }
-      const response = await fetch('http://127.0.0.1:8000/llm/summarize-comments', {
+      const response = await fetch('http://localhost:8000/llm/summarize-comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1291,7 +1291,7 @@ function PlaylistDetail() {
       if (wordTypes.length > 0) {
         params.set('word_types', wordTypes.join(','))
       }
-      const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+      const response = await fetch(`http://localhost:8000/comments/word-cloud/image?${params.toString()}`)
       if (!response.ok) {
         throw new Error(`Failed to build word cloud (${response.status})`)
       }

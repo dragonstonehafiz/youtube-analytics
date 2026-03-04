@@ -57,7 +57,7 @@ function Audience() {
       if (subscriberOnly === 'yes') {
         params.set('subscriber_only', 'true')
       }
-      const response = await fetch(`http://127.0.0.1:8000/audience?${params.toString()}`)
+      const response = await fetch(`http://localhost:8000/audience?${params.toString()}`)
       const data = await response.json()
       setRows(Array.isArray(data.items) ? (data.items as AudienceRow[]) : [])
       setTotal(typeof data.total === 'number' ? data.total : 0)

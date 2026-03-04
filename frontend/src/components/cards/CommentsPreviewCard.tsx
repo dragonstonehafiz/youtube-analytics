@@ -59,7 +59,7 @@ function CommentsPreviewCard() {
   useEffect(() => {
     async function loadCommentsPreview() {
       try {
-        const response = await fetch('http://127.0.0.1:8000/comments?limit=3&sort_by=published_at&direction=desc')
+        const response = await fetch('http://localhost:8000/comments?limit=3&sort_by=published_at&direction=desc')
         const data = await response.json()
         const mapped = (Array.isArray(data?.items) ? data.items : []).map((item: any) => ({
           id: String(item.id ?? ''),

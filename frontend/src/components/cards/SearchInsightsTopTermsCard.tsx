@@ -121,7 +121,7 @@ function SearchInsightsTopTermsCard({
       if (videoIds.length > 0) {
         params.set('video_ids', videoIds.join(','))
       }
-      const response = await fetch(`http://127.0.0.1:8000/analytics/video-search-insights/videos?${params.toString()}`)
+      const response = await fetch(`http://localhost:8000/analytics/video-search-insights/videos?${params.toString()}`)
       if (!response.ok) {
         throw new Error(`Failed to load videos (${response.status})`)
       }

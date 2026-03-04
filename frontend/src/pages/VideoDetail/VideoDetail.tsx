@@ -319,7 +319,7 @@ function VideoDetail() {
       setLoading(true)
       setError(null)
       try {
-        const response = await fetch(`http://127.0.0.1:8000/videos/${videoId}`)
+        const response = await fetch(`http://localhost:8000/videos/${videoId}`)
         if (!response.ok) {
           throw new Error(`Failed to load video (${response.status})`)
         }
@@ -391,7 +391,7 @@ function VideoDetail() {
       setAnalyticsLoading(true)
       setAnalyticsError(null)
       try {
-        const response = await fetch(`http://127.0.0.1:8000/analytics/video-daily?video_id=${videoId}&limit=10000`)
+        const response = await fetch(`http://localhost:8000/analytics/video-daily?video_id=${videoId}&limit=10000`)
         if (!response.ok) {
           throw new Error(`Failed to load analytics (${response.status})`)
         }
@@ -554,8 +554,8 @@ function VideoDetail() {
       }
       try {
         const [currentResponse, previousResponse] = await Promise.all([
-          fetch(`http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&video_id=${videoId}`),
-          fetch(`http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&video_id=${videoId}`),
+          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&video_id=${videoId}`),
+          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&video_id=${videoId}`),
         ])
         const [currentData, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
         const toRows = (items: any[]): TrafficSourceRow[] =>
@@ -589,7 +589,7 @@ function VideoDetail() {
           end_date: range.end,
           video_ids: videoId,
         })
-        const response = await fetch(`http://127.0.0.1:8000/analytics/video-search-insights?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/analytics/video-search-insights?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load top search terms (${response.status})`)
         }
@@ -678,7 +678,7 @@ function VideoDetail() {
         if (commentsPostedBefore) {
           params.set('published_before', commentsPostedBefore)
         }
-        const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load comments (${response.status})`)
         }
@@ -737,7 +737,7 @@ function VideoDetail() {
       if (summaryLimit !== null) {
         payload.limit_count = summaryLimit
       }
-      const response = await fetch('http://127.0.0.1:8000/llm/summarize-comments', {
+      const response = await fetch('http://localhost:8000/llm/summarize-comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -778,7 +778,7 @@ function VideoDetail() {
       if (wordTypes.length > 0) {
         params.set('word_types', wordTypes.join(','))
       }
-      const response = await fetch(`http://127.0.0.1:8000/comments/word-cloud/image?${params.toString()}`)
+      const response = await fetch(`http://localhost:8000/comments/word-cloud/image?${params.toString()}`)
       if (!response.ok) {
         throw new Error(`Failed to build word cloud (${response.status})`)
       }

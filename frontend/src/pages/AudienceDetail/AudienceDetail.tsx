@@ -103,7 +103,7 @@ function AudienceDetail() {
       setLoading(true)
       setError(null)
       try {
-        const response = await fetch(`http://127.0.0.1:8000/audience/${encodeURIComponent(channelId)}`)
+        const response = await fetch(`http://localhost:8000/audience/${encodeURIComponent(channelId)}`)
         if (!response.ok) {
           throw new Error(`Failed to load audience member (${response.status})`)
         }
@@ -135,7 +135,7 @@ function AudienceDetail() {
           sort_by: commentsSort,
           direction: commentsDirection,
         })
-        const response = await fetch(`http://127.0.0.1:8000/comments?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/comments?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load comments (${response.status})`)
         }

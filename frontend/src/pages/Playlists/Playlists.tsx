@@ -61,7 +61,7 @@ function Playlists() {
         if (filters.privacy_status) {
           params.set('privacy_status', filters.privacy_status)
         }
-        const response = await fetch(`http://127.0.0.1:8000/playlists?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/playlists?${params.toString()}`)
         const data = await response.json()
         setRows(Array.isArray(data.items) ? data.items : [])
         setTotal(typeof data.total === 'number' ? data.total : 0)

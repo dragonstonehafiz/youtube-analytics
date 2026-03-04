@@ -50,9 +50,9 @@ function ChannelAnalyticsCard() {
         const previousStart = new Date(previousEnd)
         previousStart.setUTCDate(previousStart.getUTCDate() - 27)
         const [lifetimeResponse, currentResponse, previousResponse] = await Promise.all([
-          fetch(`http://127.0.0.1:8000/analytics/channel-daily?start_date=2000-01-01&end_date=${format(today)}`),
-          fetch(`http://127.0.0.1:8000/analytics/channel-daily?start_date=${format(currentStart)}&end_date=${format(today)}`),
-          fetch(`http://127.0.0.1:8000/analytics/channel-daily?start_date=${format(previousStart)}&end_date=${format(previousEnd)}`),
+          fetch(`http://localhost:8000/analytics/channel-daily?start_date=2000-01-01&end_date=${format(today)}`),
+          fetch(`http://localhost:8000/analytics/channel-daily?start_date=${format(currentStart)}&end_date=${format(today)}`),
+          fetch(`http://localhost:8000/analytics/channel-daily?start_date=${format(previousStart)}&end_date=${format(previousEnd)}`),
         ])
         const [lifetimeData, currentData, previousData] = await Promise.all([
           lifetimeResponse.json(),

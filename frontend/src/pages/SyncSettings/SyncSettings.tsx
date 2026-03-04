@@ -138,7 +138,7 @@ function SyncSettings() {
     try {
       const offset = (runsPage - 1) * runsPageSize
       const response = await fetch(
-        `http://127.0.0.1:8000/sync/runs?limit=${runsPageSize}&offset=${offset}`
+        `http://localhost:8000/sync/runs?limit=${runsPageSize}&offset=${offset}`
       )
       const data = await response.json()
       setRuns(Array.isArray(data.items) ? data.items : [])
@@ -150,7 +150,7 @@ function SyncSettings() {
 
   const loadOverview = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/stats/overview')
+      const response = await fetch('http://localhost:8000/stats/overview')
       const data = await response.json()
       setOverview({
         db_size_bytes: data.db_size_bytes ?? 0,
@@ -320,7 +320,7 @@ function SyncSettings() {
       setTableDetailsError(null)
       try {
         const response = await fetch(
-          `http://127.0.0.1:8000/stats/table-details?table=${encodeURIComponent(selectedOverviewTable)}`
+          `http://localhost:8000/stats/table-details?table=${encodeURIComponent(selectedOverviewTable)}`
         )
         if (!response.ok) {
           throw new Error(`Failed to load table details (${response.status})`)
@@ -478,7 +478,7 @@ function SyncSettings() {
           if (deepSync) {
             params.set('deep_sync', 'true')
           }
-          const response = await fetch(`http://127.0.0.1:8000/stats/table-api-calls?${params.toString()}`)
+          const response = await fetch(`http://localhost:8000/stats/table-api-calls?${params.toString()}`)
           if (!response.ok) {
             throw new Error(`Failed to load API call estimate (${response.status})`)
           }
@@ -503,7 +503,7 @@ function SyncSettings() {
     let timer: number | null = null
     async function pollProgress() {
       try {
-        const response = await fetch('http://127.0.0.1:8000/sync/progress')
+        const response = await fetch('http://localhost:8000/sync/progress')
         const data = await response.json()
         if (data && data.is_syncing !== undefined) {
           setProgress(data)
@@ -557,7 +557,7 @@ function SyncSettings() {
       if (selectedPulls.length > 0 && selectedPulls.length < pullOptions.length) {
         params.set('pull', selectedPulls.join(','))
       }
-      await fetch(`http://127.0.0.1:8000/sync?${params.toString()}`, { method: 'POST' })
+      await fetch(`http://localhost:8000/sync?${params.toString()}`, { method: 'POST' })
     } catch (error) {
       console.error('Failed to start sync', error)
     } finally {
@@ -567,7 +567,7 @@ function SyncSettings() {
 
   const handleStopSync = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/sync/stop', { method: 'POST' })
+      const response = await fetch('http://localhost:8000/sync/stop', { method: 'POST' })
       const data = await response.json()
       if (data?.accepted) {
         setStopRequestedByUser(true)

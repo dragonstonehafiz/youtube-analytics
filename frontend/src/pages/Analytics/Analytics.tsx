@@ -265,7 +265,7 @@ function Analytics() {
   useEffect(() => {
     async function loadYears() {
       try {
-        const response = await fetch('http://127.0.0.1:8000/analytics/years')
+        const response = await fetch('http://localhost:8000/analytics/years')
         const data = await response.json()
         if (Array.isArray(data.years) && data.years.length > 0) {
           setYears(data.years)
@@ -312,8 +312,8 @@ function Analytics() {
       try {
         const buildSummaryUrl = (start: string, end: string) =>
           contentSelection === 'all'
-            ? `http://127.0.0.1:8000/analytics/channel-daily?start_date=${start}&end_date=${end}`
-            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${start}&end_date=${end}&content_type=${contentSelection}`
+            ? `http://localhost:8000/analytics/channel-daily?start_date=${start}&end_date=${end}`
+            : `http://localhost:8000/analytics/daily/summary?start_date=${start}&end_date=${end}&content_type=${contentSelection}`
         const [currentResponse, previousResponse] = await Promise.all([
           fetch(buildSummaryUrl(range.start, range.end)),
           fetch(buildSummaryUrl(previousRange.start, previousRange.end)),
@@ -429,7 +429,7 @@ function Analytics() {
       try {
         const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
         const response = await fetch(
-          `http://127.0.0.1:8000/videos/published?start_date=${range.start}&end_date=${range.end}${contentParam}`
+          `http://localhost:8000/videos/published?start_date=${range.start}&end_date=${range.end}${contentParam}`
         )
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
@@ -453,7 +453,7 @@ function Analytics() {
       try {
         const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
         const response = await fetch(
-          `http://127.0.0.1:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10${contentParam}`
+          `http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10${contentParam}`
         )
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
@@ -483,7 +483,7 @@ function Analytics() {
       try {
         const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
         const response = await fetch(
-          `http://127.0.0.1:8000/analytics/content-insights?start_date=${range.start}&end_date=${range.end}${contentParam}`
+          `http://localhost:8000/analytics/content-insights?start_date=${range.start}&end_date=${range.end}${contentParam}`
         )
         const data = await response.json()
         setContentInsights(data)
@@ -507,10 +507,10 @@ function Analytics() {
         const startDate = start.toISOString().slice(0, 10)
         const [longformResponse, shortResponse] = await Promise.all([
           fetch(
-            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc&privacy_status=public`
+            `http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc&privacy_status=public`
           ),
           fetch(
-            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc&privacy_status=public`
+            `http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc&privacy_status=public`
           ),
         ])
         const [longformData, shortData] = await Promise.all([longformResponse.json(), shortResponse.json()])
@@ -547,23 +547,23 @@ function Analytics() {
 
         const monetizationSummaryUrl =
           contentSelection === 'all'
-            ? `http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}`
-            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=${contentSelection}`
+            ? `http://localhost:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}`
+            : `http://localhost:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=${contentSelection}`
         const monetizationPreviousUrl =
           contentSelection === 'all'
-            ? `http://127.0.0.1:8000/analytics/daily/summary?start_date=${previousStart}&end_date=${previousEnd}`
-            : `http://127.0.0.1:8000/analytics/daily/summary?start_date=${previousStart}&end_date=${previousEnd}&content_type=${contentSelection}`
+            ? `http://localhost:8000/analytics/daily/summary?start_date=${previousStart}&end_date=${previousEnd}`
+            : `http://localhost:8000/analytics/daily/summary?start_date=${previousStart}&end_date=${previousEnd}&content_type=${contentSelection}`
 
         const [monetizationSummaryResponse, previousSummaryResponse, videoSummaryResponse, shortSummaryResponse, videoTopResponse, shortTopResponse] = await Promise.all([
           fetch(monetizationSummaryUrl),
           fetch(monetizationPreviousUrl),
-          fetch(`http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=video`),
-          fetch(`http://127.0.0.1:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=short`),
+          fetch(`http://localhost:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=video`),
+          fetch(`http://localhost:8000/analytics/daily/summary?start_date=${startDate}&end_date=${endDate}&content_type=short`),
           fetch(
-            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${endDate}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`
+            `http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${endDate}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`
           ),
           fetch(
-            `http://127.0.0.1:8000/analytics/top-content?start_date=${startDate}&end_date=${endDate}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`
+            `http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${endDate}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`
           ),
         ])
 
@@ -719,12 +719,12 @@ function Analytics() {
       try {
         const currentUrl =
           contentSelection === 'all'
-            ? `http://127.0.0.1:8000/analytics/traffic-sources?start_date=${range.start}&end_date=${range.end}`
-            : `http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
+            ? `http://localhost:8000/analytics/traffic-sources?start_date=${range.start}&end_date=${range.end}`
+            : `http://localhost:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
         const previousUrl =
           contentSelection === 'all'
-            ? `http://127.0.0.1:8000/analytics/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}`
-            : `http://127.0.0.1:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentSelection}`
+            ? `http://localhost:8000/analytics/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}`
+            : `http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentSelection}`
         const [currentResponse, previousResponse] = await Promise.all([fetch(currentUrl), fetch(previousUrl)])
         const [currentPayload, previousPayload] = await Promise.all([currentResponse.json(), previousResponse.json()])
         const toRows = (items: any[]): TrafficSourceRow[] =>
@@ -764,7 +764,7 @@ function Analytics() {
         if (contentSelection !== 'all') {
           params.set('content_type', contentSelection)
         }
-        const response = await fetch(`http://127.0.0.1:8000/analytics/video-traffic-source-top-videos?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/analytics/video-traffic-source-top-videos?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load top traffic-source videos (${response.status})`)
         }
@@ -896,7 +896,7 @@ function Analytics() {
         if (contentSelection !== 'all') {
           params.set('content_type', contentSelection)
         }
-        const response = await fetch(`http://127.0.0.1:8000/analytics/video-search-insights?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/analytics/video-search-insights?${params.toString()}`)
         if (!response.ok) {
           throw new Error(`Failed to load top search terms (${response.status})`)
         }

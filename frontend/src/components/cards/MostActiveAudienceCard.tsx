@@ -20,7 +20,7 @@ function MostActiveAudienceCard() {
   useEffect(() => {
     async function loadActiveAudience() {
       try {
-        const response = await fetch('http://127.0.0.1:8000/audience/active?days=90&limit=5')
+        const response = await fetch('http://localhost:8000/audience/active?days=90&limit=5')
         const data = await response.json()
         const mapped = (Array.isArray(data?.items) ? data.items : []).map((item: any) => ({
           channel_id: String(item.channel_id ?? ''),
