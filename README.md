@@ -21,11 +21,11 @@ To use this application:
 - **Dashboard** - Channel overview, latest videos, traffic sources
 - **Videos** - Browse all videos with filters (search, privacy status, date range, format)
 - **Playlists** - View playlists and their contents
-- **Comments** - View and filter channel comments
-- **Audience** - Audience demographics and location data
+- **Comments** - View and filter channel comments with word cloud and AI summaries
+- **Audience** - View engaged members with their comment and subscription history
 - **Analytics** - Detailed performance charts and metrics
-- **Sync Settings** - Sync data from YouTube APIs
-- **LLM Settings** - Configure AI analysis features
+- **Sync** - Sync data from YouTube APIs
+- **Settings** - Configure application settings
 
 ## Data Sources
 
