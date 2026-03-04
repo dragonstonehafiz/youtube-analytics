@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActionButton,
   DateRangePicker,
@@ -499,27 +499,31 @@ function SyncSettings() {
     loadPullApiCalls()
   }, [selectedPullKeys, selectedSyncPeriod.start, selectedSyncPeriod.end, deepSync])
 
+  const pollActiveRef = useRef(false)
   useEffect(() => {
+    pollActiveRef.current = true
     let timer: number | null = null
     async function pollProgress() {
+      if (!pollActiveRef.current) return
       try {
         const response = await fetch('http://localhost:8000/sync/progress')
         const data = await response.json()
-        if (data && data.is_syncing !== undefined) {
+        if (pollActiveRef.current && data && data.is_syncing !== undefined) {
           setProgress(data)
         }
       } catch (error) {
-        console.error('Failed to load sync progress', error)
+        if (pollActiveRef.current) console.error('Failed to load sync progress', error)
       } finally {
-        timer = window.setTimeout(pollProgress, 500)
+        if (pollActiveRef.current) {
+          timer = window.setTimeout(pollProgress, 500)
+        }
       }
     }
 
     pollProgress()
     return () => {
-      if (timer) {
-        window.clearTimeout(timer)
-      }
+      pollActiveRef.current = false
+      if (timer) window.clearTimeout(timer)
     }
   }, [])
 

@@ -109,10 +109,10 @@ def summarize_comments(
         where_clauses.append("c.author_channel_id = ?")
         params.append(author_channel_id)
     if published_after:
-        where_clauses.append("date(c.published_at) >= ?")
+        where_clauses.append("c.published_at >= ?")
         params.append(published_after)
     if published_before:
-        where_clauses.append("date(c.published_at) <= ?")
+        where_clauses.append("c.published_at < date(?, '+1 day')")
         params.append(published_before)
     if q:
         where_clauses.append("LOWER(COALESCE(c.text_display, '')) LIKE ?")

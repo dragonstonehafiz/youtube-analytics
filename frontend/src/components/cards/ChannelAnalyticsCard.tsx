@@ -49,21 +49,15 @@ function ChannelAnalyticsCard() {
         previousEnd.setUTCDate(previousEnd.getUTCDate() - 1)
         const previousStart = new Date(previousEnd)
         previousStart.setUTCDate(previousStart.getUTCDate() - 27)
-        const [lifetimeResponse, currentResponse, previousResponse] = await Promise.all([
-          fetch(`http://localhost:8000/analytics/channel-daily?start_date=2000-01-01&end_date=${format(today)}`),
-          fetch(`http://localhost:8000/analytics/channel-daily?start_date=${format(currentStart)}&end_date=${format(today)}`),
-          fetch(`http://localhost:8000/analytics/channel-daily?start_date=${format(previousStart)}&end_date=${format(previousEnd)}`),
-        ])
-        const [lifetimeData, currentData, previousData] = await Promise.all([
-          lifetimeResponse.json(),
-          currentResponse.json(),
-          previousResponse.json(),
-        ])
-        const lifetimeTotals = lifetimeData?.totals ?? {}
-        const lifetimeSubscribers =
-          Number(lifetimeTotals.subscribers_gained ?? 0) - Number(lifetimeTotals.subscribers_lost ?? 0)
-        const currentTotals = currentData?.totals ?? {}
-        const previousTotals = previousData?.totals ?? {}
+        const response = await fetch(
+            `http://localhost:8000/analytics/channel-card-summary` +
+            `?current_start=${format(currentStart)}&current_end=${format(today)}` +
+            `&previous_start=${format(previousStart)}&previous_end=${format(previousEnd)}`
+          )
+        const data = await response.json()
+        const lifetimeSubscribers = Number(data?.subscribers_net ?? 0)
+        const currentTotals = data?.current ?? {}
+        const previousTotals = data?.previous ?? {}
         const currentViews = Number(currentTotals.views ?? 0)
         const currentWatchHours = Math.round(Number(currentTotals.watch_time_minutes ?? 0) / 60)
         const currentRevenue = Number(currentTotals.estimated_revenue ?? 0)

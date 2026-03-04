@@ -78,26 +78,35 @@ def list_active_audience(days: int = Query(default=90, ge=1, le=3650), limit: in
     with get_connection() as conn:
         rows = conn.execute(
             """
+            WITH stats AS (
+                SELECT
+                    author_channel_id,
+                    COUNT(*) AS comments_count,
+                    COALESCE(SUM(COALESCE(like_count, 0)), 0) AS likes_count,
+                    COALESCE(SUM(COALESCE(reply_count, 0)), 0) AS replies_count,
+                    MAX(published_at) AS last_comment_at
+                FROM comments
+                WHERE author_channel_id IS NOT NULL
+                  AND author_channel_id != ''
+                  AND published_at >= ?
+                  AND published_at < ?
+                GROUP BY author_channel_id
+                ORDER BY comments_count DESC, likes_count DESC, last_comment_at DESC
+                LIMIT ?
+            )
             SELECT
-                c.author_channel_id AS channel_id,
-                COALESCE(NULLIF(a.display_name, ''), MAX(COALESCE(c.author_name, '')), '@Unknown') AS display_name,
-                COALESCE(NULLIF(a.profile_image_url, ''), MAX(COALESCE(c.author_profile_image_url, '')), '') AS profile_image_url,
+                s.author_channel_id AS channel_id,
+                COALESCE(NULLIF(a.display_name, ''), s.author_channel_id, '@Unknown') AS display_name,
+                COALESCE(a.profile_image_url, '') AS profile_image_url,
                 COALESCE(a.is_public_subscriber, 0) AS is_public_subscriber,
-                COUNT(*) AS comments_count,
-                COALESCE(SUM(COALESCE(c.like_count, 0)), 0) AS likes_count,
-                COALESCE(SUM(COALESCE(c.reply_count, 0)), 0) AS replies_count,
-                MAX(c.published_at) AS last_comment_at
-            FROM comments c
-            LEFT JOIN audience a ON a.channel_id = c.author_channel_id
-            WHERE c.author_channel_id IS NOT NULL
-              AND c.author_channel_id != ''
-              AND date(c.published_at) >= ?
-              AND date(c.published_at) <= ?
-            GROUP BY c.author_channel_id
-            ORDER BY comments_count DESC, likes_count DESC, last_comment_at DESC
-            LIMIT ?
+                s.comments_count,
+                s.likes_count,
+                s.replies_count,
+                s.last_comment_at
+            FROM stats s
+            LEFT JOIN audience a ON a.channel_id = s.author_channel_id
             """,
-            (start_date.isoformat(), end_date.isoformat(), limit),
+            (start_date.isoformat(), (end_date + timedelta(days=1)).isoformat(), limit),
         ).fetchall()
     return {
         "items": [row_to_dict(row) for row in rows],

@@ -329,6 +329,60 @@ def list_daily_summary(start_date: str, end_date: str, content_type: str | None 
     return {"items": items, "totals": totals}
 
 
+@router.get("/analytics/channel-card-summary")
+def get_channel_card_summary(
+    current_start: str,
+    current_end: str,
+    previous_start: str,
+    previous_end: str,
+) -> dict:
+    """Return all data needed by the channel analytics dashboard card in a single query."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN views ELSE 0 END), 0)               AS current_views,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN watch_time_minutes ELSE 0 END), 0)  AS current_watch_time_minutes,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN estimated_revenue ELSE 0 END), 0)   AS current_estimated_revenue,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN subscribers_gained ELSE 0 END), 0)  AS current_subscribers_gained,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN subscribers_lost ELSE 0 END), 0)    AS current_subscribers_lost,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN views ELSE 0 END), 0)               AS previous_views,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN watch_time_minutes ELSE 0 END), 0)  AS previous_watch_time_minutes,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN estimated_revenue ELSE 0 END), 0)   AS previous_estimated_revenue,
+                COALESCE(SUM(subscribers_gained), 0) - COALESCE(SUM(subscribers_lost), 0)              AS subscribers_net
+            FROM channel_analytics
+            WHERE date <= ?
+            """,
+            (
+                current_start, current_end,
+                current_start, current_end,
+                current_start, current_end,
+                current_start, current_end,
+                current_start, current_end,
+                previous_start, previous_end,
+                previous_start, previous_end,
+                previous_start, previous_end,
+                current_end,
+            ),
+        ).fetchone()
+    r = dict(row) if row else {}
+    return {
+        "subscribers_net": r.get("subscribers_net", 0),
+        "current": {
+            "views": r.get("current_views", 0),
+            "watch_time_minutes": r.get("current_watch_time_minutes", 0),
+            "estimated_revenue": r.get("current_estimated_revenue", 0),
+            "subscribers_gained": r.get("current_subscribers_gained", 0),
+            "subscribers_lost": r.get("current_subscribers_lost", 0),
+        },
+        "previous": {
+            "views": r.get("previous_views", 0),
+            "watch_time_minutes": r.get("previous_watch_time_minutes", 0),
+            "estimated_revenue": r.get("previous_estimated_revenue", 0),
+        },
+    }
+
+
 @router.get("/analytics/channel-daily")
 def list_channel_daily(
     start_date: str,
@@ -564,27 +618,75 @@ def list_top_content(
     sort_dir = "ASC" if direction.lower() == "asc" else "DESC"
     params.append(limit)
     with get_connection() as conn:
-        rows = conn.execute(
-            f"""
-            SELECT
-                v.id AS video_id,
-                v.title AS title,
-                v.published_at AS published_at,
-                v.thumbnail_url AS thumbnail_url,
-                v.duration_seconds AS duration_seconds,
-                SUM(a.views) AS views,
-                SUM(a.watch_time_minutes) AS watch_time_minutes,
-                SUM(a.estimated_revenue) AS estimated_revenue,
-                AVG(a.average_view_duration_seconds) AS avg_view_duration_seconds
-            FROM video_analytics a
-            JOIN videos v ON v.id = a.video_id
-            WHERE {where_sql}
-            GROUP BY v.id
-            ORDER BY {sort_column} {sort_dir}, views DESC
-            LIMIT ?
-            """,
-            tuple(params),
-        ).fetchall()
+        if sort_by == "published_at":
+            # Optimised path: identify the target video IDs from the videos table first
+            # (fast index scan), then aggregate analytics only for those IDs.
+            video_where_clauses = []
+            video_params: list[object] = []
+            if content_type:
+                video_where_clauses.append("content_type = ?")
+                video_params.append(content_type)
+            if privacy_status:
+                video_where_clauses.append("privacy_status = ?")
+                video_params.append(privacy_status)
+            video_where_sql = ("WHERE " + " AND ".join(video_where_clauses)) if video_where_clauses else ""
+            analytics_where_parts = []
+            analytics_params: list[object] = []
+            if start_date:
+                analytics_where_parts.append("a.date >= ?")
+                analytics_params.append(start_date)
+            if end_date:
+                analytics_where_parts.append("a.date <= ?")
+                analytics_params.append(end_date)
+            analytics_where_sql = ("AND " + " AND ".join(analytics_where_parts)) if analytics_where_parts else ""
+            rows = conn.execute(
+                f"""
+                WITH top_videos AS (
+                    SELECT id, title, published_at, thumbnail_url, duration_seconds
+                    FROM videos
+                    {video_where_sql}
+                    ORDER BY COALESCE(published_at, '') {sort_dir}
+                    LIMIT ?
+                )
+                SELECT
+                    tv.id AS video_id,
+                    tv.title AS title,
+                    tv.published_at AS published_at,
+                    tv.thumbnail_url AS thumbnail_url,
+                    tv.duration_seconds AS duration_seconds,
+                    COALESCE(SUM(a.views), 0) AS views,
+                    COALESCE(SUM(a.watch_time_minutes), 0) AS watch_time_minutes,
+                    COALESCE(SUM(a.estimated_revenue), 0) AS estimated_revenue,
+                    COALESCE(AVG(a.average_view_duration_seconds), 0) AS avg_view_duration_seconds
+                FROM top_videos tv
+                LEFT JOIN video_analytics a ON a.video_id = tv.id {analytics_where_sql}
+                GROUP BY tv.id
+                ORDER BY COALESCE(tv.published_at, '') {sort_dir}
+                """,
+                tuple(video_params + [limit] + analytics_params),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"""
+                SELECT
+                    v.id AS video_id,
+                    v.title AS title,
+                    v.published_at AS published_at,
+                    v.thumbnail_url AS thumbnail_url,
+                    v.duration_seconds AS duration_seconds,
+                    SUM(a.views) AS views,
+                    SUM(a.watch_time_minutes) AS watch_time_minutes,
+                    SUM(a.estimated_revenue) AS estimated_revenue,
+                    AVG(a.average_view_duration_seconds) AS avg_view_duration_seconds
+                FROM video_analytics a
+                JOIN videos v ON v.id = a.video_id
+                WHERE {where_sql}
+                GROUP BY v.id
+                ORDER BY {sort_column} {sort_dir}, views DESC
+                LIMIT ?
+                """,
+                tuple(params),
+            ).fetchall()
     items = []
     for row in rows:
         duration_seconds = row["duration_seconds"] or 0
