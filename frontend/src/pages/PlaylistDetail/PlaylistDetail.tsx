@@ -7,6 +7,8 @@ import { MetricChartCard } from '../../components/charts'
 import {
   CommentsWordCloudCard,
   ContentInsightsCard,
+  DonutChartCard,
+  HistogramChartCard,
   LlmSummaryCard,
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
@@ -41,7 +43,7 @@ type PlaylistMeta = {
 
 type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type PlaylistViewMode = 'playlist_views' | 'video_views'
-type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'comments'
+type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'comments' | 'insights'
 type SummarySort = 'recency' | 'like_count'
 type WordType = 'noun' | 'verb' | 'proper_noun' | 'adjective' | 'adverb'
 type SeriesPoint = { date: string; value: number }
@@ -1390,6 +1392,13 @@ function PlaylistDetail() {
               >
                 Comments
               </button>
+              <button
+                type="button"
+                className={analyticsTab === 'insights' ? 'analytics-tab active' : 'analytics-tab'}
+                onClick={() => setAnalyticsTab('insights')}
+              >
+                Insights
+              </button>
             </div>
             <div className="analytics-range-controls">
                 {analyticsTab === 'comments' ? null : (
@@ -1497,6 +1506,57 @@ function PlaylistDetail() {
               )}
             />
           </>
+        ) : analyticsTab === 'insights' ? (
+          <div className="page-row">
+            <div className="playlist-insights-layout">
+              <div className="playlist-insights-left">
+                <PageCard>
+                  <ContentInsightsCard data={contentInsights} onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)} />
+                </PageCard>
+                <PageCard>
+                  <HistogramChartCard
+                    title="Distribution of Video Views"
+                    viewData={useMemo(
+                      () => {
+                        const views = items.map((item) => item.video_view_count ?? 0)
+                        return views.length > 0 ? views : [0]
+                      },
+                      [items]
+                    )}
+                    color="#0ea5e9"
+                    binCount={15}
+                  />
+                </PageCard>
+              </div>
+              <div className="playlist-insights-right">
+                <PageCard>
+                  <DonutChartCard
+                    title="New Uploads vs Old Upload Views"
+                    titleTooltip="New uploads are videos uploaded in the current period. Old uploads are everything before that."
+                    segments={[
+                      { key: 'new', label: 'New uploads', value: contentInsights?.in_period_views ?? 0, color: '#0ea5e9', displayValue: `${contentInsights?.in_period_pct ?? 0}%` },
+                      { key: 'catalog', label: 'Old uploads', value: contentInsights?.catalog_views ?? 0, color: '#22c55e', displayValue: `${contentInsights?.catalog_pct ?? 0}%` },
+                    ]}
+                    centerLabel="Total views"
+                    centerValue={formatWholeNumber((contentInsights?.in_period_views ?? 0) + (contentInsights?.catalog_views ?? 0))}
+                    ariaLabel="New uploads vs old uploads views"
+                  />
+                </PageCard>
+                <PageCard>
+                  <DonutChartCard
+                    title="Shortform vs Longform Views"
+                    segments={[
+                      { key: 'short', label: 'Short-form', value: contentInsights?.shortform_views ?? 0, color: '#f97316', displayValue: `${contentInsights?.shortform_pct ?? 0}%` },
+                      { key: 'long', label: 'Long-form', value: contentInsights?.longform_views ?? 0, color: '#a855f7', displayValue: `${contentInsights?.longform_pct ?? 0}%` },
+                    ]}
+                    centerLabel="Total views"
+                    centerValue={formatWholeNumber((contentInsights?.shortform_views ?? 0) + (contentInsights?.longform_views ?? 0))}
+                    ariaLabel="Short-form vs long-form views"
+                  />
+                </PageCard>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
         <div className="page-row">
@@ -1588,9 +1648,6 @@ function PlaylistDetail() {
         <div className="page-row">
           <div className="playlist-detail-items-layout">
             <div className="playlist-detail-main-column">
-              <PageCard>
-                <ContentInsightsCard data={contentInsights} />
-              </PageCard>
               <PageCard>
                 {loadingItems ? (
                   <div className="video-detail-state">Loading playlist items...</div>

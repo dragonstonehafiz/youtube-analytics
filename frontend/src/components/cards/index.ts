@@ -1,5 +1,8 @@
 export { default as ChannelAnalyticsCard } from './ChannelAnalyticsCard'
 export { default as ContentInsightsCard } from './ContentInsightsCard'
+export { default as DonutChartCard } from './DonutChartCard'
+export type { DonutChartCardSegment } from './DonutChartCard'
+export { default as HistogramChartCard } from './HistogramChartCard'
 export type { ContentInsights } from './ContentInsightsCard'
 export { default as CommentsWordCloudCard } from './CommentsWordCloudCard'
 export { default as LlmSummaryCard } from './LlmSummaryCard'

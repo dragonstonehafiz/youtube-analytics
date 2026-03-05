@@ -1,4 +1,5 @@
 export { default as DonutChart } from './DonutChart'
+export { default as HistogramChart } from './HistogramChart'
 export { default as MetricChartCard } from './MetricChartCard'
 export { default as ProgressBar } from './ProgressBar'
 export { default as RatioBar } from './RatioBar'

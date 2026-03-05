@@ -1,0 +1,19 @@
+.tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.tooltip-icon:hover {
+  background-color: #cbd5e1;
+  color: #475569;
+}

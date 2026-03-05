@@ -1,0 +1,38 @@
+.histogram-chart-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.histogram-chart-svg {
+  display: block;
+  font-family: inherit;
+}
+
+.histogram-bar {
+  transition: opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.histogram-bar:hover {
+  opacity: 0.9 !important;
+}
+
+.histogram-curve {
+  transition: stroke-width 0.2s ease;
+}
+
+.histogram-label {
+  font-size: 10px;
+  fill: #64748b;
+}
+
+.histogram-chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 300px;
+  color: #94a3b8;
+  font-size: 14px;
+}

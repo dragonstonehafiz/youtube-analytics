@@ -5,6 +5,12 @@
   position: relative;
 }
 
+.content-insights-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
 .content-insights-empty {
   color: var(--color-text-muted);
   font-size: 14px;

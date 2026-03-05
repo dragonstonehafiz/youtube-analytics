@@ -4,6 +4,8 @@ import { DataRangeControl } from '../../components/features'
 import { MetricChartCard } from '../../components/charts'
 import {
   ContentInsightsCard,
+  DonutChartCard,
+  HistogramChartCard,
   MonetizationContentPerformanceCard,
   MonetizationEarningsCard,
   PageCard,
@@ -49,7 +51,7 @@ type LatestContentItem = {
   avg_view_duration_seconds: number
   avg_view_pct: number
 }
-type AnalyticsTab = 'metrics' | 'monetization' | 'discovery'
+type AnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'insights'
 type DiscoveryMetric = 'views' | 'watch_time'
 type TrafficSourceRow = {
   day: string
@@ -136,7 +138,7 @@ function Analytics() {
   const [mode, setMode] = useState<'presets' | 'year' | 'custom'>(storedRange?.mode ?? 'presets')
   const initialAnalyticsTab = getStored('analyticsTab', 'metrics') as string
   const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>(
-    initialAnalyticsTab === 'monetization' || initialAnalyticsTab === 'discovery' ? initialAnalyticsTab : 'metrics'
+    (['metrics', 'monetization', 'discovery', 'insights'] as string[]).includes(initialAnalyticsTab) ? initialAnalyticsTab as AnalyticsTab : 'metrics'
   )
   const [presetSelection, setPresetSelection] = useState(storedRange?.presetSelection ?? 'range:28d')
   const [yearSelection, setYearSelection] = useState(storedRange?.yearSelection ?? '')
@@ -988,6 +990,13 @@ function Analytics() {
         >
           Discovery
         </button>
+        <button
+          type="button"
+          className={analyticsTab === 'insights' ? 'analytics-tab active' : 'analytics-tab'}
+          onClick={() => setAnalyticsTab('insights')}
+        >
+          Insights
+        </button>
       </div>
       <div className="page-body">
         <div className="page-row">
@@ -1027,9 +1036,6 @@ function Analytics() {
                     durationMetrics={['subscribers']}
                     publishedDates={publishedDatesDaily}
                   />
-                </PageCard>
-              <PageCard>
-                  <ContentInsightsCard data={contentInsights} onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)} />
                 </PageCard>
               <PageCard>
                   <TopContentTable items={topContent} />
@@ -1109,6 +1115,53 @@ function Analytics() {
                   />
                 </PageCard>
               </div>
+            </div>
+          ) : analyticsTab === 'insights' ? (
+            <div className="analytics-monetization-layout">
+              <PageCard>
+                <ContentInsightsCard data={contentInsights} onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)} />
+              </PageCard>
+              <div className="analytics-monetization-cards-row">
+                <PageCard>
+                  <DonutChartCard
+                    title="New Uploads vs Old Upload Views"
+                    titleTooltip="New uploads are videos uploaded in the current period. Old uploads are everything before that."
+                    segments={[
+                      { key: 'new', label: 'New uploads', value: contentInsights?.in_period_views ?? 0, color: '#0ea5e9', displayValue: `${contentInsights?.in_period_pct ?? 0}%` },
+                      { key: 'catalog', label: 'Old uploads', value: contentInsights?.catalog_views ?? 0, color: '#22c55e', displayValue: `${contentInsights?.catalog_pct ?? 0}%` },
+                    ]}
+                    centerLabel="Total views"
+                    centerValue={formatWholeNumber((contentInsights?.in_period_views ?? 0) + (contentInsights?.catalog_views ?? 0))}
+                    ariaLabel="New uploads vs old uploads views"
+                  />
+                </PageCard>
+                <PageCard>
+                  <DonutChartCard
+                    title="Shortform vs Longform Views"
+                    segments={[
+                      { key: 'short', label: 'Short-form', value: contentInsights?.shortform_views ?? 0, color: '#f97316', displayValue: `${contentInsights?.shortform_pct ?? 0}%` },
+                      { key: 'long', label: 'Long-form', value: contentInsights?.longform_views ?? 0, color: '#a855f7', displayValue: `${contentInsights?.longform_pct ?? 0}%` },
+                    ]}
+                    centerLabel="Total views"
+                    centerValue={formatWholeNumber((contentInsights?.shortform_views ?? 0) + (contentInsights?.longform_views ?? 0))}
+                    ariaLabel="Short-form vs long-form views"
+                  />
+                </PageCard>
+              </div>
+              <PageCard>
+                <HistogramChartCard
+                  title="Distribution of Video Views"
+                  viewData={useMemo(
+                    () => {
+                      const views = contentInsights?.all_video_views ?? []
+                      return views.length > 0 ? views : [0]
+                    },
+                    [contentInsights?.all_video_views]
+                  )}
+                  color="#0ea5e9"
+                  binCount={20}
+                />
+              </PageCard>
             </div>
           ) : (
             <div className="analytics-monetization-layout">

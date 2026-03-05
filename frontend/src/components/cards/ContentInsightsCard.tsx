@@ -29,6 +29,7 @@ export type ContentInsights = {
   outlier_videos: InsightVideo[]
   outlier_share_pct: number
   videos_with_views: number
+  all_video_views: number[]
 }
 
 type ContentInsightsCardProps = {
@@ -91,15 +92,6 @@ function ContentInsightsCard({ data }: ContentInsightsCardProps) {
 
   const totalOutlierViews = data.outlier_videos.reduce((sum, v) => sum + v.views, 0)
 
-  const handleInPeriodEnter = (e: React.MouseEvent<HTMLDivElement>) => {
-    cancelHide()
-    const container = containerRef.current
-    if (!container || data.in_period_videos.length === 0) return
-    setTooltipTitle('New upload views')
-    setTooltipStats([`${data.in_period_videos.length} videos uploaded in period`])
-    setHoverState(buildHoverState(e.currentTarget, container, data.in_period_videos, 'in-period'))
-  }
-
   const handleOutlierEnter = (e: React.MouseEvent<HTMLDivElement>) => {
     cancelHide()
     const container = containerRef.current
@@ -111,36 +103,8 @@ function ContentInsightsCard({ data }: ContentInsightsCardProps) {
 
   return (
     <div className="content-insights-card" ref={containerRef}>
+      <h3 className="content-insights-card-title">Content Insights</h3>
       <div className="content-insights-body">
-        <div className="content-insights-split-row">
-          <StatCard
-            label="New upload views"
-            value={formatWholeNumber(data.in_period_views)}
-            sub={`${data.in_period_pct}% of period views`}
-            hoverable={data.in_period_videos.length > 0}
-            onMouseEnter={data.in_period_videos.length > 0 ? handleInPeriodEnter : undefined}
-            onMouseLeave={data.in_period_videos.length > 0 ? scheduleHide : undefined}
-          />
-          <StatCard
-            label="Catalog views"
-            value={formatWholeNumber(data.catalog_views)}
-            sub={`${data.catalog_pct}% of period views`}
-          />
-        </div>
-
-        <div className="content-insights-split-row">
-          <StatCard
-            label="Short-form views"
-            value={formatWholeNumber(data.shortform_views)}
-            sub={`${data.shortform_pct}% of period views`}
-          />
-          <StatCard
-            label="Long-form views"
-            value={formatWholeNumber(data.longform_views)}
-            sub={`${data.longform_pct}% of period views`}
-          />
-        </div>
-
         <div className="content-insights-stats-grid">
           <StatCard label="Median views" value={formatWholeNumber(data.median_views)} />
           <StatCard label="Mean views" value={formatWholeNumber(Math.round(data.mean_views))} />

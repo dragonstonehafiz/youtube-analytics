@@ -765,6 +765,7 @@ def get_content_insights(
         "median_views": 0, "mean_views": 0.0,
         "p90_threshold": 0, "outlier_count": 0, "outlier_videos": [],
         "outlier_share_pct": 0.0, "videos_with_views": 0,
+        "all_video_views": [],
     }
     if not rows:
         return empty
@@ -817,4 +818,5 @@ def get_content_insights(
         "outlier_videos": [video_item(r) for r in outlier_rows],
         "outlier_share_pct": round(outlier_views / total_views * 100, 1) if total_views else 0.0,
         "videos_with_views": n,
+        "all_video_views": views_list,
     }
