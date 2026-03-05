@@ -22,11 +22,11 @@ export type UseAnalyticsDateRangeOptions = {
   /** Default mode */
   defaultMode?: RangeMode
   /**
-   * When true (default), fetches available years from /analytics/years on mount.
-   * Set to false when the consuming page derives years from its own data source
-   * and will call setYears externally.
+   * Available years to populate the year picker. Provide via fetchChannelYears() or
+   * fetchVideoYears() from utils/years. When updated, yearSelection auto-initialises
+   * to the first entry if not already set.
    */
-  loadYearsFromApi?: boolean
+  years?: string[]
 }
 
 /** Standard range presets shared across all analytics pages */
@@ -52,7 +52,7 @@ export function useAnalyticsDateRange({
   storageKey,
   defaultPreset = 'full',
   defaultMode = 'presets',
-  loadYearsFromApi = true,
+  years: externalYears,
 }: UseAnalyticsDateRangeOptions) {
   const storedRange = getStored(storageKey, null as StoredRange | null)
   const today = new Date().toISOString().slice(0, 10)
@@ -65,25 +65,12 @@ export function useAnalyticsDateRange({
   const [customStart, setCustomStart] = useState(storedRange?.customStart ?? today)
   const [customEnd, setCustomEnd] = useState(storedRange?.customEnd ?? today)
 
-  // Load available years from the API (opt-out via loadYearsFromApi = false)
+  // Sync external years into internal state; auto-initialise yearSelection when years first arrive
   useEffect(() => {
-    if (!loadYearsFromApi) {
-      return
-    }
-    async function loadYears() {
-      try {
-        const response = await fetch('http://localhost:8000/analytics/years')
-        const data = await response.json()
-        if (Array.isArray(data.years) && data.years.length > 0) {
-          setYears(data.years)
-          setYearSelection((prev) => (prev ? prev : data.years[0]))
-        }
-      } catch (error) {
-        console.error('Failed to load years', error)
-      }
-    }
-    loadYears()
-  }, [loadYearsFromApi])
+    if (!externalYears || externalYears.length === 0) return
+    setYears(externalYears)
+    setYearSelection((prev) => (prev ? prev : externalYears[0]))
+  }, [externalYears])
 
   // Auto-set year selection when switching to year mode
   useEffect(() => {
@@ -156,7 +143,6 @@ export function useAnalyticsDateRange({
 
   return {
     years,
-    setYears,
     mode,
     setMode,
     presetSelection,

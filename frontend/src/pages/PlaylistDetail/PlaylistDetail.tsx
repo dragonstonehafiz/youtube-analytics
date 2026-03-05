@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ActionButton } from '../../components/ui'
-import { DataRangeControl } from '../../components/features'
+import { DataRangeControl, type DateRangeValue } from '../../components/features'
+import { fetchChannelYears } from '../../utils/years'
 import { PageCard } from '../../components/cards'
 import MetricsTab from './MetricsTab'
 import MonetizationTab from './MonetizationTab'
@@ -10,7 +11,6 @@ import CommentsTab from './CommentsTab'
 import InsightsTab from './InsightsTab'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
-import { useAnalyticsDateRange, GRANULARITY_OPTIONS } from '../../hooks/useAnalyticsDateRange'
 import '../shared.css'
 import './PlaylistDetail.css'
 
@@ -24,7 +24,6 @@ type PlaylistMeta = {
   thumbnail_url: string | null
 }
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type PlaylistViewMode = 'playlist_views' | 'video_views'
 type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'comments' | 'insights'
 
@@ -39,21 +38,14 @@ function PlaylistDetail() {
   const [meta, setMeta] = useState<PlaylistMeta | null>(null)
   const [loadingMeta, setLoadingMeta] = useState(false)
   const [errorMeta, setErrorMeta] = useState<string | null>(null)
-  const {
-    years,
-    mode, setMode,
-    presetSelection, setPresetSelection,
-    yearSelection, setYearSelection,
-    monthSelection, setMonthSelection,
-    customStart, setCustomStart,
-    customEnd, setCustomEnd,
-    range,
-    previousRange,
-    rangeOptions,
-  } = useAnalyticsDateRange({ storageKey: 'playlistDetailRange' })
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(getStored('playlistDetailViewMode', 'playlist_views'))
-  const [granularity, setGranularity] = useState<Granularity>(getStored('playlistDetailGranularity', 'daily'))
   const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(getStored('playlistDetailTab', 'metrics'))
+  const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
+  const [years, setYears] = useState<string[]>([])
+
+  useEffect(() => {
+    fetchChannelYears().then(setYears).catch(() => {})
+  }, [])
   useEffect(() => {
     async function loadMeta() {
       if (!playlistId) {
@@ -83,10 +75,6 @@ function PlaylistDetail() {
   useEffect(() => {
     setStored('playlistDetailViewMode', viewMode)
   }, [viewMode])
-
-  useEffect(() => {
-    setStored('playlistDetailGranularity', granularity)
-  }, [granularity])
 
   useEffect(() => {
     setStored('playlistDetailTab', analyticsTab)
@@ -141,112 +129,94 @@ function PlaylistDetail() {
           </PageCard>
         </div>
         <div className="page-row">
-          <div className="playlist-detail-analytics-toolbar">
-            <div className="analytics-tab-row">
-              <button
-                type="button"
-                className={analyticsTab === 'metrics' ? 'analytics-tab active' : 'analytics-tab'}
-                onClick={() => setAnalyticsTab('metrics')}
-              >
-                Metrics
-              </button>
-              <button
-                type="button"
-                className={analyticsTab === 'monetization' ? 'analytics-tab active' : 'analytics-tab'}
-                onClick={() => setAnalyticsTab('monetization')}
-              >
-                Monetization
-              </button>
-              <button
-                type="button"
-                className={analyticsTab === 'discovery' ? 'analytics-tab active' : 'analytics-tab'}
-                onClick={() => setAnalyticsTab('discovery')}
-              >
-                Discovery
-              </button>
-              <button
-                type="button"
-                className={analyticsTab === 'comments' ? 'analytics-tab active' : 'analytics-tab'}
-                onClick={() => setAnalyticsTab('comments')}
-              >
-                Comments
-              </button>
-              <button
-                type="button"
-                className={analyticsTab === 'insights' ? 'analytics-tab active' : 'analytics-tab'}
-                onClick={() => setAnalyticsTab('insights')}
-              >
-                Insights
-              </button>
-            </div>
-            <div className="analytics-range-controls">
-              {analyticsTab !== 'comments' && (
-                <DataRangeControl
-                  granularity={granularity}
-                  onGranularityChange={(value) => setGranularity(value as Granularity)}
-                  mode={mode}
-                  onModeChange={(value) => setMode(value)}
-                  presetSelection={presetSelection}
-                  onPresetSelectionChange={setPresetSelection}
-                  yearSelection={yearSelection}
-                  onYearSelectionChange={setYearSelection}
-                  monthSelection={monthSelection}
-                  onMonthSelectionChange={setMonthSelection}
-                  customStart={customStart}
-                  customEnd={customEnd}
-                  onCustomRangeChange={(nextStart, nextEnd) => {
-                    setCustomStart(nextStart)
-                    setCustomEnd(nextEnd)
-                  }}
-                  years={years}
-                  rangeOptions={rangeOptions}
-                  granularityOptions={GRANULARITY_OPTIONS}
-                  secondaryControl={{
-                    value: viewMode,
-                    onChange: (value) => setViewMode(value as PlaylistViewMode),
-                    placeholder: 'Playlist Views',
-                    items: VIEW_MODE_OPTIONS,
-                  }}
-                  presetPlaceholder="Full data"
-                />
-              )}
-            </div>
+          <div className="analytics-range-controls">
+            {analyticsTab !== 'comments' && (
+              <DataRangeControl
+                storageKey="playlistDetailRange"
+                years={years}
+                presetPlaceholder="Full data"
+                secondaryControl={{
+                  value: viewMode,
+                  onChange: (value) => setViewMode(value as PlaylistViewMode),
+                  placeholder: 'Playlist Views',
+                  items: VIEW_MODE_OPTIONS,
+                }}
+                onChange={setRangeValue}
+              />
+            )}
           </div>
+        </div>
+        <div className="analytics-tab-row">
+          <button
+            type="button"
+            className={analyticsTab === 'metrics' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setAnalyticsTab('metrics')}
+          >
+            Metrics
+          </button>
+          <button
+            type="button"
+            className={analyticsTab === 'monetization' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setAnalyticsTab('monetization')}
+          >
+            Monetization
+          </button>
+          <button
+            type="button"
+            className={analyticsTab === 'discovery' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setAnalyticsTab('discovery')}
+          >
+            Discovery
+          </button>
+          <button
+            type="button"
+            className={analyticsTab === 'comments' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setAnalyticsTab('comments')}
+          >
+            Comments
+          </button>
+          <button
+            type="button"
+            className={analyticsTab === 'insights' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setAnalyticsTab('insights')}
+          >
+            Insights
+          </button>
         </div>
         {analyticsTab === 'comments' ? (
           <CommentsTab playlistId={playlistId} />
         ) : analyticsTab === 'insights' ? (
           <InsightsTab
             playlistId={playlistId}
-            range={range}
+            range={rangeValue?.range ?? { start: '', end: '' }}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
-        ) : analyticsTab === 'metrics' ? (
+        ) : analyticsTab === 'metrics' && rangeValue ? (
           <MetricsTab
             playlistId={playlistId}
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
             viewMode={viewMode}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
-        ) : analyticsTab === 'monetization' ? (
+        ) : analyticsTab === 'monetization' && rangeValue ? (
           <MonetizationTab
             playlistId={playlistId}
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
-        ) : (
+        ) : rangeValue ? (
           <DiscoveryTab
             playlistId={playlistId}
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
-        )}
+        ) : null}
       </div>
     </section>
   )

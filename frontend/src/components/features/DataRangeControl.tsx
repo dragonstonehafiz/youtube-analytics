@@ -1,7 +1,9 @@
+import { useEffect, useRef, useState } from 'react'
 import DateRangePicker from '../ui/DateRangePicker'
 import Dropdown from '../ui/Dropdown'
+import { useAnalyticsDateRange, GRANULARITY_OPTIONS, type RangeMode } from '../../hooks/useAnalyticsDateRange'
+import { getStored, setStored } from '../../utils/storage'
 
-type RangeMode = 'presets' | 'year' | 'custom'
 type OptionItem = { label: string; value: string }
 
 type SecondaryControl = {
@@ -11,52 +13,70 @@ type SecondaryControl = {
   items: OptionItem[]
 }
 
+export type DateRangeValue = {
+  range: { start: string; end: string }
+  previousRange: { start: string; end: string; daySpan: number }
+  granularity: 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
+}
+
 type DataRangeControlProps = {
-  granularity: string
-  onGranularityChange: (value: string) => void
-  mode: RangeMode
-  onModeChange: (value: RangeMode) => void
-  presetSelection: string
-  onPresetSelectionChange: (value: string) => void
-  yearSelection: string
-  onYearSelectionChange: (value: string) => void
-  monthSelection: string
-  onMonthSelectionChange: (value: string) => void
-  customStart: string
-  customEnd: string
-  onCustomRangeChange: (startDate: string, endDate: string) => void
-  years: string[]
-  rangeOptions: OptionItem[]
-  granularityOptions: OptionItem[]
+  storageKey: string
+  granularityOptions?: OptionItem[]
+  defaultGranularity?: string
+  defaultPreset?: string
+  defaultMode?: RangeMode
+  years?: string[]
   secondaryControl?: SecondaryControl
   presetPlaceholder?: string
+  onChange: (value: DateRangeValue) => void
 }
 
 function DataRangeControl({
-  granularity,
-  onGranularityChange,
-  mode,
-  onModeChange,
-  presetSelection,
-  onPresetSelectionChange,
-  yearSelection,
-  onYearSelectionChange,
-  monthSelection,
-  onMonthSelectionChange,
-  customStart,
-  customEnd,
-  onCustomRangeChange,
-  years,
-  rangeOptions,
-  granularityOptions,
+  storageKey,
+  granularityOptions = GRANULARITY_OPTIONS,
+  defaultGranularity = 'daily',
+  defaultPreset,
+  defaultMode,
+  years: externalYears,
   secondaryControl,
   presetPlaceholder = 'Full data',
+  onChange,
 }: DataRangeControlProps) {
+  const {
+    years,
+    mode, setMode,
+    presetSelection, setPresetSelection,
+    yearSelection, setYearSelection,
+    monthSelection, setMonthSelection,
+    customStart, setCustomStart,
+    customEnd, setCustomEnd,
+    range,
+    previousRange,
+    rangeOptions,
+  } = useAnalyticsDateRange({ storageKey, defaultPreset, defaultMode, years: externalYears })
+
+  const [granularity, setGranularity] = useState<DateRangeValue['granularity']>(
+    () => getStored(`${storageKey}_granularity`, defaultGranularity) as DateRangeValue['granularity']
+  )
+
+  useEffect(() => {
+    setStored(`${storageKey}_granularity`, granularity)
+  }, [storageKey, granularity])
+
+  // Ref-stabilised callback so the effect doesn't need onChange in its dep array
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange })
+
+  useEffect(() => {
+    onChangeRef.current({ range, previousRange, granularity })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.start, range.end, previousRange.start, previousRange.end, granularity])
+
   return (
     <>
       <Dropdown
         value={granularity}
-        onChange={onGranularityChange}
+        onChange={(v) => setGranularity(v as DateRangeValue['granularity'])}
         placeholder="Daily"
         items={granularityOptions.map((item) => ({ type: 'option' as const, ...item }))}
       />
@@ -70,7 +90,7 @@ function DataRangeControl({
       ) : null}
       <Dropdown
         value={mode}
-        onChange={(value) => onModeChange(value as RangeMode)}
+        onChange={(value) => setMode(value as RangeMode)}
         placeholder="Presets"
         items={[
           { type: 'option' as const, label: 'Presets', value: 'presets' },
@@ -81,7 +101,7 @@ function DataRangeControl({
       {mode === 'presets' ? (
         <Dropdown
           value={presetSelection}
-          onChange={onPresetSelectionChange}
+          onChange={setPresetSelection}
           placeholder={presetPlaceholder}
           items={rangeOptions.map((option) => ({ type: 'option' as const, ...option }))}
         />
@@ -90,13 +110,13 @@ function DataRangeControl({
         <>
           <Dropdown
             value={yearSelection}
-            onChange={onYearSelectionChange}
+            onChange={setYearSelection}
             placeholder="Select year"
             items={years.map((item) => ({ type: 'option' as const, label: item, value: item }))}
           />
           <Dropdown
             value={monthSelection}
-            onChange={onMonthSelectionChange}
+            onChange={setMonthSelection}
             placeholder="All months"
             items={[
               { type: 'option' as const, label: 'All months', value: 'all' },
@@ -120,7 +140,7 @@ function DataRangeControl({
         <DateRangePicker
           startDate={customStart}
           endDate={customEnd}
-          onChange={onCustomRangeChange}
+          onChange={(s, e) => { setCustomStart(s); setCustomEnd(e) }}
         />
       ) : null}
     </>

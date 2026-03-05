@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ActionButton } from '../../components/ui'
-import { DataRangeControl } from '../../components/features'
+import { DataRangeControl, type DateRangeValue } from '../../components/features'
+import { fetchVideoYears } from '../../utils/years'
 import { PageCard } from '../../components/cards'
 import AnalyticsTab from './AnalyticsTab'
 import MonetizationTab from './MonetizationTab'
@@ -9,7 +10,6 @@ import DiscoveryTab from './DiscoveryTab'
 import CommentsTab from './CommentsTab'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
-import { useAnalyticsDateRange, GRANULARITY_OPTIONS } from '../../hooks/useAnalyticsDateRange'
 import '../shared.css'
 import './VideoDetail.css'
 
@@ -40,7 +40,6 @@ export type VideoDailyRow = {
   subscribers_lost: number | null
 }
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type VideoDetailTab = 'analytics' | 'monetization' | 'discovery' | 'comments'
 function formatDuration(seconds: number | null): string {
   if (!seconds || seconds < 0) {
@@ -65,19 +64,8 @@ function VideoDetail() {
   const [dailyRows, setDailyRows] = useState<VideoDailyRow[]>([])
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [analyticsError, setAnalyticsError] = useState<string | null>(null)
-  const [granularity, setGranularity] = useState<Granularity>(getStored('videoDetailGranularity', 'daily'))
-  const {
-    years, setYears,
-    mode, setMode,
-    presetSelection, setPresetSelection,
-    yearSelection, setYearSelection,
-    monthSelection, setMonthSelection,
-    customStart, setCustomStart,
-    customEnd, setCustomEnd,
-    range,
-    previousRange,
-    rangeOptions,
-  } = useAnalyticsDateRange({ storageKey: 'videoDetailRange', loadYearsFromApi: false })
+  const [derivedYears, setDerivedYears] = useState<string[]>([])
+  const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
 
   useEffect(() => {
     async function loadVideo() {
@@ -108,7 +96,6 @@ function VideoDetail() {
     async function loadVideoAnalytics() {
       if (!videoId) {
         setDailyRows([])
-        setYears([])
         setAnalyticsError('Missing video ID.')
         return
       }
@@ -125,15 +112,6 @@ function VideoDetail() {
           .filter((item) => typeof item.date === 'string')
           .sort((a, b) => a.date.localeCompare(b.date))
         setDailyRows(sorted)
-        const minDate = sorted[0]?.date
-        const maxDate = sorted[sorted.length - 1]?.date
-        if (minDate && maxDate) {
-          const minYear = parseInt(minDate.slice(0, 4), 10)
-          const maxYear = parseInt(maxDate.slice(0, 4), 10)
-          setYears(Array.from({ length: maxYear - minYear + 1 }, (_, idx) => String(maxYear - idx)))
-        } else {
-          setYears([])
-        }
       } catch (err) {
         setAnalyticsError(err instanceof Error ? err.message : 'Failed to load analytics.')
       } finally {
@@ -144,12 +122,16 @@ function VideoDetail() {
   }, [videoId])
 
   useEffect(() => {
-    setStored('videoDetailTab', activeTab)
-  }, [activeTab])
+    if (!videoId) {
+      setDerivedYears([])
+      return
+    }
+    fetchVideoYears(videoId).then(setDerivedYears).catch(() => setDerivedYears([]))
+  }, [videoId])
 
   useEffect(() => {
-    setStored('videoDetailGranularity', granularity)
-  }, [granularity])
+    setStored('videoDetailTab', activeTab)
+  }, [activeTab])
 
   return (
     <section className="page">
@@ -242,57 +224,41 @@ function VideoDetail() {
             {activeTab === 'analytics' || activeTab === 'monetization' || activeTab === 'discovery' ? (
               <div className="analytics-range-controls">
                 <DataRangeControl
-                  granularity={granularity}
-                  onGranularityChange={(value) => setGranularity(value as Granularity)}
-                  mode={mode}
-                  onModeChange={(value) => setMode(value)}
-                  presetSelection={presetSelection}
-                  onPresetSelectionChange={setPresetSelection}
-                  yearSelection={yearSelection}
-                  onYearSelectionChange={setYearSelection}
-                  monthSelection={monthSelection}
-                  onMonthSelectionChange={setMonthSelection}
-                  customStart={customStart}
-                  customEnd={customEnd}
-                  onCustomRangeChange={(nextStart, nextEnd) => {
-                    setCustomStart(nextStart)
-                    setCustomEnd(nextEnd)
-                  }}
-                  years={years}
-                  rangeOptions={rangeOptions}
-                  granularityOptions={GRANULARITY_OPTIONS}
+                  storageKey="videoDetailRange"
+                  years={derivedYears}
                   presetPlaceholder="Full data"
+                  onChange={setRangeValue}
                 />
               </div>
             ) : null}
           </div>
         </div>
-        {activeTab === 'analytics' && (
+        {rangeValue && activeTab === 'analytics' && (
           <AnalyticsTab
             loading={analyticsLoading}
             error={analyticsError}
-            granularity={granularity}
+            granularity={rangeValue.granularity}
             dailyRows={dailyRows}
-            range={range}
-            previousRange={previousRange}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
           />
         )}
-        {activeTab === 'monetization' && (
+        {rangeValue && activeTab === 'monetization' && (
           <MonetizationTab
             loading={analyticsLoading}
             error={analyticsError}
-            granularity={granularity}
+            granularity={rangeValue.granularity}
             dailyRows={dailyRows}
-            range={range}
-            previousRange={previousRange}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
           />
         )}
-        {activeTab === 'discovery' && (
+        {rangeValue && activeTab === 'discovery' && (
           <DiscoveryTab
             videoId={videoId}
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
           />
         )}
         {activeTab === 'comments' && (

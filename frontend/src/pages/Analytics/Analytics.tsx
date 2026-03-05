@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DataRangeControl } from '../../components/features'
+import { DataRangeControl, type DateRangeValue } from '../../components/features'
+import { fetchChannelYears } from '../../utils/years'
 import MetricsTab from './MetricsTab'
 import MonetizationTab from './MonetizationTab'
 import DiscoveryTab from './DiscoveryTab'
 import InsightsTab from './InsightsTab'
 import { getStored, setStored } from '../../utils/storage'
-import { useAnalyticsDateRange, GRANULARITY_OPTIONS } from '../../hooks/useAnalyticsDateRange'
 import '../shared.css'
 import './Analytics.css'
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 type AnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'insights'
 
 const CONTENT_OPTIONS = [
@@ -22,32 +21,21 @@ const CONTENT_OPTIONS = [
 
 function Analytics() {
   const navigate = useNavigate()
-  const {
-    years,
-    mode, setMode,
-    presetSelection, setPresetSelection,
-    yearSelection, setYearSelection,
-    monthSelection, setMonthSelection,
-    customStart, setCustomStart,
-    customEnd, setCustomEnd,
-    range,
-    previousRange,
-    rangeOptions,
-  } = useAnalyticsDateRange({ storageKey: 'analyticsRange', defaultPreset: 'range:28d' })
   const initialAnalyticsTab = getStored('analyticsTab', 'metrics') as string
   const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>(
     (['metrics', 'monetization', 'discovery', 'insights'] as string[]).includes(initialAnalyticsTab) ? initialAnalyticsTab as AnalyticsTab : 'metrics'
   )
   const [contentSelection, setContentSelection] = useState(getStored('analyticsContentSelection', 'all'))
-  const [granularity, setGranularity] = useState<Granularity>(getStored('analyticsGranularity', 'daily'))
+  const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
+  const [years, setYears] = useState<string[]>([])
+
+  useEffect(() => {
+    fetchChannelYears().then(setYears).catch(() => {})
+  }, [])
 
   useEffect(() => {
     setStored('analyticsContentSelection', contentSelection)
   }, [contentSelection])
-
-  useEffect(() => {
-    setStored('analyticsGranularity', granularity)
-  }, [granularity])
 
   useEffect(() => {
     setStored('analyticsTab', analyticsTab)
@@ -61,32 +49,17 @@ function Analytics() {
         </div>
         <div className="analytics-range-controls">
           <DataRangeControl
-            granularity={granularity}
-            onGranularityChange={(value) => setGranularity(value as Granularity)}
-            mode={mode}
-            onModeChange={setMode}
-            presetSelection={presetSelection}
-            onPresetSelectionChange={setPresetSelection}
-            yearSelection={yearSelection}
-            onYearSelectionChange={setYearSelection}
-            monthSelection={monthSelection}
-            onMonthSelectionChange={setMonthSelection}
-            customStart={customStart}
-            customEnd={customEnd}
-            onCustomRangeChange={(nextStart, nextEnd) => {
-              setCustomStart(nextStart)
-              setCustomEnd(nextEnd)
-            }}
+            storageKey="analyticsRange"
             years={years}
-            rangeOptions={rangeOptions}
-            granularityOptions={GRANULARITY_OPTIONS}
+            defaultPreset="range:28d"
+            presetPlaceholder="Last 28 days"
             secondaryControl={{
               value: contentSelection,
               onChange: setContentSelection,
               placeholder: 'All videos',
               items: CONTENT_OPTIONS,
             }}
-            presetPlaceholder="Last 28 days"
+            onChange={setRangeValue}
           />
         </div>
       </header>
@@ -121,38 +94,38 @@ function Analytics() {
         </button>
       </div>
       <div className="page-body">
-        {analyticsTab === 'metrics' && (
+        {rangeValue && analyticsTab === 'metrics' && (
           <MetricsTab
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
             contentType={contentSelection}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
         )}
-        {analyticsTab === 'monetization' && (
+        {rangeValue && analyticsTab === 'monetization' && (
           <MonetizationTab
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
             contentType={contentSelection}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
         )}
-        {analyticsTab === 'discovery' && (
+        {rangeValue && analyticsTab === 'discovery' && (
           <DiscoveryTab
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
             contentType={contentSelection}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
         )}
-        {analyticsTab === 'insights' && (
+        {rangeValue && analyticsTab === 'insights' && (
           <InsightsTab
-            range={range}
-            previousRange={previousRange}
-            granularity={granularity}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
             contentType={contentSelection}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />

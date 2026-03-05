@@ -1,4 +1,5 @@
 export { default as DataRangeControl } from './DataRangeControl'
+export type { DateRangeValue } from './DataRangeControl'
 export { default as CommentFilter } from './CommentFilter'
 export type { CommentSort } from './CommentFilter'
 export { buildCommentGroups } from './commentGroups'

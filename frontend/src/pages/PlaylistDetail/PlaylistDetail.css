@@ -1,15 +1,5 @@
 /* PlaylistDetail page styles */
 
-.playlist-detail-analytics-toolbar {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  z-index: var(--z-sticky);
-}
-
 .playlist-detail-items-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
@@ -99,12 +89,6 @@
 
 .playlist-items-row:hover .video-desc {
   opacity: 0;
-}
-
-@media (max-width: 1200px) {
-  .playlist-detail-analytics-toolbar {
-    justify-content: flex-start;
-  }
 }
 
 .playlist-insights-layout {
