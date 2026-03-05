@@ -1,495 +1,310 @@
-# Agent Guide
+# AGENTS.md
 
-**Purpose**: Help AI agents quickly understand this codebase and make correct changes.  
-**Keep updated**: When you modify behavior, update this file in the same commit.
-
-## Architecture Overview
-
-**System**: YouTube analytics dashboard  
-**Stack**: FastAPI (backend) + React/TypeScript (frontend) + SQLite (data store)
+YouTube analytics dashboard — FastAPI + React/TypeScript + SQLite.
 
 ```
 YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 ```
 
-### Key Concepts
-- **Sync stages**: Independent data pulls from YouTube APIs (videos, comments, analytics, etc.)
-- **Daily series**: Most analytics are stored per-day for time-series charts
-- **Content types**: Videos are classified as `video` (longform) or `short` (Shorts)
-- **Playlist analytics**: Aggregate both playlist-level and video-level metrics
+---
 
-### Directory Structure
+### Do
+- use parameterized queries in all DB helpers — never string concatenation
+- use `backend/src/utils/logger.py` for errors only; no progress logs
+- use type hints and docstrings on all backend functions
+- use explicit TypeScript types; avoid `any`
+- use existing UI components before writing custom controls
+- use `MetricChartCard` for all time-series charts; pass raw daily series (it handles aggregation)
+- use `Dropdown` (not native `<select>`) for all dropdowns
+- use `usePagination.ts` hook for shared page-size state
+- use local storage keys namespaced by page (e.g. `videoDetailGranularity`)
+- keep `.method()` on same line as object in Python — no chained calls starting on new lines
+- keep CSS in colocated `.css` files; no inline styles
+- import `../shared.css` in every page component before the page-specific CSS
+- use `'../../components/...'` import paths from inside page subdirectories
+
+### Don't
+- don't add `updated_at` tracking to `videos`, `playlists`, `playlist_items`, or `comments`
+- don't use FK constraints — `playlist_items.video_id` is a raw YouTube ID
+- don't aggregate CPM by sum — use ad-impression-weighted average
+- don't auto-trigger word cloud or LLM summary on filter change — both are manual
+- don't store tab state in URL params — local state only
+- don't create a new component if an existing one covers the use case
+- don't add new heavy dependencies without approval
+- don't run project-wide builds when a file-scoped check will do
+
+---
+
+### Commands
+
+```bash
+# Backend — type check a single file
+cd backend && python -m mypy src/routes/videos.py
+
+# Backend — run server
+cd backend && uvicorn server:app --reload
+
+# Frontend — type check a single file
+cd frontend && npx tsc --noEmit
+
+# Frontend — lint a single file
+cd frontend && npx eslint src/pages/Videos/Videos.tsx --fix
+
+# Frontend — full build (only when explicitly requested)
+cd frontend && npm run build
+```
+
+---
+
+### Safety and permissions
+
+Allowed without asking:
+- read files, list files, search
+- type check, lint single files
+- run backend server locally
+
+Ask first:
+- `pip install` / `npm install` new packages
+- `git push` or force-push
+- deleting files or DB records
+- full project builds or end-to-end test suites
+
+---
+
+### Project structure
+
 ```
 backend/
-  server.py              # FastAPI app entry point
-  src/routes/            # API endpoints organized by domain
-    __init__.py          # Combines all routers
-    helpers.py           # Shared helper functions
-    videos.py            # Video endpoints
-    playlists.py         # Playlist endpoints
-    audience.py          # Audience endpoints
-    comments.py          # Comment endpoints
-    analytics.py         # Analytics endpoints
-    sync.py              # Sync endpoints
-    stats.py             # Stats/DB info endpoints
-  src/sync.py            # Sync orchestration
-  llm/                   # LLM provider interfaces/implementations (API-based)
-  src/database/          # Schema + DB helpers per table
-  src/youtube/           # YouTube API client code
-  src/helper/            # Shared utilities (estimates, dates, progress)
-  src/utils/             # Logger and other utility functions
-  
+  server.py                      # FastAPI entry point
+  src/routes/                    # API route handlers by domain
+    videos.py, playlists.py, audience.py, comments.py
+    analytics.py, sync.py, stats.py, llm.py
+    helpers.py                   # shared route helpers
+  src/sync.py                    # sync orchestration + stage order
+  src/database/                  # DB helpers per table
+    schema.sql, db.py
+    videos.py, playlists.py, comments.py, audience.py
+    analytics.py, channel_daily.py, playlist_daily.py
+    traffic_sources.py, video_traffic_source.py, video_search_insights.py
+  src/youtube/                   # YouTube API clients
+    auth.py, client.py, videos.py, playlists.py
+    comments.py, analytics.py, subscribers.py
+  src/helper/
+    estimates.py                 # API call estimation logic
+    sync_dates.py, sync_progress.py
+  src/llm/
+    interface.py                 # LLM provider base + lifecycle
+    openai_model.py
+  src/utils/logger.py            # error logger → backend/outputs/
+
 frontend/
-  src/pages/             # Page directories (each with index.ts, PageName.tsx, PageName.css)
-    shared.css           # Common page layout, filter, and pagination styles
-  src/components/        # Reusable UI components organized by pattern/complexity
-    ui/                  # Basic primitives (buttons, dropdowns, inputs, pagination)
-    charts/              # Visualization components (charts, graphs, progress bars)
-    cards/               # Card-based display components
-    tables/              # Table and list components
-    features/            # Complex domain-specific/composite components
-  src/utils/             # Formatting helpers (dates, numbers, storage)
+  src/App.tsx                    # routes
+  src/pages/shared.css           # common layout/filter/pagination styles
+  src/pages/
+    Analytics/, Audience/, AudienceDetail/, Comments/
+    Dashboard/, LLMSettings/, PlaylistDetail/, Playlists/
+    Settings/, SyncSettings/, VideoDetail/, Videos/
+  src/components/
+    ui/                          # primitives
+    charts/                      # visualizations
+    cards/primitives/            # generic card wrappers
+    cards/site/                  # domain-specific cards
+    tables/                      # table + list components
+    features/                    # complex composite components
+  src/hooks/                     # shared React hooks
+  src/utils/                     # formatting helpers
 ```
 
-## Decision Tree: Where to Make Changes
+---
 
-### Adding/modifying a data sync
-1. Schema: `backend/src/database/schema.sql`
-2. DB helpers: `backend/src/database/<table>.py`
-3. YouTube API fetch: `backend/src/youtube/<resource>.py`
-4. Sync stage: `backend/src/sync.py` (add to stage order)
-5. API estimation: `backend/src/helper/estimates.py`
+### Component reference
 
-### Adding/modifying an API endpoint
-1. Route handler: `backend/src/routes/<domain>.py` (videos, playlists, audience, comments, analytics, sync, stats)
-2. DB query: `backend/src/database/<table>.py`
-3. Frontend API call: `frontend/src/pages/<Page>.tsx` or component
-4. Shared helpers: Add to `backend/src/routes/helpers.py` if used across routes
+**UI primitives** (`components/ui/`):
+- `ActionButton` — primary/soft button variants
+- `Dropdown` — custom select (never native `<select>`)
+- `MultiSelect` — filter chips; closes on outside click
+- `DateRangePicker` — date range inputs
+- `YearInput` — single year picker
+- `MarkdownTextbox` — read-only rendered markdown with copy-to-clipboard
+- `PageSwitcher`, `PageSizePicker` — pagination controls
+- `ProfileImage` — avatar with fallback
+- `Sidebar` — app navigation sidebar
+- `StatCard` — single-metric stat display
+- `Tooltip`, `TooltipIcon` — viewport-clamped tooltip and help indicator
 
-### Adding/modifying a UI page
-1. Create page directory: `frontend/src/pages/<PageName>/`
-2. Create component: `<PageName>.tsx` (imports `../shared.css` + `./<PageName>.css`)
-3. Create styles: `<PageName>.css` (page-specific styles only)
-4. Create barrel export: `index.ts` (exports default from `./<PageName>`)
-5. Add route: `frontend/src/App.tsx` (imports from `./pages/<PageName>`)
-6. Reusable components: Extract to `frontend/src/components/<category>/`
+**Charts** (`components/charts/`):
+- `MetricChartCard` — primary time-series chart: KPI chips, trend indicators, granularity bucketing (Daily/7-days/28-days/90-days/Monthly/Yearly), zero-fill, upload markers
+- `DonutChart` — interactive pie/donut
+- `HistogramChart` — histogram/bar chart
+- `RatioBar` — single or segmented horizontal ratio bar
+- `ProgressBar` — progress indicator
+- `UploadPublishMarkers` — video upload markers overlaid on charts
+- `UploadPublishTooltip` — tooltip showing videos for a chart data point
 
-### Adding/modifying a chart or visualization
-1. Check if `MetricChartCard` can handle it (single/multi-series support)
-2. If new chart type needed: Create in `frontend/src/components/charts/`
-3. Data formatting: In the page component, not the chart component
+**Card primitives** (`components/cards/primitives/`):
+- `PageCard` — generic card container
+- `DonutChartCard` — card wrapping a donut chart
+- `HistogramChartCard` — card wrapping a histogram
 
-## Critical Constraints
+**Site cards** (`components/cards/site/`):
+- `ChannelAnalyticsCard` — dashboard channel metrics summary
+- `CommentsPreviewCard` — dashboard recent comments preview
+- `CommentsWordCloudCard` — word-cloud PNG display with Word types multiselect and manual generate button
+- `ContentInsightsCard` — content performance insights
+- `LlmSummaryCard` — manual LLM summary output with controls
+- `MonetizationEarningsCard` — revenue/RPM/CPM breakdown card
+- `MonetizationContentPerformanceCard` — per-video monetization performance
+- `MostActiveAudienceCard` — dashboard top audience members
+- `SearchInsightsTopTermsCard` — top YouTube search terms for the active date range
+- `TrafficSourceShareCard` — traffic source share breakdown
+- `TrafficSourceTopVideosCard` — top videos for a selected traffic source
+- `VideoDetailListCard` — top content with typical-range meters
 
-### Database
-- **No `updated_at` tracking** on core tables (`videos`, `playlists`, `playlist_items`, `comments`)
-- **Foreign keys**: `playlist_items.video_id` is a raw YouTube ID (no FK to `videos`)
-- **Sync history**: One `sync_runs` row per stage execution, not per full sync
-- **SQLite location**: `backend/data/youtube.db` (from `backend/.env` `DB_PATH`)
-- **LLM provider config location**: `backend/data/<provider>.json` (path resolved in `LLMInterface`, loaded on `initialize`, persisted on `configure`; OpenAI uses `llm_openai.json`)
-- **LLM initialization lifecycle**: Provider `set_defaults()` is invoked from `initialize()`; operational methods assume the backend has been initialized
-- **Video search insights granularity**: `video_search_insights.date` is a month bucket (`YYYY-MM-01`), not per-day rows
+**Tables** (`components/tables/`):
+- `VideoListTable`, `VideoListRow` — paginated video list
+- `PlaylistItemsTable`, `PlaylistItemRow` — playlist items with analytics
+- `TopContentTable` — sorted top-content table for Analytics
+- `CommentThreadItem` — individual comment row
+- `CommentVideoGroup` — comments grouped by video
+- `CommentsSection` — full comment list with pagination
 
-### Sync Behavior
-- **Stage order** (immutable): `videos` → `comments` → `audience` → `playlists` → `playlist_analytics` → `traffic` → `channel_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
-- **Stop requests**: Cooperative (takes effect before next API call)
-- **Shorts detection**: Uses UUSH playlist, not dimensions (fail-fast if unavailable)
-- **Video sync reconciliation fallback**: After uploads-playlist sync/upsert, `videos` stage checks `playlist_items` for missing `video_id`s, fetches those via `videos.list`, and upserts recoverable rows
-- **Progress tracking**: In-memory state in `SyncProgress`, persistence in `sync_runs`
-- **Stage failure isolation**: Non-stop stage exceptions are recorded as failed stage runs and sync continues with later selected stages
-- **Overall sync progress status**: Marked `done` after all selected stages are attempted; per-stage failures are reflected in their own `sync_runs` rows
-- **Sync error logging**: Stage failures are logged from the failing sync step with local context (e.g., `video_id`, `playlist_id`, date segment) to `backend/outputs/sync.log`; `_run_sync_stage` does not emit a second duplicate error log
-- **Video search insights fetch policy**: Monthly queries, sorted by `-views`, capped to one page (`maxResults=25`, `startIndex=1`) per video-month
-- **Segmented analytics query bounds**: `video_analytics`, `video_traffic_source`, `video_search_insights`, and `playlist_analytics` clamp per-request `query_start` to the active segment start (in addition to resume checkpoints) so each API call stays within segment bounds
+**Features** (`components/features/`):
+- `DataRangeControl` — analytics-style range row (granularity + presets/year/custom)
+- `CommentFilter` — reusable filter row (text search, date range, sort, reset)
+- `commentGroups.ts` (`buildCommentGroups()`) — helper to group comments by video
 
-### Date/Time Handling
-- **Backend**: ISO date strings (`YYYY-MM-DD`), no timestamps unless required
-- **Frontend display**: `day month year` format (e.g., `22 February 2026`) via `formatDisplayDate()`
-- **Analytics ranges**: Backend clamps to available data; frontend zero-fills gaps within trimmed range
+**Hooks** (`hooks/`):
+- `useAnalyticsDateRange` — shared date range state for analytics pages
+- `useLlmSummary` — LLM summary fetch + state management
+- `usePagination` — shared page-size persistence + page reset on size change
+- `usePrivacyMode` — toggle to hide sensitive numbers
+- `useWordCloud` — word cloud fetch + state management
 
-### Number Formatting (Frontend)
-- **Whole numbers**: `X,XXX` (views, subscribers, counts)
-- **Decimals**: `X,XX.000` (revenue, CPM, rates)
-- **CPM aggregation**: Ad-impression-weighted average, never sum
+**Utils** (`utils/`):
+- `date.ts` — `formatDisplayDate()` and date helpers (`day month year` format)
+- `number.ts` — `X,XXX` whole numbers, `X,XX.000` decimals
+- `storage.ts` — local storage helpers
+- `trafficSeries.ts` — traffic source data transformation
+- `years.ts` — year range helpers
 
-### UI Patterns
-- **Tables**: Fixed row height (truncate/ellipsis, never expand)
-- **Column alignment**: Numeric = center, text = left, headers match content
-- **Navigation**: Attach to title text when detail page exists
-- **Pagination**: Global page size (`10/25/50/100`) shared across all pages
-- **Filter persistence**: Use local storage keys per page
-- **Tooltips**: Clamp to viewport bounds by default (horizontal + vertical) and show an indicator pointer
+---
 
-## Backend Patterns
+### Good examples
 
-### Sync Stages
-**Location**: `backend/src/sync.py`
+- time-series chart → `MetricChartCard` in any Analytics tab
+- page structure → `frontend/src/pages/Videos/Videos.tsx`
+- reusable filter → `frontend/src/components/features/CommentFilter.tsx`
+- DB helper → `backend/src/database/videos.py` (get/upsert pattern)
+- sync stage → any stage function in `backend/src/sync.py`
+- API route → `backend/src/routes/analytics.py`
 
-Each stage:
-1. Fetches from YouTube API (`backend/src/youtube/<resource>.py`)
-2. Transforms/validates data
-3. Persists via DB helper (`backend/src/database/<table>.py`)
-4. Writes stage completion to `sync_runs`
-5. Checks stop flag before each API call
+### Don't copy
+- any inline `style={{}}` usage — use colocated CSS instead
+- direct `fetch()` in components — call from the page component and pass data down
 
-**Progress reporting**: Call `progress.set_stage_progress()` with current item count
+---
 
-### Analytics Endpoints
-**Pattern**: Most return `{ items: [...], totals: {...} }` for time-series + aggregates
+### API docs
 
-**Date ranges**: Accept `start_date`/`end_date` as ISO strings, clamp to available data
+Route files: `backend/src/routes/`
 
-**Content filtering**: Many support `content_type` param (`video` or `short`)
+Key patterns:
+- most analytics return `{ items: [...], totals: {...} }`
+- date params are ISO strings (`YYYY-MM-DD`); backend clamps to available data
+- `content_type` param = `video` (longform) or `short` (Shorts)
+- `video_search_insights.date` is a month bucket (`YYYY-MM-01`), not per-day
 
-### Database Helpers
-**Location**: `backend/src/database/<table>.py`
-
-**Pattern**: 
-- `get_*()` for reads (return dicts or list of dicts)
-- `upsert_*()` for writes (handle duplicates gracefully)
-- Use parameterized queries (never string concat)
-
-### Estimation Logic
-**Location**: `backend/src/helper/estimates.py`
-
-**Pattern**: Return `{ minimum_api_calls, basis }` where basis explains the math
-
-**Period awareness**: Analytics stages use period, metadata stages ignore it
-
-## Frontend Patterns
-
-### Page Directory Structure
-**Pattern**: Each page lives in its own directory with three files:
-
+Selected endpoints:
 ```
-pages/
-  shared.css                    # Common patterns (page layout, headers, filters, pagination)
-  <PageName>/
-    index.ts                    # Barrel export: export { default } from './<PageName>'
-    <PageName>.tsx              # Page component
-    <PageName>.css              # Page-specific styles
+GET  /videos                          paginated list (q, privacy_status, content_type, published range)
+GET  /videos/{id}                     single video
+GET  /videos/published                upload markers (content_type filter)
+
+GET  /analytics/channel-daily         channel-level daily series
+GET  /analytics/daily/summary         aggregated daily (content_type filter)
+GET  /analytics/video-daily           per-video daily series
+GET  /analytics/top-content           ranked videos (views/revenue/published_at)
+GET  /analytics/traffic-sources       channel traffic source breakdown
+GET  /analytics/video-traffic-sources video-level traffic sources
+GET  /analytics/video-traffic-source-top-videos  top videos for a source
+GET  /analytics/video-search-insights top search terms by views (date range, video_ids CSV, content_type)
+GET  /analytics/video-search-insights/videos  videos for a search term
+
+GET  /playlists                       paginated list
+GET  /playlists/{id}                  single playlist
+GET  /playlists/{id}/items            paginated items with analytics
+GET  /analytics/playlist-daily        playlist-level daily series
+GET  /analytics/playlist-video-daily  video-level series for playlist content
+
+GET  /audience                        paginated with comment stats
+GET  /audience/active                 top active members (rolling window)
+GET  /audience/{channel_id}           single member detail
+
+GET  /comments                        paginated (q, video_id, playlist_id, author_channel_id, dates)
+GET  /comments/word-cloud/image       PNG word cloud (q, word_types CSV)
+
+POST /sync                            trigger sync (pulls, date range, deep_sync)
+POST /sync/stop                       graceful stop
+GET  /sync/progress                   current sync status
+GET  /sync/runs                       per-stage execution history
+
+GET  /stats/overview                  row counts + storage breakdown
+GET  /stats/table-details             schema + date bounds
+GET  /stats/table-api-calls           estimated API usage for sync config
+
+GET  /llm/schema                      provider settings schema for UI
+GET  /llm/settings                    current provider values
+GET  /llm/status                      active LLM status + model
+POST /llm/configure                   apply + persist settings, rebuild model
+POST /llm/summarize-comments          LLM summary (q, dates, video_id, playlist_id, limit_count, sort_by)
 ```
 
-**CSS imports in page components**:
-```typescript
-import '../shared.css'        // Common page patterns (REQUIRED)
-import './<PageName>.css'     // Page-specific styles
-```
+---
 
-**Import paths**: Components in page directories are one level deeper:
-- `'../../components/ui'` - basic primitives
-- `'../../components/charts'` - visualization components
-- `'../../components/cards'` - card displays
-- `'../../components/tables'` - table/list components
-- `'../../components/features'` - complex features
-- `'../../utils/date'` - utilities
+### Key invariants
 
-**Shared styles** (`shared.css`):
-- `.page`, `.page-header`, `.page-content` - page layout
-- `.header-row`, `.header-left`, `.header-right` - header sections
-- `.filter-section`, `.filter-grid` - filter layouts
-- `.pagination-footer` - pagination bar
+- **Sync stage order** (never reorder): `videos` → `comments` → `audience` → `playlists` → `playlist_analytics` → `traffic` → `channel_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
+- **Shorts detection**: UUSH playlist only — fail-fast if unavailable
+- **Stage failure isolation**: failed stages are recorded; sync continues with remaining stages
+- **LLM config**: stored at `backend/data/<provider>.json`; `set_defaults()` called from `initialize()`; OpenAI probe call required for `loaded` status
+- **CPM**: ad-impression-weighted average, never summed
+- **Segmented analytics bounds**: `video_analytics`, `video_traffic_source`, `video_search_insights`, `playlist_analytics` all clamp per-request `query_start` to the active segment start
 
-**Page-specific styles**: Only styles unique to that page, no duplication of shared patterns
+---
 
-### Page Layout
-Standard structure:
-1. Header with filters/controls (right-aligned if not full-width)
-2. Main content (charts, tables, cards)
-3. Optional side rail (related content, context cards)
+### Adding a new sync stage
+1. `backend/src/youtube/<resource>.py` — fetch function
+2. `backend/src/database/schema.sql` — new table
+3. `backend/src/database/<table>.py` — get/upsert helpers
+4. `backend/src/sync.py` — `sync_<stage>()` function inserted in correct order
+5. `backend/src/helper/estimates.py` — estimation function
+6. `backend/src/routes/helpers.py` — update `estimate_min_api_calls_for_table`
+7. `frontend/src/pages/SyncSettings/SyncSettings.tsx` — add pull option to multiselect
 
-**Tabs**: Local state only (not URL params), default to first tab on navigation
+### Adding a new page
+1. `frontend/src/pages/<PageName>/` — create directory
+2. `<PageName>.tsx` — import `../shared.css` then `./<PageName>.css`
+3. `<PageName>.css` — page-specific styles only
+4. `index.ts` — `export { default } from './<PageName>'`
+5. `frontend/src/App.tsx` — add import + `<Route>`
 
-### Component Reuse
-**Critical**: Before creating custom UI, check existing components organized by pattern
+### Adding a new reusable component
+1. Pick category: `ui/` primitives · `charts/` · `cards/primitives/` · `cards/site/` · `tables/` · `features/`
+2. Create `<ComponentName>.tsx` + colocated `<ComponentName>.css` if needed
+3. Export from the directory's `index.ts`
 
-**UI primitives** (`frontend/src/components/ui/`):
-- `ActionButton` - standard buttons (primary/soft variants)
-- `Dropdown` - custom select (not native `<select>`)
-- `MultiSelect` - for filter chips; closes on outside click
-- `DateRangePicker` - date range inputs
-- `MarkdownTextbox` - read-only markdown/text output area with a copy-to-clipboard icon for raw markdown text
-- `PageSwitcher` + `PageSizePicker` - pagination
-- `ProfileImage` - profile images with fallback
+---
 
-**Visualization components** (`frontend/src/components/charts/`):
-- `DonutChart` - interactive pie/donut charts
-- `RatioBar` - single or segmented horizontal bars
-- `ProgressBar` - progress indicators
-- `MetricChartCard` - time-series charts with KPI chips
-- `UploadPublishMarkers` - video upload indicators for charts
+### PR checklist
+- lint and type check: green on changed files
+- no hardcoded colors or magic numbers
+- no `console.log` left in frontend code
+- diff is small and focused; include a brief summary of what changed and why
+- update `AGENTS.md` if behavior rules change
 
-**Feature components** (`frontend/src/components/features/`):
-- `DataRangeControl` - reusable analytics-style range control row (granularity + presets/year/custom)
-
-### Chart Components
-**Primary**: `MetricChartCard` - handles most time-series charts
-
-**Modes**:
-- Single-series: One metric selector, one line/bar
-- Multi-series: One metric selector, multiple comparison lines
-
-**Capabilities**:
-- Internal metric selection state
-- KPI chips with trend indicators (vs previous period)
-- Zero-fill gaps in date range
-- Granularity bucketing (`Daily/7-days/28-days/90-days/Monthly/Yearly`)
-- Upload markers with rebucketing
-
-**Data requirements**: Pass raw daily series, component handles aggregation
-
-### State Management
-**No global state** - use:
-- Local component state for UI-only (tabs, modals)
-- Local storage for user preferences (filters, pagination, sort)
-- URL params only for shareable links (not implemented yet)
-- Shared pagination state via `frontend/src/hooks/usePagination.ts` (handles shared page-size persistence and page reset when page size changes)
-
-**Storage keys**: Namespace by page (e.g., `videoDetailGranularity`, `commentsPageSettings`)
-
-## API Reference (Key Endpoints)
-
-### Videos
-- `GET /videos` - paginated list with filters (q matches title or id, privacy_status, content_type, published range)
-- `GET /videos/{video_id}` - single video metadata
-- `GET /videos/published` - upload markers for charts (supports content_type filter)
-
-### Analytics
-- `GET /analytics/channel-daily` - channel-level daily series (all content)
-- `GET /analytics/daily/summary` - aggregated daily series (with content_type filter)
-- `GET /analytics/video-daily` - per-video daily series
-- `GET /analytics/top-content` - ranked videos by metric (views/revenue/published_at)
-- `GET /analytics/traffic-sources` - channel traffic source breakdown
-- `GET /analytics/video-traffic-sources` - video-level traffic sources
-- `GET /analytics/video-traffic-source-top-videos` - top videos for a traffic source
-- `GET /analytics/video-search-insights` - top YouTube search terms by views from monthly `video_search_insights` rows (supports date range + optional `video_ids` CSV and `content_type`, no API-side result limit)
-- `GET /analytics/video-search-insights/videos` - per-search-term video list sorted by search-driven views (supports date range + required `search_term`, optional `video_ids` CSV and `content_type`)
-
-### Playlists
-- `GET /playlists` - paginated list with computed aggregates (q matches title or id)
-- `GET /playlists/{id}` - single playlist
-- `GET /playlists/{id}/items` - paginated playlist items with video analytics
-- `GET /analytics/playlist-daily` - playlist-level daily series
-- `GET /analytics/playlist-video-daily` - video-level daily series for playlist content
-
-### Audience
-- `GET /audience` - paginated audience with comment stats
-- `GET /audience/active` - top active members in rolling window
-- `GET /audience/{channel_id}` - single audience member detail
-
-### Comments
-- `GET /comments` - paginated comments with optional `q` (matches `text_display` only), `video_id`, `playlist_id`, `author_channel_id`, and date filters
-- `GET /comments/word-cloud/image` - renders a PNG word-cloud image from all comments matching active filters; supports optional `q` (matches `text_display` only) and optional `word_types` CSV (`noun,verb,proper_noun,adjective,adverb`)
-
-### Sync
-- `POST /sync` - trigger sync (accepts pulls array, date range, deep_sync flag)
-- `POST /sync/stop` - request graceful stop
-- `GET /sync/progress` - current sync status
-- `GET /sync/runs` - sync history (per-stage rows)
-
-### Stats
-- `GET /stats/overview` - DB metrics (row counts, storage breakdown)
-- `GET /stats/table-details` - table schema + date bounds
-- `GET /stats/table-api-calls` - estimated API usage for sync config
-
-### LLM
-- `GET /llm/schema` - returns provider settings schema (`provider`, `title`, `fields`) for dynamic settings UI
-- `GET /llm/settings` - returns current provider settings values for UI hydration (`model_name`, `temperature`, `base_url`, `has_api_key`)
-- `GET /llm/status` - returns active LLM status and current model
-- `POST /llm/configure` - applies provider settings, persists provider JSON config, and rebuilds the active backend model
-- `POST /llm/summarize-comments` - summarizes comments from DB matching active filters (`q`, `published_after`, `published_before`, optional `video_id`, `playlist_id`, `author_channel_id`) with optional `limit_count` and `sort_by` (`recency` or `like_count`)
-- `POST /llm/summarize-comments` `limit_count` supports `1..1000`; omitted/blank defaults to `1000`
-- OpenAI `loaded` status requires a successful minimal probe inference call (invalid API keys or unreachable providers keep status as `error`)
-
-## Code Style
-
-### Backend (Python)
-- Docstrings on all functions
-- Type hints on function signatures
-- Use `backend/src/utils/logger.py` for error logging only → `backend/outputs/`
-- No progress logs - only log errors with context
-- Single-line calls when short, multi-line for readability
-- Comments for non-obvious API behavior or pagination logic
-- Keep `.method()` on same line as object, don't start chained calls on new lines
-
-### Frontend (TypeScript/React)
-- Explicit types, avoid `any`
-- Extract components when reused 2+ times
-- CSS in colocated `.css` files, not inline styles
-- Use barrel exports (`index.ts`) for component directories
-- Prefer existing UI components over custom controls
-
-## Common Tasks
-
-### Add a new sync stage
-1. Add YouTube API fetch function to `backend/src/youtube/<resource>.py`
-2. Add DB table to `backend/src/database/schema.sql`
-3. Create DB helper in `backend/src/database/<table>.py` (get/upsert functions)
-4. Add `sync_<stage>()` function in `backend/src/sync.py`
-5. Insert stage in correct position in `sync_all()` stage order
-6. Add estimation function to `backend/src/helper/estimates.py`
-7. Update estimation logic in `backend/src/routes/helpers.py` (`estimate_min_api_calls_for_table`)
-8. Add pull option to `frontend/src/pages/SyncSettings.tsx` multiselect
-
-### Add a new chart to Analytics page
-1. Fetch data in `frontend/src/pages/Analytics.tsx` (or relevant page)
-2. If on a new tab, add tab option to page header
-3. If standard time-series, use `MetricChartCard` with series data
-4. If custom visualization, create component in `frontend/src/components/charts/`
-5. Handle granularity bucketing if not using `MetricChartCard`
-
-### Add a new page
-1. Create directory: `frontend/src/pages/<PageName>/`
-2. Create `<PageName>.tsx` with page component
-3. Create `<PageName>.css` with page-specific styles (no shared patterns)
-4. Add CSS imports: `import '../shared.css'` and `import './<PageName>.css'`
-5. Use `'../../'` prefix for all component/util imports (one level deeper)
-6. Create `index.ts`: `export { default } from './<PageName>'`
-7. Add route in `frontend/src/App.tsx`: `import PageName from './pages/<PageName>'`
-8. Add `<Route path="/page-path" element={<PageName />} />` to routes
-9. Import components from: `../../components/ui`, `../../components/charts`, `../../components/cards`, `../../components/tables`, or `../../components/features`
-
-### Add a new reusable component
-1. Determine component category by pattern:
-   - `ui/` - Basic primitives (buttons, dropdowns, inputs)
-   - `charts/` - Visualization components (charts, graphs)
-   - `cards/` - Card-based displays
-   - `tables/` - Table and list components
-   - `features/` - Complex domain-specific features
-2. Create component file in appropriate directory: `<ComponentName>.tsx`
-3. Create colocated styles if needed: `<ComponentName>.css`
-4. Add export to directory's `index.ts`: `export { default as ComponentName } from './<ComponentName>'`
-5. Export types if needed: `export type { ComponentType } from './<ComponentName>'`
-
-### Add a new filter to a list page
-1. Add filter UI in page header (use existing `Dropdown`, `DateRangePicker`, etc.)
-2. Wire filter value to component state
-3. Persist state in local storage on change
-4. Pass as query param to API call
-5. Add backend support in route handler + DB helper
-6. Update `AGENTS.md` if filter has special behavior
-
-## Troubleshooting
-
-### Frontend shows empty charts
-- Check API response format matches expected `{ items, totals }` structure
-- Verify date range isn't outside available data
-- Check browser console for data transformation errors
-- Ensure `MetricChartCard` receives daily series, not pre-aggregated data
-
-### Pagination broken on a page
-- Verify page size persisted in local storage (`globalPageSize` key)
-- Check `PageSwitcher` receives correct `totalPages` calculation
-- Ensure backend `total` count matches actual filtered results
-
-### Upload markers not showing
-- Check `GET /videos/published` or `/playlists/{id}/published` returns data
-- Verify `video_id` present in response (required for clickable markers)
-- Check `MetricChartCard` receives `publishedSeries` prop
-- Ensure date range in marker query matches chart range
-
-## Page-Specific Behaviors
-
-### SyncSettings (`frontend/src/pages/SyncSettings.tsx`)
-- Pull options: `videos`, `comments`, `audience`, `playlists`, `channel_analytics`, `video_analytics`, `playlist_analytics`, `video_traffic_source`, `video_search_insights`
-- Period selector includes `From Latest Date` (uses DB latest date as start)
-- Database Overview: Donut chart (storage) + table metrics grid (row counts)
-- API estimate bars: Normalized to quotas (Data API = 10k, Analytics = 100k)
-- Sync Runs table shows per-stage execution history (not per-sync aggregates)
-- Sync Runs table headers are center-aligned
-- Sync Runs row content is centered for `Pulls`, `Deep Sync`, and `Error` columns
-- Sync Runs status column uses indicators: green dot = `success`, red dot = `failed`, square stop icon = `manual_stop`
-- Sync Runs table column widths are weighted toward `Range` and `Pulls` while keeping short columns (`Deep Sync`, `Duration`, `Status`, `Error`) compact
-
-### Analytics (`frontend/src/pages/Analytics.tsx`)
-- Three tabs: `Metrics`, `Monetization`, `Discovery`
-- Content selector: `All Videos`, `Longform`, `Shortform`
-- Granularity: `Daily/7-days/28-days/90-days/Monthly/Yearly`
-- Chart range trims to first/last day with data, zero-fills gaps inside
-- Upload markers rebucket to match granularity
-- Discovery tab includes a "Top YouTube search terms" card under traffic source share; it aggregates monthly search insights for all videos in the active date range (optionally filtered by selected content type)
-- Discovery tab traffic-source side rail fetches up to 10 videos for the selected source in "Top videos by traffic source"
-- Top YouTube search terms card displays the top 10 terms by views
-- Hovering the search-terms card `Videos` column uses `UploadPublishTooltip` to show all matching videos for that search term, sorted by views from search (desc)
-
-### VideoDetail (`frontend/src/pages/VideoDetail.tsx`)
-- Three tabs: `Analytics`, `Monetization`, `Discovery` (local state, not URL)
-- Selected tab persists in local storage (`videoDetailTab`) across navigations
-- Discovery tab: Multi-series traffic source chart + share card
-- Discovery tab side row includes `Top YouTube search terms` next to traffic source share, scoped to the current video and active date range
-- Comments tab: Flat list (no inline replies), sorts by date/likes/reply_count
-- Comments tab includes the reusable `CommentFilter` (search text, posted date range, sort, reset); the same filter set drives list, word-cloud, and LLM summary
-- Comments tab: Shows `LLM Summary` (left) and word-cloud (right) cards above the comments section, scoped to the current video
-
-### PlaylistDetail (`frontend/src/pages/PlaylistDetail.tsx`)
-- Four tabs: `Metrics`, `Monetization`, `Discovery`, `Comments`
-- Content selector: `Playlist Views` vs `Video Views` (different data sources)
-- Items table: Sortable Position/Added/Views columns, hover actions
-- No search input on items view
-- Comments tab: Uses the reusable `CommentFilter` (search text, posted date range, sort, reset); the same filter set drives list, word-cloud, and LLM summary; grouped data + pagination state are page-owned and passed into `CommentsSection`
-- Comments tab: Shows `LLM Summary` (left) and word-cloud (right) cards above the comments section, scoped to the current playlist
-- Discovery side rail includes `Top YouTube search terms` under traffic cards, scoped to videos in the current playlist and active date range
-
-### Comments (`frontend/src/pages/Comments/Comments.tsx`)
-- Includes a dedicated word-cloud card between filters and comments section
-- Filter row includes a left-aligned `Search comment text` input; the same filter set drives comments list, word-cloud, and LLM summary
-- Includes an `LLM Summary` card next to the word-cloud card (two-column layout on desktop, stacked on smaller screens)
-- LLM Summary runs only on button click (manual trigger, never automatic)
-- LLM Summary source is all comments in DB matching active page filters (not current page rows only); max comments defaults to `50`
-- LLM Summary max comments accepts `1..1000` in the input UI; leaving it blank defaults to `1000`
-- LLM Summary controls show explicit labels (`Max comments`, `Rank by`) and do not render a `Using X of Y comments` helper line
-- `Max comments` label includes a tooltip help indicator explaining: `Leave blank to default to 1000 comments.`
-- LLM Summary output uses an always-visible markdown-rendered textbox (headings/bold/lists/code formatting rendered, not raw markdown text) and stays inside fixed card height with internal scrolling
-- Word cloud card displays backend-generated PNG from `GET /comments/word-cloud/image` using active page filters (not limited to current page rows)
-- Word cloud image colors use the WordCloud library defaults (no backend hardcoded palette)
-- Word cloud card includes a labeled `Word types` multiselect above the image (nouns, verbs, proper nouns, adjectives, adverbs)
-- Word-type multiselect spans the full card row width
-- Word cloud generation is manual via a full-width `Generate word cloud` button below the `Word types` multiselect (never auto-runs on filter changes)
-- Word cloud image viewport height is responsive and capped on large screens to prevent oversized full-screen rendering
-
-### LLMSettings (`frontend/src/pages/LLMSettings/LLMSettings.tsx`)
-- Loads settings schema from `GET /llm/schema` and renders a dynamic settings form from schema field definitions
-- Hydrates form values from `GET /llm/settings` defaults/current values
-- Saves form values through `POST /llm/configure` to persist and rebuild the active LLM provider
-- Shows schema title only (provider subtitle hidden), uses a full-width `Save settings` button, and does not display a success banner after save
-- Shows a status dot next to the schema title from `GET /llm/status`: green when `loaded`, red otherwise
-- API key is optional when saving settings; leaving it blank keeps the previously stored key
-
-## Component Reference
-
-**UI primitives** (`frontend/src/components/ui/`):
-- `ActionButton`, `Dropdown`, `MultiSelect`, `DateRangePicker`, `YearInput`, `MarkdownTextbox`
-- `PageSwitcher`, `PageSizePicker` (global page size in local storage; page state commonly managed by `frontend/src/hooks/usePagination.ts`)
-- `ProfileImage` - profile images with fallback
-
-**Visualization components** (`frontend/src/components/charts/`):
-- `MetricChartCard` - primary time-series chart (single/multi-series, KPI chips, trends)
-- `DonutChart` - interactive pie/donut charts
-- `RatioBar` - single or segmented horizontal bars  
-- `ProgressBar` - progress indicators
-- `UploadPublishMarkers`, `UploadPublishTooltip` - video upload indicators for charts
-
-**Card components** (`frontend/src/components/cards/`):
-- **`primitives/`** — Generic card containers and chart wrappers: `PageCard`, `DonutChartCard`, `HistogramChartCard`
-- **`site/`** — Domain-specific feature cards used across site pages:
-  - `CommentsWordCloudCard` - displays backend-rendered word-cloud PNG from filtered comments; includes `Word types` multiselect and manual generate button
-  - `LlmSummaryCard` - displays manual LLM-generated summary output and summarize controls for loaded comments
-  - `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
-  - `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards
-  - `TrafficSourceShareCard`, `TrafficSourceTopVideosCard` - traffic source cards
-  - `SearchInsightsTopTermsCard` - top monthly YouTube search terms aggregated for the active Discovery range/filter context
-  - `VideoDetailListCard` - top content cards with typical-range meters
-
-**Table/List components** (`frontend/src/components/tables/`):
-- `VideoListTable`, `VideoListRow` - video list display
-- `PlaylistItemsTable`, `PlaylistItemRow` - playlist items display
-- `TopContentTable` - top content table for analytics
-- `CommentThreadItem`, `CommentVideoGroup`, `CommentsSection` - comment displays
-
-**Feature components** (`frontend/src/components/features/`):
-- `DataRangeControl` - reusable analytics-style range control (granularity + presets/year/custom)
-- `CommentFilter` - reusable comments filter row (search comment text, date range, sort, reset)
-- `buildCommentGroups()` - helper for grouping comments by video
+### When stuck
+- ask a clarifying question or propose a short plan before making large speculative changes
+- do not push wide refactors without confirmation
 
 
 
