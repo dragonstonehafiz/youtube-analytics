@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton } from '../ui'
+import { ActionButton } from '../../ui'
 import './ChannelAnalyticsCard.css'
 
 type ChannelSummary = {

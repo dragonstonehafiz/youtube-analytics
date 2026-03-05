@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useHideMonetaryValues, useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
+import { useHideMonetaryValues, useHideVideoTitles, useHideVideoThumbnails } from '../../../hooks/usePrivacyMode'
 
 type MonetizationContentType = 'video' | 'short'
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import ActionButton from '../ui/ActionButton'
-import { useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
+import ActionButton from '../../ui/ActionButton'
+import { useHideVideoTitles, useHideVideoThumbnails } from '../../../hooks/usePrivacyMode'
 import './VideoDetailListCard.css'
 
 export type VideoDetailListItem = {

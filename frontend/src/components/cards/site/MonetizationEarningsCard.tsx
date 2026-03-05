@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useHideMonetaryValues } from '../../hooks/usePrivacyMode'
+import { useHideMonetaryValues } from '../../../hooks/usePrivacyMode'
 import './MonetizationEarningsCard.css'
 
 type MonetizationMonthly = {

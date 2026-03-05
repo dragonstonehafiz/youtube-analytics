@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { DonutChart, RatioBar, type DonutSegmentResolved } from '../charts'
-import { TooltipIcon } from '../ui'
+import { DonutChart, RatioBar, type DonutSegmentResolved } from '../../charts'
+import { TooltipIcon } from '../../ui'
 import './DonutChartCard.css'
 
 type DonutChartCardSegment = {

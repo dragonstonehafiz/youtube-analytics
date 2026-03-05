@@ -1,4 +1,4 @@
-import { ActionButton, MultiSelect } from '../ui'
+import { ActionButton, MultiSelect } from '../../ui'
 import './CommentsWordCloudCard.css'
 
 type CommentsWordCloudCardProps = {

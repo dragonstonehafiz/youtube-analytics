@@ -470,14 +470,15 @@ Standard structure:
 - `UploadPublishMarkers`, `UploadPublishTooltip` - video upload indicators for charts
 
 **Card components** (`frontend/src/components/cards/`):
-- `PageCard` - generic card container
-- `CommentsWordCloudCard` - displays backend-rendered word-cloud PNG from filtered comments; includes `Word types` multiselect and manual generate button
-- `LlmSummaryCard` - displays manual LLM-generated summary output and summarize controls for loaded comments
-- `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
-- `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards
-- `TrafficSourceShareCard`, `TrafficSourceTopVideosCard` - traffic source cards
-- `SearchInsightsTopTermsCard` - top monthly YouTube search terms aggregated for the active Discovery range/filter context
-- `VideoDetailListCard` - top content cards with typical-range meters
+- **`primitives/`** — Generic card containers and chart wrappers: `PageCard`, `DonutChartCard`, `HistogramChartCard`
+- **`site/`** — Domain-specific feature cards used across site pages:
+  - `CommentsWordCloudCard` - displays backend-rendered word-cloud PNG from filtered comments; includes `Word types` multiselect and manual generate button
+  - `LlmSummaryCard` - displays manual LLM-generated summary output and summarize controls for loaded comments
+  - `ChannelAnalyticsCard`, `MostActiveAudienceCard`, `CommentsPreviewCard` - dashboard cards
+  - `MonetizationEarningsCard`, `MonetizationContentPerformanceCard` - monetization cards
+  - `TrafficSourceShareCard`, `TrafficSourceTopVideosCard` - traffic source cards
+  - `SearchInsightsTopTermsCard` - top monthly YouTube search terms aggregated for the active Discovery range/filter context
+  - `VideoDetailListCard` - top content cards with typical-range meters
 
 **Table/List components** (`frontend/src/components/tables/`):
 - `VideoListTable`, `VideoListRow` - video list display

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { HistogramChart } from '../charts'
+import { HistogramChart } from '../../charts'
 import './HistogramChartCard.css'
 
 type HistogramChartCardProps = {

@@ -1,4 +1,4 @@
-import { ActionButton, Dropdown, MarkdownTextbox } from '../ui'
+import { ActionButton, Dropdown, MarkdownTextbox } from '../../ui'
 import './LlmSummaryCard.css'
 
 type LlmSummaryCardProps = {

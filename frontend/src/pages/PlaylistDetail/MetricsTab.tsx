@@ -1,0 +1,376 @@
+import { useEffect, useMemo, useState } from 'react'
+import { MetricChartCard } from '../../components/charts'
+import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '../../components/cards'
+import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
+import { PageSizePicker, PageSwitcher } from '../../components/ui'
+import usePagination from '../../hooks/usePagination'
+import { formatCurrency, formatWholeNumber } from '../../utils/number'
+
+type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
+type SeriesPoint = { date: string; value: number }
+type PlaylistDailyRow = {
+  day: string
+  views: number | null
+  watch_time_minutes?: number | null
+  average_view_duration_seconds?: number | null
+  estimated_revenue?: number | null
+  subscribers_gained?: number | null
+  subscribers_lost?: number | null
+  average_time_in_playlist_seconds?: number | null
+}
+type PublishedDates = Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>
+
+function formatDurationSeconds(seconds: number | null | undefined): string {
+  const value = Number(seconds ?? 0)
+  if (!Number.isFinite(value) || value <= 0) return '-'
+  const rounded = Math.round(value)
+  const mins = Math.floor(rounded / 60)
+  const secs = rounded % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+type Props = {
+  playlistId: string | undefined
+  range: { start: string; end: string }
+  previousRange: { start: string; end: string }
+  granularity: Granularity
+  viewMode: 'playlist_views' | 'video_views'
+  onOpenVideo: (videoId: string) => void
+}
+
+export default function MetricsTab({ playlistId, range, previousRange, granularity, viewMode, onOpenVideo }: Props) {
+  const [playlistDailyRows, setPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [videoDailyRows, setVideoDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [previousPlaylistDailyRows, setPreviousPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [previousVideoDailyRows, setPreviousVideoDailyRows] = useState<PlaylistDailyRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [publishedDates, setPublishedDates] = useState<PublishedDates>({})
+  const [topPerformingItems, setTopPerformingItems] = useState<VideoDetailListItem[]>([])
+  const [topPerformingError, setTopPerformingError] = useState<string | null>(null)
+  const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
+  const [recentPerformingError, setRecentPerformingError] = useState<string | null>(null)
+  const [items, setItems] = useState<PlaylistItemRowData[]>([])
+  const [itemsTotal, setItemsTotal] = useState(0)
+  const [loadingItems, setLoadingItems] = useState(false)
+  const [errorItems, setErrorItems] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
+  const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
+  const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total: itemsTotal, defaultPageSize: 10 })
+
+  useEffect(() => { setPage(1) }, [sortBy, direction, setPage])
+
+  useEffect(() => {
+    async function loadItems() {
+      if (!playlistId) { setItems([]); setItemsTotal(0); return }
+      setLoadingItems(true)
+      setErrorItems(null)
+      try {
+        const offset = (page - 1) * pageSize
+        const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset), sort_by: sortBy, direction })
+        const res = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
+        if (!res.ok) throw new Error(`Failed to load playlist items (${res.status})`)
+        const data = await res.json()
+        setItems(Array.isArray(data.items) ? (data.items as PlaylistItemRowData[]) : [])
+        setItemsTotal(typeof data.total === 'number' ? data.total : 0)
+      } catch (err) {
+        setErrorItems(err instanceof Error ? err.message : 'Failed to load playlist items.')
+      } finally {
+        setLoadingItems(false)
+      }
+    }
+    loadItems()
+  }, [playlistId, page, pageSize, sortBy, direction])
+
+  const toggleSort = (key: PlaylistItemSortKey) => {
+    if (sortBy === key) { setDirection((prev) => (prev === 'asc' ? 'desc' : 'asc')); return }
+    setSortBy(key)
+    setDirection(key === 'position' ? 'asc' : 'desc')
+  }
+
+  useEffect(() => {
+    async function loadPlaylistAnalytics() {
+      if (!playlistId) {
+        setPlaylistDailyRows([])
+        setVideoDailyRows([])
+        setPreviousPlaylistDailyRows([])
+        setPreviousVideoDailyRows([])
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const [plCur, plPrev, vidCur, vidPrev] = await Promise.all([
+          fetch(`http://localhost:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`),
+          fetch(`http://localhost:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
+          fetch(`http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`),
+          fetch(`http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
+        ])
+        if (!plCur.ok || !plPrev.ok || !vidCur.ok || !vidPrev.ok) {
+          const status = !plCur.ok ? plCur.status : !plPrev.ok ? plPrev.status : !vidCur.ok ? vidCur.status : vidPrev.status
+          throw new Error(`Failed to load playlist analytics (${status})`)
+        }
+        const [plCurData, plPrevData, vidCurData, vidPrevData] = await Promise.all([
+          plCur.json(), plPrev.json(), vidCur.json(), vidPrev.json(),
+        ])
+        const sortRows = (rows: PlaylistDailyRow[]) =>
+          [...rows].filter((r) => typeof r.day === 'string').sort((a, b) => a.day.localeCompare(b.day))
+        setPlaylistDailyRows(sortRows((Array.isArray(plCurData.items) ? plCurData.items : []) as PlaylistDailyRow[]))
+        setPreviousPlaylistDailyRows(sortRows((Array.isArray(plPrevData.items) ? plPrevData.items : []) as PlaylistDailyRow[]))
+        setVideoDailyRows(sortRows((Array.isArray(vidCurData.items) ? vidCurData.items : []) as PlaylistDailyRow[]))
+        setPreviousVideoDailyRows(sortRows((Array.isArray(vidPrevData.items) ? vidPrevData.items : []) as PlaylistDailyRow[]))
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load playlist analytics.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadPlaylistAnalytics()
+  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end])
+
+  useEffect(() => {
+    async function loadPublished() {
+      if (!playlistId) { setPublishedDates({}); return }
+      try {
+        const response = await fetch(
+          `http://localhost:8000/playlists/${playlistId}/published?start_date=${range.start}&end_date=${range.end}`
+        )
+        if (!response.ok) throw new Error(`Failed to load playlist published dates (${response.status})`)
+        const data = await response.json()
+        const rawItems = Array.isArray(data.items) ? data.items : []
+        const map: PublishedDates = {}
+        rawItems.forEach((item: { day?: string; items?: unknown[] }) => {
+          if (item.day) map[item.day] = Array.isArray(item.items) ? item.items as PublishedDates[string] : []
+        })
+        setPublishedDates(map)
+      } catch { /* ignore */ }
+    }
+    loadPublished()
+  }, [playlistId, range.start, range.end])
+
+  useEffect(() => {
+    async function loadTopPerformingItems() {
+      if (!playlistId) { setTopPerformingItems([]); setTopPerformingError('Missing playlist ID.'); return }
+      setTopPerformingError(null)
+      try {
+        const params = new URLSearchParams({ limit: '10', offset: '0', sort_by: 'views', direction: 'desc' })
+        const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
+        if (!response.ok) throw new Error(`Failed to load top playlist content (${response.status})`)
+        const data = await response.json()
+        const rows = Array.isArray(data.items) ? (data.items as PlaylistItemRowData[]) : []
+        setTopPerformingItems(rows.filter((item) => Boolean(item.video_id)).map((item) => ({
+          video_id: item.video_id as string,
+          title: item.video_title || item.title || '(untitled)',
+          thumbnail_url: item.video_thumbnail_url || item.thumbnail_url || '',
+          published_at: item.video_published_at || item.published_at || '',
+          views: item.video_view_count ?? 0,
+          watch_time_minutes: item.video_watch_time_minutes ?? 0,
+          avg_view_duration_seconds: item.video_average_view_duration_seconds ?? 0,
+          avg_view_pct: 0,
+        })))
+      } catch (err) {
+        setTopPerformingError(err instanceof Error ? err.message : 'Failed to load top playlist content.')
+        setTopPerformingItems([])
+      }
+    }
+    loadTopPerformingItems()
+  }, [playlistId])
+
+  useEffect(() => {
+    async function loadRecentPerformingItems() {
+      if (!playlistId) { setRecentPerformingItems([]); setRecentPerformingError('Missing playlist ID.'); return }
+      setRecentPerformingError(null)
+      try {
+        const params = new URLSearchParams({ limit: '10', offset: '0', sort_by: 'recent_views', direction: 'desc' })
+        const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
+        if (!response.ok) throw new Error(`Failed to load recent top playlist content (${response.status})`)
+        const data = await response.json()
+        const rows = Array.isArray(data.items) ? (data.items as PlaylistItemRowData[]) : []
+        setRecentPerformingItems(rows.filter((item) => Boolean(item.video_id)).map((item) => ({
+          video_id: item.video_id as string,
+          title: item.video_title || item.title || '(untitled)',
+          thumbnail_url: item.video_thumbnail_url || item.thumbnail_url || '',
+          published_at: item.video_published_at || item.published_at || '',
+          views: item.video_recent_views ?? 0,
+          watch_time_minutes: item.video_watch_time_minutes ?? 0,
+          avg_view_duration_seconds: item.video_average_view_duration_seconds ?? 0,
+          avg_view_pct: 0,
+        })))
+      } catch (err) {
+        setRecentPerformingError(err instanceof Error ? err.message : 'Failed to load recent top playlist content.')
+        setRecentPerformingItems([])
+      }
+    }
+    loadRecentPerformingItems()
+  }, [playlistId])
+
+  const dailyRows = useMemo(
+    () => (viewMode === 'playlist_views' ? playlistDailyRows : videoDailyRows),
+    [viewMode, playlistDailyRows, videoDailyRows]
+  )
+  const previousDailyRows = useMemo(
+    () => (viewMode === 'playlist_views' ? previousPlaylistDailyRows : previousVideoDailyRows),
+    [viewMode, previousPlaylistDailyRows, previousVideoDailyRows]
+  )
+
+  const { series, previousSeries, totals } = useMemo(() => {
+    const sorted = [...dailyRows]
+      .filter((r) => typeof r.day === 'string' && r.day >= range.start && r.day <= range.end)
+      .sort((a, b) => a.day.localeCompare(b.day))
+    const empty = {
+      series: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], subscribers: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
+      previousSeries: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], subscribers: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
+      totals: { views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0, average_view_duration_seconds: 0, average_time_in_playlist_seconds: 0 },
+    }
+    if (sorted.length === 0) return empty
+    const byDay = new Map<string, PlaylistDailyRow>()
+    sorted.forEach((r) => byDay.set(r.day, r))
+    const prevFiltered = previousDailyRows
+      .filter((r) => typeof r.day === 'string' && r.day >= previousRange.start && r.day <= previousRange.end)
+      .sort((a, b) => a.day.localeCompare(b.day))
+    const previousByDay = new Map<string, PlaylistDailyRow>()
+    prevFiltered.forEach((r) => previousByDay.set(r.day, r))
+    const days: string[] = []
+    const cursor = new Date(`${sorted[0].day}T00:00:00Z`)
+    const end = new Date(`${sorted[sorted.length - 1].day}T00:00:00Z`)
+    while (cursor <= end) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1) }
+    const previousDays: string[] = []
+    if (prevFiltered.length > 0) {
+      const prevCursor = new Date(`${prevFiltered[0].day}T00:00:00Z`)
+      const prevEnd = new Date(`${prevFiltered[prevFiltered.length - 1].day}T00:00:00Z`)
+      while (prevCursor <= prevEnd) { previousDays.push(prevCursor.toISOString().slice(0, 10)); prevCursor.setUTCDate(prevCursor.getUTCDate() + 1) }
+    }
+    const subsSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
+      d.map((day) => viewMode === 'playlist_views'
+        ? { date: day, value: map.get(day)?.average_view_duration_seconds ?? 0 }
+        : { date: day, value: (map.get(day)?.subscribers_gained ?? 0) - (map.get(day)?.subscribers_lost ?? 0) })
+    const revSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
+      d.map((day) => ({
+        date: day,
+        value: viewMode === 'playlist_views' ? map.get(day)?.average_time_in_playlist_seconds ?? 0 : map.get(day)?.estimated_revenue ?? 0,
+      }))
+    return {
+      series: {
+        views: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })),
+        watch_time: days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
+        subscribers: subsSeries(days, byDay),
+        revenue: revSeries(days, byDay),
+      },
+      previousSeries: {
+        views: previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.views ?? 0 })),
+        watch_time: previousDays.map((day) => ({ date: day, value: Math.round((previousByDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
+        subscribers: subsSeries(previousDays, previousByDay),
+        revenue: revSeries(previousDays, previousByDay),
+      },
+      totals: {
+        views: sorted.reduce((sum, r) => sum + (r.views ?? 0), 0),
+        watch_time_minutes: sorted.reduce((sum, r) => sum + (r.watch_time_minutes ?? 0), 0),
+        subscribers_net: sorted.reduce((sum, r) => sum + (r.subscribers_gained ?? 0) - (r.subscribers_lost ?? 0), 0),
+        estimated_revenue: sorted.reduce((sum, r) => sum + (r.estimated_revenue ?? 0), 0),
+        average_view_duration_seconds: sorted.reduce((sum, r) => sum + (r.average_view_duration_seconds ?? 0), 0) / sorted.length,
+        average_time_in_playlist_seconds: sorted.reduce((sum, r) => sum + (r.average_time_in_playlist_seconds ?? 0), 0) / sorted.length,
+      },
+    }
+  }, [dailyRows, previousDailyRows, range.start, range.end, previousRange.start, previousRange.end, viewMode])
+  return (
+    <>
+      <div className="page-row">
+        <PageCard>
+          {loading ? (
+            <div className="video-detail-state">Loading playlist analytics...</div>
+          ) : error ? (
+            <div className="video-detail-state">{error}</div>
+          ) : (
+            <MetricChartCard
+              granularity={granularity}
+              metrics={[
+                { key: 'views', label: viewMode === 'playlist_views' ? 'Playlist Views' : 'Video Views', value: formatWholeNumber(totals.views) },
+                { key: 'watch_time', label: 'Watch time (hours)', value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)) },
+                {
+                  key: 'subscribers',
+                  label: viewMode === 'video_views' ? 'Subscribers' : 'Avg view duration',
+                  value: viewMode === 'video_views' ? formatWholeNumber(totals.subscribers_net) : formatDurationSeconds(totals.average_view_duration_seconds),
+                },
+                {
+                  key: 'revenue',
+                  label: viewMode === 'video_views' ? 'Estimated revenue' : 'Avg time in playlist',
+                  value: viewMode === 'video_views' ? formatCurrency(totals.estimated_revenue) : formatDurationSeconds(totals.average_time_in_playlist_seconds),
+                },
+              ]}
+              seriesByMetric={{
+                views: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views }],
+                watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time }],
+                subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers }],
+                revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue }],
+              }}
+              previousSeriesByMetric={{
+                views: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views }],
+                watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
+                subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers }],
+                revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
+              }}
+              comparisonAggregation={viewMode === 'playlist_views' ? { subscribers: 'avg', revenue: 'avg' } : {}}
+              durationMetrics={viewMode === 'playlist_views' ? ['subscribers', 'revenue'] : []}
+              publishedDates={publishedDates}
+            />
+          )}
+        </PageCard>
+      </div>
+      <div className="page-row">
+        <div className="playlist-detail-items-layout">
+          <div className="playlist-detail-main-column">
+            <PageCard>
+              {loadingItems ? (
+                <div className="video-detail-state">Loading playlist items...</div>
+              ) : errorItems ? (
+                <div className="video-detail-state">{errorItems}</div>
+              ) : (
+                <PlaylistItemsTable items={items} sortBy={sortBy} direction={direction} onToggleSort={toggleSort} />
+              )}
+              <div className="pagination-footer">
+                <div className="pagination-main">
+                  <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                </div>
+                <div className="pagination-size">
+                  <PageSizePicker value={pageSize} onChange={setPageSize} />
+                </div>
+              </div>
+            </PageCard>
+          </div>
+          <div className="playlist-detail-side-cards">
+            <PageCard>
+              {topPerformingError ? (
+                <div className="video-detail-state">{topPerformingError}</div>
+              ) : (
+                <VideoDetailListCard
+                  title="Top performing content"
+                  items={topPerformingItems}
+                  onOpenVideo={onOpenVideo}
+                  emptyText="No playlist videos available."
+                  actionLabel="See analytics"
+                  showTypicalRange
+                  metrics={['views', 'watch_time', 'avg_duration']}
+                />
+              )}
+            </PageCard>
+            <PageCard>
+              {recentPerformingError ? (
+                <div className="video-detail-state">{recentPerformingError}</div>
+              ) : (
+                <VideoDetailListCard
+                  title="Top performing content (last 90 days)"
+                  items={recentPerformingItems}
+                  onOpenVideo={onOpenVideo}
+                  emptyText="No recent playlist video activity."
+                  actionLabel="See analytics"
+                  showTypicalRange
+                  metrics={['views', 'watch_time', 'avg_duration']}
+                />
+              )}
+            </PageCard>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
