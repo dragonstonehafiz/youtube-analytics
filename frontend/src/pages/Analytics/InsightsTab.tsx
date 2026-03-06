@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
-import { ContentInsightsCard, DonutChartCard, HistogramChartCard, PageCard, type ContentInsights } from '../../components/cards'
-import { formatWholeNumber } from '../../utils/number'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, PageCard, type ContentInsights } from '../../components/cards'
+import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { formatWholeNumber, formatSecondsAsTime } from '../../utils/number'
 
 type Props = {
   range: { start: string; end: string }
@@ -12,6 +13,11 @@ type Props = {
 
 export default function InsightsTab({ range, contentType, onOpenVideo }: Props) {
   const [contentInsights, setContentInsights] = useState<ContentInsights | null>(null)
+  const [histogramHover, setHistogramHover] = useState<UploadHoverState | null>(null)
+  const [barChartHover, setBarChartHover] = useState<UploadHoverState | null>(null)
+  const histogramContainerRef = useRef<HTMLDivElement>(null)
+  const barChartContainerRef = useRef<HTMLDivElement>(null)
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     async function loadContentInsights() {
@@ -35,16 +41,107 @@ export default function InsightsTab({ range, contentType, onOpenVideo }: Props) 
     return views.length > 0 ? views : [0]
   }, [contentInsights?.all_video_views])
 
+  const histogramAvgViewDurationData = useMemo(() => {
+    const durations = contentInsights?.all_video_avg_view_durations ?? []
+    const durationsInMinutes = durations.map((d) => d / 60)
+    return durationsInMinutes.length > 0 ? durationsInMinutes : [0]
+  }, [contentInsights?.all_video_avg_view_durations])
+
+  const cancelHide = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
+    }
+  }
+
+  const scheduleHide = () => {
+    cancelHide()
+    hideTimeoutRef.current = setTimeout(() => {
+      setHistogramHover(null)
+      setBarChartHover(null)
+    }, 150)
+  }
+
+  const handleHistogramBinMouseEnter = (_binIndex: number, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
+    const videos = contentInsights?.all_videos ?? []
+    const views = contentInsights?.all_video_views ?? []
+    const videosInBin = dataIndices
+      .map((idx) => ({ video: videos[idx], views: views[idx] }))
+      .filter((item) => item.video !== undefined)
+      .sort((a, b) => b.views - a.views)
+
+    if (videosInBin.length === 0 || !histogramContainerRef.current) return
+
+    cancelHide()
+    const container = histogramContainerRef.current.getBoundingClientRect()
+    const rect = (event.currentTarget as SVGRectElement).getBoundingClientRect()
+
+    setHistogramHover({
+      x: rect.left + rect.width / 2 - container.left,
+      y: rect.bottom - container.top,
+      items: videosInBin.map((item) => ({
+        video_id: item.video.video_id,
+        title: item.video.title,
+        published_at: '',
+        thumbnail_url: item.video.thumbnail_url,
+        content_type: '',
+        detail: `${formatWholeNumber(item.views)} views · ${formatSecondsAsTime(item.video.avg_view_duration_seconds)} avg duration`,
+      })),
+      key: 'histogram',
+      startDate: range.start,
+      endDate: range.end,
+      dayCount: 0,
+    })
+  }
+
+  const handleHistogramBinMouseExit = () => {
+    scheduleHide()
+  }
+
+  const handleBarChartMouseEnter = (_bar: any, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
+    const videos = contentInsights?.all_videos ?? []
+    const views = contentInsights?.all_video_views ?? []
+    const videosInBar = dataIndices
+      .map((idx) => ({ video: videos[idx], views: views[idx] }))
+      .filter((item) => item.video !== undefined)
+      .sort((a, b) => b.views - a.views)
+
+    if (videosInBar.length === 0 || !barChartContainerRef.current) return
+
+    cancelHide()
+    const container = barChartContainerRef.current.getBoundingClientRect()
+    const rect = (event.currentTarget as SVGRectElement).getBoundingClientRect()
+
+    setBarChartHover({
+      x: rect.left + rect.width / 2 - container.left,
+      y: rect.bottom - container.top,
+      items: videosInBar.map((item) => ({
+        video_id: item.video.video_id,
+        title: item.video.title,
+        published_at: '',
+        thumbnail_url: item.video.thumbnail_url,
+        content_type: '',
+        detail: `${formatWholeNumber(item.views)} views`,
+      })),
+      key: 'bar-chart',
+      startDate: range.start,
+      endDate: range.end,
+      dayCount: 0,
+    })
+  }
+
+  const handleBarChartMouseExit = () => {
+    scheduleHide()
+  }
+
   return (
     <div className="analytics-monetization-layout">
       <PageCard>
         <ContentInsightsCard data={contentInsights} onOpenVideo={onOpenVideo} />
       </PageCard>
       <div className="analytics-monetization-cards-row">
-        <PageCard>
+        <PageCard title="New Uploads vs Old Upload Views">
           <DonutChartCard
-            title="New Uploads vs Old Upload Views"
-            titleTooltip="New uploads are videos uploaded in the current period. Old uploads are everything before that."
             segments={[
               { key: 'new', label: 'New uploads', value: contentInsights?.in_period_views ?? 0, color: '#0ea5e9', displayValue: `${contentInsights?.in_period_pct ?? 0}%` },
               { key: 'catalog', label: 'Old uploads', value: contentInsights?.catalog_views ?? 0, color: '#22c55e', displayValue: `${contentInsights?.catalog_pct ?? 0}%` },
@@ -54,9 +151,8 @@ export default function InsightsTab({ range, contentType, onOpenVideo }: Props) 
             ariaLabel="New uploads vs old uploads views"
           />
         </PageCard>
-        <PageCard>
+        <PageCard title="Shortform vs Longform Views">
           <DonutChartCard
-            title="Shortform vs Longform Views"
             segments={[
               { key: 'short', label: 'Short-form', value: contentInsights?.shortform_views ?? 0, color: '#f97316', displayValue: `${contentInsights?.shortform_pct ?? 0}%` },
               { key: 'long', label: 'Long-form', value: contentInsights?.longform_views ?? 0, color: '#a855f7', displayValue: `${contentInsights?.longform_pct ?? 0}%` },
@@ -67,14 +163,29 @@ export default function InsightsTab({ range, contentType, onOpenVideo }: Props) 
           />
         </PageCard>
       </div>
-      <PageCard>
-        <HistogramChartCard
-          title="Distribution of Video Views"
-          viewData={histogramViewData}
-          color="#0ea5e9"
-          binCount={20}
-        />
-      </PageCard>
+      <div ref={histogramContainerRef} style={{ position: 'relative' }}>
+        <PageCard title="Distribution of Average View Duration">
+          <HistogramChartCard
+            viewData={histogramAvgViewDurationData}
+            color="#0ea5e9"
+            binCount={15}
+            onBinMouseEnter={handleHistogramBinMouseEnter}
+            onBinMouseExit={handleHistogramBinMouseExit}
+          />
+        </PageCard>
+        <UploadPublishTooltip hover={histogramHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
+      </div>
+      <div ref={barChartContainerRef} style={{ position: 'relative' }}>
+        <PageCard title="Total Views by Percentile">
+          <BarChartCard
+            data={histogramViewData}
+            color="#0ea5e9"
+            onBarMouseEnter={handleBarChartMouseEnter}
+            onBarMouseLeave={handleBarChartMouseExit}
+          />
+        </PageCard>
+        <UploadPublishTooltip hover={barChartHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
+      </div>
     </div>
   )
 }

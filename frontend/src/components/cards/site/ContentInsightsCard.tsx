@@ -30,6 +30,8 @@ export type ContentInsights = {
   outlier_share_pct: number
   videos_with_views: number
   all_video_views: number[]
+  all_video_avg_view_durations: number[]
+  all_videos: Array<{ video_id: string; title: string; thumbnail_url: string; avg_view_duration_seconds: number }>
 }
 
 type ContentInsightsCardProps = {

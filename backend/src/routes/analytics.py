@@ -744,7 +744,8 @@ def get_content_insights(
                 v.published_at AS published_at,
                 v.thumbnail_url AS thumbnail_url,
                 v.content_type AS content_type,
-                SUM(a.views) AS views
+                SUM(a.views) AS views,
+                AVG(a.average_view_duration_seconds) AS average_view_duration_seconds
             FROM video_analytics a
             JOIN videos v ON v.id = a.video_id
             {playlist_join}
@@ -766,11 +767,13 @@ def get_content_insights(
         "p90_threshold": 0, "outlier_count": 0, "outlier_videos": [],
         "outlier_share_pct": 0.0, "videos_with_views": 0,
         "all_video_views": [],
+        "all_video_avg_view_durations": [],
     }
     if not rows:
         return empty
 
     views_list = [row["views"] or 0 for row in rows]
+    avg_view_duration_list = [row["average_view_duration_seconds"] or 0 for row in rows]
     total_views = sum(views_list)
     n = len(rows)
 
@@ -800,6 +803,16 @@ def get_content_insights(
             "thumbnail_url": row["thumbnail_url"] or "",
         }
 
+    all_videos = [
+        {
+            "video_id": row["video_id"],
+            "title": row["title"] or "(untitled)",
+            "thumbnail_url": row["thumbnail_url"] or "",
+            "avg_view_duration_seconds": row["average_view_duration_seconds"] or 0,
+        }
+        for row in rows
+    ]
+
     return {
         "total_videos": n,
         "in_period_views": in_period_views,
@@ -819,4 +832,6 @@ def get_content_insights(
         "outlier_share_pct": round(outlier_views / total_views * 100, 1) if total_views else 0.0,
         "videos_with_views": n,
         "all_video_views": views_list,
+        "all_video_avg_view_durations": avg_view_duration_list,
+        "all_videos": all_videos,
     }

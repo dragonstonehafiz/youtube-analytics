@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { DonutChart, RatioBar, type DonutSegmentResolved } from '../../charts'
-import { TooltipIcon } from '../../ui'
 import './DonutChartCard.css'
 
 type DonutChartCardSegment = {
@@ -12,16 +11,14 @@ type DonutChartCardSegment = {
 }
 
 type DonutChartCardProps = {
-  title: string
   segments: DonutChartCardSegment[]
   centerLabel: string
   centerValue: string
   ariaLabel: string
   size?: number
-  titleTooltip?: string
 }
 
-function DonutChartCard({ title, segments, centerLabel, centerValue, ariaLabel, size = 220, titleTooltip }: DonutChartCardProps) {
+function DonutChartCard({ segments, centerLabel, centerValue, ariaLabel, size = 220 }: DonutChartCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [cardWidth, setCardWidth] = useState(0)
   const [hoveredSegment, setHoveredSegment] = useState<DonutSegmentResolved | null>(null)
@@ -41,46 +38,42 @@ function DonutChartCard({ title, segments, centerLabel, centerValue, ariaLabel, 
 
   return (
     <div className={isCompact ? 'donut-chart-card compact' : 'donut-chart-card'} ref={cardRef}>
-      <div className={isCompact ? 'donut-chart-card-title-row compact' : 'donut-chart-card-title-row'}>
-        <div className={isCompact ? 'donut-chart-card-title compact' : 'donut-chart-card-title'}>{title}</div>
-        {titleTooltip && <TooltipIcon content={titleTooltip} />}
-      </div>
-      <div className="donut-chart-card-chart-column">
-        <div className="donut-chart-card-chart-wrap">
-          <DonutChart
-            segments={segments}
-            centerLabel={centerLabel}
-            centerValue={centerValue}
-            ariaLabel={ariaLabel}
-            size={size}
-            onHoverChange={setHoveredSegment}
-          />
+        <div className="donut-chart-card-chart-column">
+          <div className="donut-chart-card-chart-wrap">
+            <DonutChart
+              segments={segments}
+              centerLabel={centerLabel}
+              centerValue={centerValue}
+              ariaLabel={ariaLabel}
+              size={size}
+              onHoverChange={setHoveredSegment}
+            />
+          </div>
+          <div className="donut-chart-card-hover">
+            {hoveredSegment
+              ? `${hoveredSegment.label}: ${hoveredSegment.value.toLocaleString()} (${hoveredSegment.percent.toFixed(1)}%)`
+              : 'Hover over a slice to see views'}
+          </div>
         </div>
-        <div className="donut-chart-card-hover">
-          {hoveredSegment
-            ? `${hoveredSegment.label}: ${hoveredSegment.value.toLocaleString()} (${hoveredSegment.percent.toFixed(1)}%)`
-            : 'Hover over a slice to see views'}
-        </div>
-      </div>
-      {!isCompact ? (
-        <div className="donut-chart-card-legend">
-          {segments.map((segment) => {
-            const percent = total > 0 ? (segment.value / total) * 100 : 0
-            return (
-              <div key={segment.key} className="donut-chart-card-row">
-                <span className="donut-chart-card-label">{segment.label}</span>
-                <div className="donut-chart-card-bar-wrap">
-                  <RatioBar length="100%" color={segment.color} ratio={percent} />
+        {!isCompact ? (
+          <div className="donut-chart-card-legend">
+            {segments.map((segment) => {
+              const percent = total > 0 ? (segment.value / total) * 100 : 0
+              return (
+                <div key={segment.key} className="donut-chart-card-row">
+                  <span className="donut-chart-card-label">{segment.label}</span>
+                  <div className="donut-chart-card-bar-wrap">
+                    <RatioBar length="100%" color={segment.color} ratio={percent} />
+                  </div>
+                  <span className="donut-chart-card-value">{segment.displayValue}</span>
                 </div>
-                <span className="donut-chart-card-value">{segment.displayValue}</span>
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
-    </div>
-  )
-}
+              )
+            })}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
 export type { DonutChartCardSegment }
 export default DonutChartCard

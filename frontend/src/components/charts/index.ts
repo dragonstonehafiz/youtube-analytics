@@ -1,3 +1,4 @@
+export { default as BarChart } from './BarChart'
 export { default as DonutChart } from './DonutChart'
 export { default as HistogramChart } from './HistogramChart'
 export { default as MetricChartCard } from './MetricChartCard'
@@ -8,5 +9,6 @@ export { default as UploadPublishTooltip } from './UploadPublishTooltip'
 
 export type { ClusteredPublishMarker } from './UploadPublishMarkers'
 export type { UploadHoverState } from './UploadPublishTooltip'
+export type { BarChartBarInfo } from './BarChart'
 export type { DonutSegmentInput, DonutSegmentResolved } from './DonutChart'
 export type { LineSeries } from './MetricChartCard'

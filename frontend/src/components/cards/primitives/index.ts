@@ -1,3 +1,4 @@
+export { default as BarChartCard } from './BarChartCard'
 export { default as DonutChartCard } from './DonutChartCard'
 export type { DonutChartCardSegment } from './DonutChartCard'
 export { default as HistogramChartCard } from './HistogramChartCard'

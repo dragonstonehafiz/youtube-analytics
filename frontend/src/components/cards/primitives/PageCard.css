@@ -10,6 +10,10 @@
   font-size: 16px;
 }
 
+.page-card-title-content {
+  margin-bottom: 12px;
+}
+
 .page-card-body {
   min-height: 0;
 }

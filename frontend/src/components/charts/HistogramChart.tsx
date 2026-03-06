@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
-import { Tooltip } from '../ui'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { formatSecondsAsTime } from '../../utils/number'
 import './HistogramChart.css'
 
 type HistogramChartProps = {
@@ -9,9 +9,12 @@ type HistogramChartProps = {
   binSize?: number
   width?: number
   height?: number
+  fillWidth?: boolean
   xAxisLabel?: string
   yAxisLabel?: string
   ariaLabel?: string
+  onBinMouseEnter?: (binIndex: number, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => void
+  onBinMouseExit?: () => void
 }
 
 function HistogramChart({
@@ -19,14 +22,34 @@ function HistogramChart({
   color = '#0ea5e9',
   binCount,
   binSize,
-  width = 600,
+  width: widthProp = 600,
   height = 300,
+  fillWidth = false,
   xAxisLabel = 'Views',
   yAxisLabel = 'Count',
   ariaLabel = 'Histogram chart',
+  onBinMouseEnter,
+  onBinMouseExit,
 }: HistogramChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
-  const [hoverBin, setHoverBin] = useState<{ index: number; min: number; max: number; count: number; x: number; y: number } | null>(null)
+  const [containerWidth, setContainerWidth] = useState(widthProp)
+
+  useEffect(() => {
+    if (!fillWidth) return
+    const container = containerRef.current
+    if (!container) return
+
+    const resizeObserver = new ResizeObserver(() => {
+      const rect = container.getBoundingClientRect()
+      setContainerWidth(Math.max(300, rect.width))
+    })
+
+    resizeObserver.observe(container)
+    return () => resizeObserver.disconnect()
+  }, [fillWidth])
+
+  const width = fillWidth ? containerWidth : widthProp
   const padding = { top: 20, right: 20, bottom: 50, left: 70 }
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
@@ -38,7 +61,6 @@ function HistogramChart({
     const max = Math.max(...data)
     const range = max - min
 
-    // Determine bin configuration
     let finalBinSize: number
     let finalBinCount: number
 
@@ -50,28 +72,27 @@ function HistogramChart({
       finalBinSize = range > 0 ? range / finalBinCount : 1
     }
 
-    // Create exactly finalBinCount bins
     const binsArray = Array(finalBinCount)
       .fill(null)
       .map((_, i) => ({
         min: min + i * finalBinSize,
         max: min + (i + 1) * finalBinSize,
         count: 0,
+        dataIndices: [] as number[],
       }))
 
-    // Assign data points to bins
-    data.forEach((value) => {
+    data.forEach((value, index) => {
       if (range === 0) {
-        // All values are the same, put them in first bin
         binsArray[0].count++
+        binsArray[0].dataIndices.push(index)
       } else {
         let binIndex = Math.floor((value - min) / finalBinSize)
-        // Handle edge case where value equals max
         if (binIndex >= binsArray.length) {
           binIndex = binsArray.length - 1
         }
         if (binIndex >= 0) {
           binsArray[binIndex].count++
+          binsArray[binIndex].dataIndices.push(index)
         }
       }
     })
@@ -81,8 +102,8 @@ function HistogramChart({
 
   if (bins.length === 0) {
     return (
-      <div className="histogram-chart-empty">
-        <div>No data available</div>
+      <div ref={containerRef} className="histogram-chart-container">
+        <div className="histogram-chart-empty">No data available</div>
       </div>
     )
   }
@@ -92,7 +113,7 @@ function HistogramChart({
   const barPadding = barWidth * 0.1
 
   return (
-    <div className="histogram-chart-container">
+    <div ref={containerRef} className="histogram-chart-container">
       <svg
         ref={svgRef}
         className="histogram-chart-svg"
@@ -102,7 +123,6 @@ function HistogramChart({
         role="img"
         aria-label={ariaLabel}
       >
-        {/* Y-axis label */}
         <text
           x={padding.left}
           y={padding.top - 8}
@@ -115,18 +135,13 @@ function HistogramChart({
           {yAxisLabel}
         </text>
 
-        {/* Y-axis */}
         <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="#cbd5e1" strokeWidth="1" />
-
-        {/* X-axis */}
         <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="#cbd5e1" strokeWidth="1" />
 
-        {/* X-axis label */}
         <text x={width / 2} y={height - 10} fontSize="12" fontWeight="600" fill="#475569" textAnchor="middle">
           {xAxisLabel}
         </text>
 
-        {/* Grid lines and tick labels */}
         {Array.from({ length: 5 }).map((_, i) => {
           const ratio = i / 4
           const y = height - padding.bottom - ratio * chartHeight
@@ -141,7 +156,6 @@ function HistogramChart({
           )
         })}
 
-        {/* Bars */}
         {bins.map((bin, index) => {
           const barHeight = (bin.count / maxCount) * chartHeight
           const x = padding.left + index * barWidth + barPadding / 2
@@ -158,19 +172,12 @@ function HistogramChart({
                 opacity="0.8"
                 className="histogram-bar"
                 onMouseEnter={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  setHoverBin({
-                    index,
-                    min: bin.min,
-                    max: bin.max,
-                    count: bin.count,
-                    x: rect.left + rect.width / 2,
-                    y: rect.top,
-                  })
+                  onBinMouseEnter?.(index, bin.dataIndices, e as React.MouseEvent<SVGRectElement>)
                 }}
-                onMouseLeave={() => setHoverBin(null)}
+                onMouseLeave={() => {
+                  onBinMouseExit?.()
+                }}
               />
-              {/* Bin label */}
               <text
                 x={x + (barWidth - barPadding) / 2}
                 y={height - padding.bottom + 20}
@@ -179,26 +186,12 @@ function HistogramChart({
                 textAnchor="middle"
                 className="histogram-label"
               >
-                {Math.round(bin.min / 1000)}k
+                {formatSecondsAsTime(bin.min * 60)}
               </text>
             </g>
           )
         })}
-
       </svg>
-      {hoverBin && (
-        <Tooltip
-          x={hoverBin.x}
-          y={hoverBin.y}
-          content={
-            <>
-              {Math.round(hoverBin.min).toLocaleString()} - {Math.round(hoverBin.max).toLocaleString()}
-              <br />
-              {hoverBin.count.toLocaleString()} {hoverBin.count === 1 ? 'video' : 'videos'}
-            </>
-          }
-        />
-      )}
     </div>
   )
 }

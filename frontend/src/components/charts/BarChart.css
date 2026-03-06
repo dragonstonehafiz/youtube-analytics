@@ -1,35 +1,32 @@
-/* .histogram-chart-container {
+.bar-chart-container {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   height: 100%;
-} */
+}
 
-.histogram-chart-svg {
+.bar-chart-svg {
   display: block;
   font-family: inherit;
 }
 
-.histogram-bar {
+.bar-chart-bar {
   transition: opacity 0.2s ease;
   cursor: pointer;
 }
 
-.histogram-bar:hover {
+.bar-chart-bar:hover {
   opacity: 0.9 !important;
 }
 
-.histogram-curve {
-  transition: stroke-width 0.2s ease;
-}
-
-.histogram-label {
+.bar-chart-label {
   font-size: 10px;
   fill: #64748b;
+  pointer-events: none;
 }
 
-.histogram-chart-empty {
+.bar-chart-empty {
   display: flex;
   align-items: center;
   justify-content: center;
