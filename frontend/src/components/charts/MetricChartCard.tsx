@@ -48,6 +48,7 @@ type MetricChartCardProps = {
   seriesByMetric?: Record<string, LineSeries[]>
   previousSeriesByMetric?: Record<string, LineSeries[]>
   comparisonAggregation?: Record<string, 'sum' | 'avg'>
+  seriesAggregation?: Record<string, 'sum' | 'avg' | 'last'>
   durationMetrics?: string[]
   publishedDates?: Record<string, PublishedItem[]>
   showYearMarkers?: boolean
@@ -77,7 +78,7 @@ function buildContinuousDays(startDay: string, endDay: string): string[] {
 function aggregateFilledSeries(
   rawPoints: SeriesPoint[],
   granularity: Granularity,
-  aggregation: 'sum' | 'avg'
+  aggregation: 'sum' | 'avg' | 'last'
 ): AggregatedSeries {
   const groupedRaw = new Map<string, number>()
   rawPoints.forEach((point) => {
@@ -107,7 +108,7 @@ function aggregateFilledSeries(
   }
 
   if (granularity === 'monthly' || granularity === 'yearly') {
-    const buckets = new Map<string, { sum: number; count: number; startDate: string; endDate: string; dayCount: number }>()
+    const buckets = new Map<string, { sum: number; count: number; lastValue: number; startDate: string; endDate: string; dayCount: number }>()
     rawFilled.forEach((point) => {
       const bucketKey = granularity === 'monthly' ? point.date.slice(0, 7) : `${point.date.slice(0, 4)}-01-01`
       dayToBucket.set(point.date, bucketKey)
@@ -116,6 +117,7 @@ function aggregateFilledSeries(
         buckets.set(bucketKey, {
           sum: point.value,
           count: 1,
+          lastValue: point.value,
           startDate: point.date,
           endDate: point.date,
           dayCount: 1,
@@ -123,6 +125,7 @@ function aggregateFilledSeries(
       } else {
         existing.sum += point.value
         existing.count += 1
+        existing.lastValue = point.value
         existing.endDate = point.date
         existing.dayCount += 1
       }
@@ -136,7 +139,8 @@ function aggregateFilledSeries(
           endDate: bucket.endDate,
           dayCount: bucket.dayCount,
         }
-        return { date: key, value: aggregation === 'avg' ? bucket.sum / bucket.count : bucket.sum }
+        const value = aggregation === 'last' ? bucket.lastValue : aggregation === 'avg' ? bucket.sum / bucket.count : bucket.sum
+        return { date: key, value }
       })
     return { points, rawDays, bucketMeta, dayToBucket }
   }
@@ -156,7 +160,9 @@ function aggregateFilledSeries(
       dayCount: bucket.length,
     }
     const sum = bucket.reduce((acc, point) => acc + point.value, 0)
-    points.push({ date: bucketKey, value: aggregation === 'avg' ? sum / bucket.length : sum })
+    const lastValue = bucket[bucket.length - 1].value
+    const value = aggregation === 'last' ? lastValue : aggregation === 'avg' ? sum / bucket.length : sum
+    points.push({ date: bucketKey, value })
   }
 
   return { points, rawDays, bucketMeta, dayToBucket }
@@ -165,7 +171,7 @@ function aggregateFilledSeries(
 function aggregateFilledMultiSeries(
   rawLines: LineSeries[],
   granularity: Granularity,
-  aggregation: 'sum' | 'avg'
+  aggregation: 'sum' | 'avg' | 'last'
 ): AggregatedMultiSeries {
   const allDays = new Set<string>()
   const byLine = new Map<string, Map<string, number>>()
@@ -218,6 +224,7 @@ function MetricChartCard({
   seriesByMetric = {},
   previousSeriesByMetric = {},
   comparisonAggregation = {},
+  seriesAggregation = {},
   durationMetrics = [],
   publishedDates = {},
   showYearMarkers = true,
@@ -256,21 +263,21 @@ function MetricChartCard({
     const next: Record<string, AggregatedMultiSeries> = {}
     const keys = new Set<string>([...Object.keys(seriesByMetric), ...Object.keys(previousSeriesByMetric), ...metrics.map((metric) => metric.key)])
     keys.forEach((key) => {
-      const aggregation = comparisonAggregation[key] ?? 'sum'
+      const aggregation = (seriesAggregation?.[key] ?? 'sum') as 'sum' | 'avg' | 'last'
       next[key] = aggregateFilledMultiSeries(seriesByMetric[key] ?? [], granularity, aggregation)
     })
     return next
-  }, [seriesByMetric, previousSeriesByMetric, metrics, granularity, comparisonAggregation])
+  }, [seriesByMetric, previousSeriesByMetric, metrics, granularity, seriesAggregation])
 
   const previousAggregatedByMetric = useMemo(() => {
     const next: Record<string, AggregatedMultiSeries> = {}
     const keys = new Set<string>([...Object.keys(seriesByMetric), ...Object.keys(previousSeriesByMetric), ...metrics.map((metric) => metric.key)])
     keys.forEach((key) => {
-      const aggregation = comparisonAggregation[key] ?? 'sum'
+      const aggregation = (seriesAggregation?.[key] ?? comparisonAggregation[key] ?? 'sum') as 'sum' | 'avg' | 'last'
       next[key] = aggregateFilledMultiSeries(previousSeriesByMetric[key] ?? [], granularity, aggregation)
     })
     return next
-  }, [seriesByMetric, previousSeriesByMetric, metrics, granularity, comparisonAggregation])
+  }, [seriesByMetric, previousSeriesByMetric, metrics, granularity, comparisonAggregation, seriesAggregation])
 
   const activeLines = aggregatedByMetric[activeMetric]?.lines ?? []
   const isMulti = activeLines.length > 1
@@ -281,7 +288,7 @@ function MetricChartCard({
   const chartDayToBucket = chartData?.dayToBucket ?? new Map<string, string>()
   const chartBucketMeta = chartData?.bucketMeta ?? {}
 
-  const chartHeight = 300
+  const chartHeight = 350
   const padding = { top: 12, right: 0, bottom: 48, left: 56 }
   const innerWidth = chartWidth - padding.left - padding.right
   const innerHeight = chartHeight - padding.top - padding.bottom
@@ -577,13 +584,14 @@ function MetricChartCard({
   }, [chartRawDays.length])
 
   const computeComparison = (metricKey: string) => {
-    const aggregation = comparisonAggregation[metricKey] ?? 'sum'
+    const aggregation = seriesAggregation?.[metricKey] ?? comparisonAggregation[metricKey] ?? 'sum'
     const currentLines = aggregatedByMetric[metricKey]?.lines ?? []
     const previousLines = previousAggregatedByMetric[metricKey]?.lines ?? []
 
     const getValue = (lines: LineSeries[]) => {
       const values = lines.flatMap((line) => line.points.map((point) => point.value))
       if (values.length === 0) return 0
+      if (aggregation === 'last') return values.length > 0 ? values[values.length - 1] : 0
       if (aggregation === 'avg') return values.reduce((sum, value) => sum + value, 0) / values.length
       return values.reduce((sum, value) => sum + value, 0)
     }

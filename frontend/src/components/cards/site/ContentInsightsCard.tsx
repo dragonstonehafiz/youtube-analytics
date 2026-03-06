@@ -34,7 +34,7 @@ export type ContentInsights = {
   videos_with_views: number
   all_video_views: number[]
   all_video_avg_view_durations: number[]
-  all_videos: Array<{ video_id: string; title: string; thumbnail_url: string; avg_view_duration_seconds: number; content_type?: string }>
+  all_videos: Array<{ video_id: string; title: string; thumbnail_url: string; avg_view_duration_seconds: number; view_percentage: number; content_type?: string }>
 }
 
 type ContentInsightsCardProps = {
@@ -202,7 +202,7 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
         <div className="content-insights-stats-grid">
           {stats?.maxVideo && (
             <StatCard
-              label="Highest view"
+              label="Highest views"
               value={formatWholeNumber(stats.maxViews)}
               hoverable
               onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {

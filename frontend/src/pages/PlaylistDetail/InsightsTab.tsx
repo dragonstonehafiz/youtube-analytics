@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, type ContentInsights } from '../../components/cards'
 import { PageCard } from '../../components/cards'
+import { ScatterChart, type ScatterPoint } from '../../components/charts'
 import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
 import { formatWholeNumber, formatSecondsAsTime } from '../../utils/number'
 
@@ -13,8 +14,10 @@ export default function InsightsTab({ playlistId, range }: Props) {
   const [contentInsights, setContentInsights] = useState<ContentInsights | null>(null)
   const [histogramHover, setHistogramHover] = useState<UploadHoverState | null>(null)
   const [barChartHover, setBarChartHover] = useState<UploadHoverState | null>(null)
+  const [scatterHover, setScatterHover] = useState<UploadHoverState | null>(null)
   const histogramContainerRef = useRef<HTMLDivElement>(null)
   const barChartContainerRef = useRef<HTMLDivElement>(null)
+  const scatterContainerRef = useRef<HTMLDivElement>(null)
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -32,6 +35,82 @@ export default function InsightsTab({ playlistId, range }: Props) {
     }
     loadContentInsights()
   }, [playlistId, range.start, range.end])
+
+  const scatterPoints = useMemo((): ScatterPoint[] => {
+    const videos = contentInsights?.all_videos ?? []
+    const views = contentInsights?.all_video_views ?? []
+
+    // Find 80th percentile watch time (seconds)
+    const watchTimes = videos.map((v) => v.avg_view_duration_seconds ?? 0).sort((a, b) => a - b)
+    const p80WatchTime = watchTimes.length > 0 ? watchTimes[Math.floor(watchTimes.length * 0.8)] : 0
+
+    return videos.map((video, idx) => {
+      const videoViews = views[idx] ?? 0
+      const watchTime = video.avg_view_duration_seconds ?? 0
+      const watchPct = video.view_percentage ?? 0
+      const isShorts = video.content_type === 'short'
+      const isHighWatchTime = watchTime >= p80WatchTime
+
+      let color = '#0ea5e9' // default videos (blue)
+      if (isHighWatchTime) {
+        color = '#ec4899' // high watch time (pink)
+      } else if (isShorts) {
+        color = '#f97316' // shorts (orange)
+      }
+
+      return {
+        x: videoViews,
+        y: watchPct,
+        color,
+      }
+    })
+  }, [contentInsights])
+
+  const scatterMedianX = useMemo(() => {
+    const sorted = [...scatterPoints.map((p) => p.x)].sort((a, b) => a - b)
+    if (sorted.length === 0) return undefined
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+  }, [scatterPoints])
+
+  const scatterMedianY = useMemo(() => {
+    const sorted = [...scatterPoints.map((p) => p.y)].sort((a, b) => a - b)
+    if (sorted.length === 0) return undefined
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+  }, [scatterPoints])
+
+  const handleScatterPointMouseEnter = (index: number, event: React.MouseEvent<SVGCircleElement>) => {
+    const videos = contentInsights?.all_videos ?? []
+    const views = contentInsights?.all_video_views ?? []
+    const video = videos[index]
+    if (!video || !scatterContainerRef.current) return
+
+    cancelHide()
+    const container = scatterContainerRef.current.getBoundingClientRect()
+    const rect = (event.currentTarget as SVGCircleElement).getBoundingClientRect()
+
+    setScatterHover({
+      x: rect.left + rect.width / 2 - container.left,
+      y: rect.bottom - container.top,
+      items: [{
+        video_id: video.video_id,
+        title: video.title,
+        published_at: '',
+        thumbnail_url: video.thumbnail_url,
+        content_type: video.content_type ?? '',
+        detail: `${formatWholeNumber(views[index] ?? 0)} views · ${formatSecondsAsTime(video.avg_view_duration_seconds)} avg duration`,
+      }],
+      key: 'scatter',
+      startDate: range.start,
+      endDate: range.end,
+      dayCount: 0,
+    })
+  }
+
+  const handleScatterPointMouseLeave = () => {
+    scheduleHide()
+  }
 
   const histogramViewData = useMemo(() => {
     const views = contentInsights?.all_video_views ?? []
@@ -56,7 +135,8 @@ export default function InsightsTab({ playlistId, range }: Props) {
     hideTimeoutRef.current = setTimeout(() => {
       setHistogramHover(null)
       setBarChartHover(null)
-    }, 150)
+      setScatterHover(null)
+    }, 500)
   }
 
   const handleHistogramBinMouseEnter = (_binIndex: number, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
@@ -138,6 +218,24 @@ export default function InsightsTab({ playlistId, range }: Props) {
           <PageCard>
             <ContentInsightsCard data={contentInsights} range={range} playlistId={playlistId} />
           </PageCard>
+          <div ref={scatterContainerRef} style={{ position: 'relative' }}>
+            <PageCard title="Engagement Matrix: Views vs Watch %">
+              <ScatterChart
+                points={scatterPoints}
+                fillWidth
+                height={500}
+                xAxisLabel="Views"
+                yAxisLabel="Watch Percentage (%)"
+                ariaLabel="Views vs average view duration scatter chart"
+                logX
+                medianX={scatterMedianX}
+                medianY={scatterMedianY}
+                onPointMouseEnter={handleScatterPointMouseEnter}
+                onPointMouseLeave={handleScatterPointMouseLeave}
+              />
+            </PageCard>
+            <UploadPublishTooltip hover={scatterHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
+          </div>
           <div ref={histogramContainerRef} style={{ position: 'relative' }}>
             <PageCard title="Distribution of Average View Duration">
               <HistogramChartCard

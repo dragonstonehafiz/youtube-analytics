@@ -744,13 +744,14 @@ def get_content_insights(
                 v.published_at AS published_at,
                 v.thumbnail_url AS thumbnail_url,
                 v.content_type AS content_type,
+                v.duration_seconds AS duration_seconds,
                 SUM(a.views) AS views,
                 AVG(a.average_view_duration_seconds) AS average_view_duration_seconds
             FROM video_analytics a
             JOIN videos v ON v.id = a.video_id
             {playlist_join}
             WHERE {where_sql}
-            GROUP BY v.id
+            GROUP BY v.id, v.duration_seconds
             ORDER BY views DESC
             """,
             tuple(params),
@@ -816,6 +817,7 @@ def get_content_insights(
             "title": row["title"] or "(untitled)",
             "thumbnail_url": row["thumbnail_url"] or "",
             "avg_view_duration_seconds": row["average_view_duration_seconds"] or 0,
+            "view_percentage": round(((row["average_view_duration_seconds"] or 0) / (row["duration_seconds"] or 1)) * 100, 1),
             "content_type": row["content_type"] or "",
         }
         for row in rows
@@ -840,7 +842,6 @@ def get_content_insights(
         "outlier_count": len(outlier_rows),
         "outlier_videos": [video_item(r) for r in outlier_rows],
         "outlier_share_pct": round(outlier_views / total_views * 100, 1) if total_views else 0.0,
-        "videos_with_views": n,
         "all_video_views": views_list,
         "all_video_avg_view_durations": avg_view_duration_list,
         "all_videos": all_videos,
