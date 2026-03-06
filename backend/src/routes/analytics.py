@@ -763,11 +763,14 @@ def get_content_insights(
         "in_period_videos": [],
         "shortform_views": 0, "shortform_pct": 0.0,
         "longform_views": 0, "longform_pct": 0.0,
+        "shortform_video_count": 0,
+        "longform_video_count": 0,
         "median_views": 0, "mean_views": 0.0,
         "p90_threshold": 0, "outlier_count": 0, "outlier_videos": [],
         "outlier_share_pct": 0.0, "videos_with_views": 0,
         "all_video_views": [],
         "all_video_avg_view_durations": [],
+        "all_videos": [],
     }
     if not rows:
         return empty
@@ -786,6 +789,9 @@ def get_content_insights(
     shortform_views = sum(row["views"] or 0 for row in rows if (row["content_type"] or "") == "short")
     longform_views = sum(row["views"] or 0 for row in rows if (row["content_type"] or "") != "short")
 
+    shortform_video_count = len([r for r in in_period_rows if (r["content_type"] or "") == "short"])
+    longform_video_count = len([r for r in in_period_rows if (r["content_type"] or "") != "short"])
+
     sorted_views = sorted(views_list)
     median_views = sorted_views[n // 2]
     mean_views = total_views / n
@@ -801,6 +807,7 @@ def get_content_insights(
             "title": row["title"] or "(untitled)",
             "views": row["views"] or 0,
             "thumbnail_url": row["thumbnail_url"] or "",
+            "content_type": row["content_type"] or "",
         }
 
     all_videos = [
@@ -809,6 +816,7 @@ def get_content_insights(
             "title": row["title"] or "(untitled)",
             "thumbnail_url": row["thumbnail_url"] or "",
             "avg_view_duration_seconds": row["average_view_duration_seconds"] or 0,
+            "content_type": row["content_type"] or "",
         }
         for row in rows
     ]
@@ -824,6 +832,8 @@ def get_content_insights(
         "shortform_pct": round(shortform_views / total_views * 100, 1) if total_views else 0.0,
         "longform_views": longform_views,
         "longform_pct": round(longform_views / total_views * 100, 1) if total_views else 0.0,
+        "shortform_video_count": shortform_video_count,
+        "longform_video_count": longform_video_count,
         "median_views": median_views,
         "mean_views": round(mean_views, 1),
         "p90_threshold": p90_threshold,

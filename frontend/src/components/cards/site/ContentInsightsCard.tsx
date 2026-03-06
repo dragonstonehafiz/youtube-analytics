@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo, useEffect } from 'react'
 import { formatWholeNumber } from '../../../utils/number'
 import { StatCard } from '../../ui'
 import UploadPublishTooltip, { type UploadHoverState } from '../../charts/UploadPublishTooltip'
@@ -9,6 +9,7 @@ type InsightVideo = {
   title: string
   views: number
   thumbnail_url: string
+  content_type?: string
 }
 
 export type ContentInsights = {
@@ -22,6 +23,8 @@ export type ContentInsights = {
   shortform_pct: number
   longform_views: number
   longform_pct: number
+  shortform_video_count: number
+  longform_video_count: number
   median_views: number
   mean_views: number
   p90_threshold: number
@@ -31,12 +34,13 @@ export type ContentInsights = {
   videos_with_views: number
   all_video_views: number[]
   all_video_avg_view_durations: number[]
-  all_videos: Array<{ video_id: string; title: string; thumbnail_url: string; avg_view_duration_seconds: number }>
+  all_videos: Array<{ video_id: string; title: string; thumbnail_url: string; avg_view_duration_seconds: number; content_type?: string }>
 }
 
 type ContentInsightsCardProps = {
   data: ContentInsights | null
-  onOpenVideo?: (videoId: string) => void
+  range?: { start: string; end: string }
+  playlistId?: string
 }
 
 function buildHoverState(
@@ -55,7 +59,7 @@ function buildHoverState(
       title: v.title,
       published_at: '',
       thumbnail_url: v.thumbnail_url,
-      content_type: '',
+      content_type: v.content_type || '',
       detail: `${formatWholeNumber(v.views)} views`,
     })),
     key,
@@ -65,12 +69,43 @@ function buildHoverState(
   }
 }
 
-function ContentInsightsCard({ data }: ContentInsightsCardProps) {
+function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hoverState, setHoverState] = useState<UploadHoverState | null>(null)
   const [tooltipTitle, setTooltipTitle] = useState('')
   const [tooltipStats, setTooltipStats] = useState<string[]>([])
+  const [previousData, setPreviousData] = useState<ContentInsights | null>(null)
+
+  const previousRange = useMemo(() => {
+    if (!range || !range.start || !range.end) return { start: '', end: '' }
+    const start = new Date(range.start)
+    const end = new Date(range.end)
+    const daySpan = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    const prevEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000)
+    const prevStart = new Date(prevEnd.getTime() - (daySpan - 1) * 24 * 60 * 60 * 1000)
+    return {
+      start: prevStart.toISOString().split('T')[0],
+      end: prevEnd.toISOString().split('T')[0],
+    }
+  }, [range?.start, range?.end])
+
+  useEffect(() => {
+    async function loadPreviousData() {
+      if (!previousRange.start || !previousRange.end) return
+      try {
+        const playlistParam = playlistId ? `&playlist_id=${playlistId}` : ''
+        const response = await fetch(
+          `http://localhost:8000/analytics/content-insights?start_date=${previousRange.start}&end_date=${previousRange.end}${playlistParam}`
+        )
+        const prevData = await response.json()
+        setPreviousData(prevData)
+      } catch {
+        setPreviousData(null)
+      }
+    }
+    loadPreviousData()
+  }, [previousRange.start, previousRange.end, playlistId])
 
   const cancelHide = () => {
     if (hideTimeoutRef.current) {
@@ -84,6 +119,40 @@ function ContentInsightsCard({ data }: ContentInsightsCardProps) {
     hideTimeoutRef.current = setTimeout(() => setHoverState(null), 150)
   }
 
+  const stats = useMemo(() => {
+    if (!data) return null
+
+    const views = data.all_video_views
+    const n = views.length
+    const mean = data.mean_views
+
+    let stdDev = 0
+    if (n > 0) {
+      const variance = views.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / n
+      stdDev = Math.sqrt(variance)
+    }
+
+    const maxViews = views.length > 0 ? Math.max(...views) : 0
+    const maxViewIndex = views.length > 0 ? views.indexOf(maxViews) : -1
+    const maxVideo = maxViewIndex >= 0 ? data.all_videos[maxViewIndex] : null
+
+    const sorted = [...views].sort((a, b) => b - a)
+    const topQuartileIndex = Math.ceil(n * 0.25)
+    const top25Views = sorted.slice(0, topQuartileIndex).reduce((sum, v) => sum + v, 0)
+
+    const currentTotalViews = data.in_period_views + data.catalog_views
+    const previousTotalViews = previousData ? previousData.in_period_views + previousData.catalog_views : 0
+    const growth = previousTotalViews > 0 ? ((currentTotalViews - previousTotalViews) / previousTotalViews) * 100 : 0
+
+    return {
+      stdDev: Math.round(stdDev),
+      maxViews,
+      maxVideo,
+      top25Views,
+      growth: Math.round(growth * 10) / 10,
+    }
+  }, [data, previousData])
+
   if (!data || data.total_videos === 0) {
     return (
       <div className="content-insights-card">
@@ -92,15 +161,26 @@ function ContentInsightsCard({ data }: ContentInsightsCardProps) {
     )
   }
 
-  const totalOutlierViews = data.outlier_videos.reduce((sum, v) => sum + v.views, 0)
-
-  const handleOutlierEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleTop25Enter = (e: React.MouseEvent<HTMLDivElement>) => {
     cancelHide()
     const container = containerRef.current
     if (!container) return
-    setTooltipTitle('Top performers')
-    setTooltipStats([`${data.outlier_count} videos · \u2265${formatWholeNumber(data.p90_threshold)} views`])
-    setHoverState(buildHoverState(e.currentTarget, container, data.outlier_videos, 'outliers'))
+    setTooltipTitle('Top 25% videos')
+    setTooltipStats([`${formatWholeNumber(stats?.top25Views || 0)} views`])
+
+    const viewsWithIndices = data.all_video_views.map((v, idx) => ({ views: v, idx }))
+    const sorted = [...viewsWithIndices].sort((a, b) => b.views - a.views)
+    const topQuartileIndex = Math.ceil(data.all_videos.length * 0.25)
+    const topQuartile = sorted.slice(0, topQuartileIndex)
+
+    const videoItems = topQuartile.map(item => ({
+      video_id: data.all_videos[item.idx].video_id,
+      title: data.all_videos[item.idx].title,
+      views: item.views,
+      thumbnail_url: data.all_videos[item.idx].thumbnail_url,
+    }))
+
+    setHoverState(buildHoverState(e.currentTarget, container, videoItems, 'top25'))
   }
 
   return (
@@ -108,22 +188,42 @@ function ContentInsightsCard({ data }: ContentInsightsCardProps) {
       <h3 className="content-insights-card-title">Content Insights</h3>
       <div className="content-insights-body">
         <div className="content-insights-stats-grid">
-          <StatCard label="Median views" value={formatWholeNumber(data.median_views)} />
-          <StatCard label="Mean views" value={formatWholeNumber(Math.round(data.mean_views))} />
-          <StatCard label="Top 10% share" value={`${data.outlier_share_pct}%`} />
-          <StatCard label="Videos with views" value={formatWholeNumber(data.videos_with_views)} />
+          <StatCard label="Shortform uploads" value={String(data.shortform_video_count)} />
+          <StatCard label="Longform uploads" value={String(data.longform_video_count)} />
+          <StatCard label="View growth" value={`${stats?.growth ?? 0}%`} />
         </div>
 
-        {data.outlier_videos.length > 0 && (
+        <div className="content-insights-stats-grid">
+          <StatCard label="Median views" value={formatWholeNumber(data.median_views)} />
+          <StatCard label="Mean views" value={formatWholeNumber(Math.round(data.mean_views))} />
+          <StatCard label="Standard Deviation" value={formatWholeNumber(stats?.stdDev || 0)} />
+        </div>
+
+        <div className="content-insights-stats-grid">
+          {stats?.maxVideo && (
+            <StatCard
+              label="Highest view"
+              value={formatWholeNumber(stats.maxViews)}
+              hoverable
+              onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
+                cancelHide()
+                const container = containerRef.current
+                if (!container || !stats.maxVideo) return
+                setTooltipTitle('Best performing video')
+                setTooltipStats([stats.maxVideo.title])
+                setHoverState(buildHoverState(e.currentTarget, container, [{ video_id: stats.maxVideo.video_id, title: stats.maxVideo.title, views: stats.maxViews, thumbnail_url: stats.maxVideo.thumbnail_url, content_type: stats.maxVideo.content_type }], 'max-video'))
+              }}
+              onMouseLeave={scheduleHide}
+            />
+          )}
           <StatCard
-            label="Top performers"
-            value={formatWholeNumber(totalOutlierViews)}
-            sub={`${data.outlier_count} videos · \u2265${formatWholeNumber(data.p90_threshold)} views`}
+            label="Top 25% views"
+            value={formatWholeNumber(stats?.top25Views || 0)}
             hoverable
-            onMouseEnter={handleOutlierEnter}
+            onMouseEnter={handleTop25Enter}
             onMouseLeave={scheduleHide}
           />
-        )}
+        </div>
       </div>
       <UploadPublishTooltip
         hover={hoverState}

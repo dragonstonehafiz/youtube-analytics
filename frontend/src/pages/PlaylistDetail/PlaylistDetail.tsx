@@ -185,11 +185,10 @@ function PlaylistDetail() {
         </div>
         {analyticsTab === 'comments' ? (
           <CommentsTab playlistId={playlistId} />
-        ) : analyticsTab === 'insights' ? (
+        ) : analyticsTab === 'insights' && rangeValue ? (
           <InsightsTab
             playlistId={playlistId}
             range={rangeValue?.range ?? { start: '', end: '' }}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
         ) : analyticsTab === 'metrics' && rangeValue ? (
           <MetricsTab

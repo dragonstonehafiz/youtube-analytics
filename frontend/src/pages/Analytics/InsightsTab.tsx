@@ -11,7 +11,7 @@ type Props = {
   onOpenVideo: (videoId: string) => void
 }
 
-export default function InsightsTab({ range, contentType, onOpenVideo }: Props) {
+export default function InsightsTab({ range, contentType }: Props) {
   const [contentInsights, setContentInsights] = useState<ContentInsights | null>(null)
   const [histogramHover, setHistogramHover] = useState<UploadHoverState | null>(null)
   const [barChartHover, setBarChartHover] = useState<UploadHoverState | null>(null)
@@ -137,7 +137,7 @@ export default function InsightsTab({ range, contentType, onOpenVideo }: Props) 
   return (
     <div className="analytics-monetization-layout">
       <PageCard>
-        <ContentInsightsCard data={contentInsights} onOpenVideo={onOpenVideo} />
+        <ContentInsightsCard data={contentInsights} range={range} />
       </PageCard>
       <div className="analytics-monetization-cards-row">
         <PageCard title="New Uploads vs Old Upload Views">
@@ -161,6 +161,26 @@ export default function InsightsTab({ range, contentType, onOpenVideo }: Props) 
             centerValue={formatWholeNumber((contentInsights?.shortform_views ?? 0) + (contentInsights?.longform_views ?? 0))}
             ariaLabel="Short-form vs long-form views"
           />
+        </PageCard>
+        <PageCard title="Top 10% vs Other Videos Views">
+          {(() => {
+            const totalViews = (contentInsights?.in_period_views ?? 0) + (contentInsights?.catalog_views ?? 0)
+            const top10Pct = contentInsights?.outlier_share_pct ?? 0
+            const top10Views = Math.round(totalViews * (top10Pct / 100))
+            const otherViews = totalViews - top10Views
+            const otherPct = 100 - top10Pct
+            return (
+              <DonutChartCard
+                segments={[
+                  { key: 'top10', label: 'Top 10%', value: top10Views, color: '#ef4444', displayValue: `${formatWholeNumber(top10Pct)}%` },
+                  { key: 'other', label: 'Other videos', value: otherViews, color: '#94a3b8', displayValue: `${formatWholeNumber(otherPct)}%` },
+                ]}
+                centerLabel="Total views"
+                centerValue={formatWholeNumber(totalViews)}
+                ariaLabel="Top 10% vs other videos views"
+              />
+            )
+          })()}
         </PageCard>
       </div>
       <div ref={histogramContainerRef} style={{ position: 'relative' }}>
