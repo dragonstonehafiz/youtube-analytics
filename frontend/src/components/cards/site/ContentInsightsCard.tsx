@@ -119,6 +119,43 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
     hideTimeoutRef.current = setTimeout(() => setHoverState(null), 150)
   }
 
+  const handleStdDevEnter = (e: React.MouseEvent<HTMLDivElement>) => {
+    cancelHide()
+    const container = containerRef.current
+    if (!container || !stats) return
+
+    const mean = data.mean_views
+    const stdDev = stats.stdDev
+    const ratio = mean > 0 ? stdDev / mean : 0
+
+    let explanation = ''
+    if (ratio < 0.5) {
+      explanation = 'Videos tend to cluster around the average. Performance is fairly consistent'
+    } else if (ratio < 1.5) {
+      explanation = 'Moderate variation. Some videos perform above average, others below'
+    } else if (ratio < 3) {
+      explanation = 'Wide range in performance. Some videos significantly exceed the average'
+    } else {
+      explanation = 'Very high variation. Performance spans a large range with notable outliers'
+    }
+
+    setTooltipTitle('Performance Variation')
+    setTooltipStats([explanation])
+
+    setHoverState({
+      x: (e.currentTarget as HTMLDivElement).getBoundingClientRect().left +
+         (e.currentTarget as HTMLDivElement).getBoundingClientRect().width / 2 -
+         container.getBoundingClientRect().left,
+      y: (e.currentTarget as HTMLDivElement).getBoundingClientRect().bottom -
+         container.getBoundingClientRect().top,
+      items: [],
+      key: 'stddev',
+      startDate: '',
+      endDate: '',
+      dayCount: 0,
+    })
+  }
+
   const stats = useMemo(() => {
     if (!data) return null
 
@@ -196,7 +233,13 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
         <div className="content-insights-stats-grid">
           <StatCard label="Median views" value={formatWholeNumber(data.median_views)} />
           <StatCard label="Mean views" value={formatWholeNumber(Math.round(data.mean_views))} />
-          <StatCard label="Standard Deviation" value={formatWholeNumber(stats?.stdDev || 0)} />
+          <StatCard
+            label="Standard Deviation"
+            value={formatWholeNumber(stats?.stdDev || 0)}
+            hoverable
+            onMouseEnter={handleStdDevEnter}
+            onMouseLeave={scheduleHide}
+          />
         </div>
 
         <div className="content-insights-stats-grid">

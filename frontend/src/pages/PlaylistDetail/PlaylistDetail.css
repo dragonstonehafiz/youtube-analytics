@@ -105,6 +105,13 @@
   gap: 16px;
 }
 
+.playlist-insights-cards-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
 @media (max-width: 980px) {
   .playlist-detail-items-layout {
     grid-template-columns: 1fr;

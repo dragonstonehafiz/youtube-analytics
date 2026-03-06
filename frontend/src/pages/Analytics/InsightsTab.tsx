@@ -279,7 +279,7 @@ export default function InsightsTab({ range, contentType }: Props) {
             onPointMouseLeave={handleScatterPointMouseLeave}
           />
         </PageCard>
-        <UploadPublishTooltip hover={scatterHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
+        <UploadPublishTooltip hover={scatterHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
       </div>
       <div ref={histogramContainerRef} style={{ position: 'relative' }}>
         <PageCard title="Distribution of Average View Duration">
@@ -291,7 +291,7 @@ export default function InsightsTab({ range, contentType }: Props) {
             onBinMouseExit={handleHistogramBinMouseExit}
           />
         </PageCard>
-        <UploadPublishTooltip hover={histogramHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
+        <UploadPublishTooltip hover={histogramHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
       </div>
       <div ref={barChartContainerRef} style={{ position: 'relative' }}>
         <PageCard title="Total Views by Percentile">
@@ -302,7 +302,7 @@ export default function InsightsTab({ range, contentType }: Props) {
             onBarMouseLeave={handleBarChartMouseExit}
           />
         </PageCard>
-        <UploadPublishTooltip hover={barChartHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
+        <UploadPublishTooltip hover={barChartHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
       </div>
     </div>
   )

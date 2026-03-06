@@ -213,98 +213,96 @@ export default function InsightsTab({ playlistId, range }: Props) {
 
   return (
     <div className="page-row">
-      <div className="playlist-insights-layout">
-        <div className="playlist-insights-left">
-          <PageCard>
-            <ContentInsightsCard data={contentInsights} range={range} playlistId={playlistId} />
-          </PageCard>
-          <div ref={scatterContainerRef} style={{ position: 'relative' }}>
-            <PageCard title="Engagement Matrix: Views vs Watch %">
-              <ScatterChart
-                points={scatterPoints}
-                fillWidth
-                height={500}
-                xAxisLabel="Views"
-                yAxisLabel="Watch Percentage (%)"
-                ariaLabel="Views vs average view duration scatter chart"
-                logX
-                medianX={scatterMedianX}
-                medianY={scatterMedianY}
-                onPointMouseEnter={handleScatterPointMouseEnter}
-                onPointMouseLeave={handleScatterPointMouseLeave}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <PageCard>
+        <ContentInsightsCard data={contentInsights} range={range} playlistId={playlistId} />
+      </PageCard>
+      <div className="playlist-insights-cards-row">
+        <PageCard title="New Uploads vs Old Upload Views">
+          <DonutChartCard
+            segments={[
+              { key: 'new', label: 'New uploads', value: contentInsights?.in_period_views ?? 0, color: '#0ea5e9', displayValue: `${contentInsights?.in_period_pct ?? 0}%` },
+              { key: 'catalog', label: 'Old uploads', value: contentInsights?.catalog_views ?? 0, color: '#22c55e', displayValue: `${contentInsights?.catalog_pct ?? 0}%` },
+            ]}
+            centerLabel="Total views"
+            centerValue={formatWholeNumber((contentInsights?.in_period_views ?? 0) + (contentInsights?.catalog_views ?? 0))}
+            ariaLabel="New uploads vs old uploads views"
+          />
+        </PageCard>
+        <PageCard title="Shortform vs Longform Views">
+          <DonutChartCard
+            segments={[
+              { key: 'short', label: 'Short-form', value: contentInsights?.shortform_views ?? 0, color: '#f97316', displayValue: `${contentInsights?.shortform_pct ?? 0}%` },
+              { key: 'long', label: 'Long-form', value: contentInsights?.longform_views ?? 0, color: '#a855f7', displayValue: `${contentInsights?.longform_pct ?? 0}%` },
+            ]}
+            centerLabel="Total views"
+            centerValue={formatWholeNumber((contentInsights?.shortform_views ?? 0) + (contentInsights?.longform_views ?? 0))}
+            ariaLabel="Short-form vs long-form views"
+          />
+        </PageCard>
+        <PageCard title="Top 10% vs Other Videos Views">
+          {(() => {
+            const totalViews = (contentInsights?.in_period_views ?? 0) + (contentInsights?.catalog_views ?? 0)
+            const top10Pct = contentInsights?.outlier_share_pct ?? 0
+            const top10Views = Math.round(totalViews * (top10Pct / 100))
+            const otherViews = totalViews - top10Views
+            const otherPct = 100 - top10Pct
+            return (
+              <DonutChartCard
+                segments={[
+                  { key: 'top10', label: 'Top 10%', value: top10Views, color: '#ef4444', displayValue: `${formatWholeNumber(top10Pct)}%` },
+                  { key: 'other', label: 'Other videos', value: otherViews, color: '#94a3b8', displayValue: `${formatWholeNumber(otherPct)}%` },
+                ]}
+                centerLabel="Total views"
+                centerValue={formatWholeNumber(totalViews)}
+                ariaLabel="Top 10% vs other videos views"
               />
-            </PageCard>
-            <UploadPublishTooltip hover={scatterHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
-          </div>
-          <div ref={histogramContainerRef} style={{ position: 'relative' }}>
-            <PageCard title="Distribution of Average View Duration">
-              <HistogramChartCard
-                viewData={histogramAvgViewDurationData}
-                color="#0ea5e9"
-                binCount={15}
-                onBinMouseEnter={handleHistogramBinMouseEnter}
-                onBinMouseExit={handleHistogramBinMouseExit}
-              />
-            </PageCard>
-            <UploadPublishTooltip hover={histogramHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
-          </div>
-          <div ref={barChartContainerRef} style={{ position: 'relative' }}>
-            <PageCard title="Total Views by Percentile">
-              <BarChartCard
-                data={histogramViewData}
-                color="#0ea5e9"
-                onBarMouseEnter={handleBarChartMouseEnter}
-                onBarMouseLeave={handleBarChartMouseExit}
-              />
-            </PageCard>
-            <UploadPublishTooltip hover={barChartHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} />
-          </div>
-        </div>
-        <div className="playlist-insights-right">
-          <PageCard title="New Uploads vs Old Upload Views">
-            <DonutChartCard
-              segments={[
-                { key: 'new', label: 'New uploads', value: contentInsights?.in_period_views ?? 0, color: '#0ea5e9', displayValue: `${contentInsights?.in_period_pct ?? 0}%` },
-                { key: 'catalog', label: 'Old uploads', value: contentInsights?.catalog_views ?? 0, color: '#22c55e', displayValue: `${contentInsights?.catalog_pct ?? 0}%` },
-              ]}
-              centerLabel="Total views"
-              centerValue={formatWholeNumber((contentInsights?.in_period_views ?? 0) + (contentInsights?.catalog_views ?? 0))}
-              ariaLabel="New uploads vs old uploads views"
-            />
-          </PageCard>
-          <PageCard title="Shortform vs Longform Views">
-            <DonutChartCard
-              segments={[
-                { key: 'short', label: 'Short-form', value: contentInsights?.shortform_views ?? 0, color: '#f97316', displayValue: `${contentInsights?.shortform_pct ?? 0}%` },
-                { key: 'long', label: 'Long-form', value: contentInsights?.longform_views ?? 0, color: '#a855f7', displayValue: `${contentInsights?.longform_pct ?? 0}%` },
-              ]}
-              centerLabel="Total views"
-              centerValue={formatWholeNumber((contentInsights?.shortform_views ?? 0) + (contentInsights?.longform_views ?? 0))}
-              ariaLabel="Short-form vs long-form views"
-            />
-          </PageCard>
-          <PageCard title="Top 10% vs Other Videos Views">
-            {(() => {
-              const totalViews = (contentInsights?.in_period_views ?? 0) + (contentInsights?.catalog_views ?? 0)
-              const top10Pct = contentInsights?.outlier_share_pct ?? 0
-              const top10Views = Math.round(totalViews * (top10Pct / 100))
-              const otherViews = totalViews - top10Views
-              const otherPct = 100 - top10Pct
-              return (
-                <DonutChartCard
-                  segments={[
-                    { key: 'top10', label: 'Top 10%', value: top10Views, color: '#ef4444', displayValue: `${formatWholeNumber(top10Pct)}%` },
-                    { key: 'other', label: 'Other videos', value: otherViews, color: '#94a3b8', displayValue: `${formatWholeNumber(otherPct)}%` },
-                  ]}
-                  centerLabel="Total views"
-                  centerValue={formatWholeNumber(totalViews)}
-                  ariaLabel="Top 10% vs other videos views"
-                />
-              )
-            })()}
-          </PageCard>
-        </div>
+            )
+          })()}
+        </PageCard>
       </div>
+      <div ref={scatterContainerRef} style={{ position: 'relative' }}>
+        <PageCard title="Engagement Matrix: Views vs Watch %">
+          <ScatterChart
+            points={scatterPoints}
+            fillWidth
+            height={500}
+            xAxisLabel="Views"
+            yAxisLabel="Watch Percentage (%)"
+            ariaLabel="Views vs average view duration scatter chart"
+            logX
+            medianX={scatterMedianX}
+            medianY={scatterMedianY}
+            onPointMouseEnter={handleScatterPointMouseEnter}
+            onPointMouseLeave={handleScatterPointMouseLeave}
+          />
+        </PageCard>
+        <UploadPublishTooltip hover={scatterHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
+      </div>
+      <div ref={histogramContainerRef} style={{ position: 'relative' }}>
+        <PageCard title="Distribution of Average View Duration">
+          <HistogramChartCard
+            viewData={histogramAvgViewDurationData}
+            color="#0ea5e9"
+            binCount={15}
+            onBinMouseEnter={handleHistogramBinMouseEnter}
+            onBinMouseExit={handleHistogramBinMouseExit}
+          />
+        </PageCard>
+        <UploadPublishTooltip hover={histogramHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
+      </div>
+      <div ref={barChartContainerRef} style={{ position: 'relative' }}>
+        <PageCard title="Total Views by Percentile">
+          <BarChartCard
+            data={histogramViewData}
+            color="#0ea5e9"
+            onBarMouseEnter={handleBarChartMouseEnter}
+            onBarMouseLeave={handleBarChartMouseExit}
+          />
+        </PageCard>
+        <UploadPublishTooltip hover={barChartHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
+      </div>
+    </div>
     </div>
   )
 }
