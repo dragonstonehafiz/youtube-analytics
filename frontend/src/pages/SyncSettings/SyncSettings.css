@@ -5,12 +5,102 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  align-items: center;
-  justify-content: center;
-  min-height: 180px;
   border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  padding: 16px;
+}
+
+.sync-api-badge {
+  font-size: 12px;
+  color: var(--color-muted);
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+.sync-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.sync-control-row .dropdown-field,
+.sync-control-row .multi-select {
+  min-width: 180px;
+}
+
+.sync-control-row .date-range {
+  min-width: 260px;
+}
+
+.sync-control-row .year-input {
+  min-width: 120px;
+}
+
+.sync-estimate-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-estimate-meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.sync-estimate-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sync-estimate-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sync-estimate-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.sync-estimate-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #1e293b;
+}
+
+.sync-estimate-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 10px;
+}
+
+.sync-estimate-legend-label {
+  color: var(--color-muted);
+}
+
+.sync-estimate-legend-value {
+  font-weight: 700;
 }
 
 .sync-header-controls {
@@ -592,13 +682,14 @@
 .sync-table-footer {
   display: grid;
   grid-template-columns:
+    minmax(0, 0.8fr)
     minmax(0, 0.9fr)
-    minmax(0, 0.9fr)
-    minmax(0, 0.6fr)
+    minmax(0, 0.8fr)
     minmax(0, 0.4fr)
+    minmax(0, 0.5fr)
     minmax(0, 0.4fr)
-    minmax(0, 0.4fr)
-    minmax(0, 0.4fr);
+    minmax(0, 0.5fr)
+    minmax(0, 0.35fr);
   gap: 12px;
   align-items: center;
 }
@@ -636,8 +727,7 @@
 }
 
 .sync-table-row > span:nth-child(3),
-.sync-table-row > span:nth-child(4),
-.sync-table-row > span:nth-child(7) {
+.sync-table-row > span:nth-child(4) {
   justify-self: center;
   text-align: center;
 }
@@ -767,6 +857,96 @@
   line-height: 1.4;
   color: #0f172a;
   background: #f8fafc;
+}
+
+.sync-stage-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sync-stage-header {
+  display: grid;
+  grid-template-columns: 1fr 76px 76px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 14px;
+  background: rgba(148, 163, 184, 0.07);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-muted);
+}
+
+.sync-stage-header > span:not(:first-child) {
+  text-align: center;
+}
+
+.sync-stage-row {
+  display: grid;
+  grid-template-columns: 1fr 76px 76px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.sync-stage-label-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sync-stage-date-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-stage-date-controls .dropdown-field {
+  min-width: 140px;
+}
+
+.sync-stage-date-controls .year-input {
+  min-width: 100px;
+}
+
+.sync-stage-date-controls .date-range {
+  min-width: 240px;
+}
+
+.sync-stage-label {
+  font-size: 13px;
+  color: #1e293b;
+}
+
+.sync-stage-check-cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sync-stage-check-cell input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--color-brand, #0ea5e9);
+}
+
+.sync-stage-check-cell input[type='checkbox']:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.sync-card-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 @keyframes spin {

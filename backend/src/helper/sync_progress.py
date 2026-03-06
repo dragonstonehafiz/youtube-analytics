@@ -9,10 +9,10 @@ class SyncStopRequested(Exception):
 
 
 class SyncProgress:
-    """Track in-memory sync progress, status, and stop-request state."""
+    """Thread-safe in-memory sync progress and API-call tracker."""
 
     def __init__(self) -> None:
-        """Initialize thread-safe sync progress state."""
+        """Initialize with idle state."""
         self._lock = Lock()
         self._stop_requested = False
         self.started_at = ""
@@ -22,19 +22,23 @@ class SyncProgress:
         self.max_steps = 1
         self.message = ""
         self.stop_requested = False
+        self.total_api_calls = 0
 
-    def init(self, max_steps: int) -> None:
-        """Initialize progress for a new sync run."""
+    def try_start(self) -> bool:
+        """Atomically start a sync if none is running. Returns False if already running."""
         with self._lock:
-            safe_total = max(int(max_steps), 1)
+            if self.is_syncing:
+                return False
             self._stop_requested = False
             self.started_at = datetime.utcnow().isoformat() + "Z"
             self.status = "running"
             self.is_syncing = True
             self.current_step = 0
-            self.max_steps = safe_total
+            self.max_steps = 1
             self.message = ""
             self.stop_requested = False
+            self.total_api_calls = 0
+            return True
 
     def set_total(self, total: int) -> None:
         """Set max sync steps and clamp current step into bounds."""
@@ -57,18 +61,15 @@ class SyncProgress:
             next_value = max(0, min(current + int(step), max_steps))
             self.current_step = next_value
 
-    def decrement(self, step: int = 1) -> None:
-        """Decrement current step by a positive amount."""
+    def increment_api_calls(self, n: int = 1) -> None:
+        """Increment the running API call counter."""
         with self._lock:
-            current = int(self.current_step)
-            max_steps = max(int(self.max_steps), 1)
-            next_value = max(0, min(current - int(step), max_steps))
-            self.current_step = next_value
+            self.total_api_calls += max(int(n), 0)
 
-    def set_message(self, message: str) -> None:
-        """Set current sync progress message."""
+    def get_api_calls(self) -> int:
+        """Return the current total API call count."""
         with self._lock:
-            self.message = message
+            return self.total_api_calls
 
     def format_message(self, template: str, **values: object) -> str:
         """Format and store a progress message using current and total placeholders."""
@@ -82,7 +83,7 @@ class SyncProgress:
             return message
 
     def to_dict(self) -> dict[str, object]:
-        """Return a dictionary representation of the current progress state."""
+        """Return a dictionary snapshot of the current progress state."""
         with self._lock:
             return {
                 "started_at": self.started_at,
@@ -92,14 +93,11 @@ class SyncProgress:
                 "max_steps": self.max_steps,
                 "message": self.message,
                 "stop_requested": self.stop_requested,
+                "total_api_calls": self.total_api_calls,
             }
 
-    def snapshot(self) -> dict[str, object]:
-        """Return a copy of the current progress state."""
-        return self.to_dict()
-
     def mark_done(self, message: str | None = None) -> None:
-        """Mark sync progress as completed."""
+        """Mark sync as completed."""
         with self._lock:
             self.status = "done"
             self.is_syncing = False
@@ -109,7 +107,7 @@ class SyncProgress:
                 self.message = message
 
     def mark_stopped(self, message: str) -> None:
-        """Mark sync progress as manually stopped."""
+        """Mark sync as manually stopped."""
         with self._lock:
             self.status = "stopped"
             self.is_syncing = False
@@ -118,7 +116,7 @@ class SyncProgress:
             self._stop_requested = False
 
     def mark_failed(self, message: str) -> None:
-        """Mark sync progress as failed."""
+        """Mark sync as failed."""
         with self._lock:
             self.status = "failed"
             self.is_syncing = False

@@ -52,26 +52,27 @@ def _ensure_video_columns(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
-    """Add new columns to sync_runs table if missing (idempotent)."""
-    columns = [
-        ("error", "TEXT"),
-        ("start_date", "TEXT"),
-        ("end_date", "TEXT"),
-        ("deep_sync", "INTEGER DEFAULT 0"),
-        ("pulls", "TEXT"),
-    ]
-    for name, col_type in columns:
-        try:
-            conn.execute(f"ALTER TABLE sync_runs ADD COLUMN {name} {col_type}")
-        except sqlite3.OperationalError:
-            continue
-    try:
-        conn.execute(
-            "UPDATE sync_runs SET error = error_message WHERE (error IS NULL OR error = '') AND error_message IS NOT NULL"
+    """Migrate sync_runs to the current schema, dropping old data if the structure changed."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(sync_runs)").fetchall()}
+    if "total_api_calls" in existing:
+        return
+    conn.execute("DROP TABLE IF EXISTS sync_runs")
+    conn.execute(
+        """
+        CREATE TABLE sync_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            start_date TEXT,
+            end_date TEXT,
+            table_name TEXT NOT NULL,
+            deep_sync INTEGER NOT NULL DEFAULT 0,
+            total_api_calls INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'running',
+            error TEXT
         )
-    except sqlite3.OperationalError:
-        # Older DBs may not have both columns yet while migrating.
-        pass
+        """
+    )
 
 
 def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:

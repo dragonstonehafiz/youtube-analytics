@@ -221,6 +221,57 @@ def estimate_min_api_calls_for_table(
     return {"minimum_api_calls": 0, "basis": "table is DB-only / no direct Google API sync stage"}
 
 
+_DATA_STAGE_TABLE: dict[str, str] = {
+    "videos": "videos",
+    "comments": "comments",
+    "audience": "audience",
+    "playlists": "playlists",
+}
+
+_ANALYTICS_STAGE_TABLE: dict[str, str] = {
+    "playlist_analytics": "playlist_daily_analytics",
+    "traffic": "traffic_sources_daily",
+    "channel_analytics": "channel_analytics",
+    "video_analytics": "video_analytics",
+    "video_traffic_source": "video_traffic_source",
+    "video_search_insights": "video_search_insights",
+}
+
+
+def estimate_data_pulls(
+    conn: sqlite3.Connection,
+    pulls: list[str],
+    deep_sync: bool,
+) -> dict[str, int]:
+    """Estimate minimum API calls for each data-stage pull key."""
+    result: dict[str, int] = {}
+    for pull in pulls:
+        table = _DATA_STAGE_TABLE.get(pull)
+        if not table:
+            continue
+        data = estimate_min_api_calls_for_table(conn, table, None, None, deep_sync)
+        result[pull] = data["minimum_api_calls"]
+    return result
+
+
+def estimate_analytics_pulls(
+    conn: sqlite3.Connection,
+    pulls: list[str],
+    start_date: str | None,
+    end_date: str | None,
+    deep_sync: bool,
+) -> dict[str, int]:
+    """Estimate minimum API calls for each analytics-stage pull key."""
+    result: dict[str, int] = {}
+    for pull in pulls:
+        table = _ANALYTICS_STAGE_TABLE.get(pull)
+        if not table:
+            continue
+        data = estimate_min_api_calls_for_table(conn, table, start_date, end_date, deep_sync)
+        result[pull] = data["minimum_api_calls"]
+    return result
+
+
 def resolve_table_date_bounds(conn: sqlite3.Connection, table_name: str) -> dict:
     """Return oldest/newest date values for the most suitable date-like column in a table."""
     info_rows = conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()

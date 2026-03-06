@@ -1,66 +1,203 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActionButton,
   DateRangePicker,
   Dropdown,
-  MultiSelect,
   PageSizePicker,
   PageSwitcher,
-  StatCard,
   YearInput,
 } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
-import { DonutChart, ProgressBar, RatioBar, type DonutSegmentResolved } from '../../components/charts'
+import { ProgressBar, RatioBar } from '../../components/charts'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './SyncSettings.css'
 
-function SyncSettings() {
-  const formatTableMetricLabel = (table: string): string => {
-    const explicitLabels: Record<string, string> = {
-      video_analytics: 'Video analytics rows',
-      channel_analytics: 'Channel analytics rows',
-      playlist_daily_analytics: 'Playlist analytics rows',
-      traffic_sources_daily: 'Traffic source rows',
-      video_traffic_source: 'Video traffic source rows',
-      video_search_insights: 'Video search rows',
-      playlist_items: 'Playlist items',
-      playlists: 'Playlists',
-      videos: 'Videos',
-      comments: 'Comments',
-      audience: 'Audience',
-    }
-    if (explicitLabels[table]) {
-      return explicitLabels[table]
-    }
-    return table
-      .split('_')
-      .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
-      .join(' ')
+const DATA_STAGES = ['videos', 'comments', 'audience', 'playlists']
+const ANALYTICS_STAGES = [
+  'playlist_analytics',
+  'traffic',
+  'channel_analytics',
+  'video_analytics',
+  'video_traffic_source',
+  'video_search_insights',
+]
+
+const DATA_PULL_OPTIONS = [
+  { label: 'Videos', value: 'videos' },
+  { label: 'Comments', value: 'comments' },
+  { label: 'Audience', value: 'audience' },
+  { label: 'Playlists', value: 'playlists' },
+]
+
+const ANALYTICS_PULL_OPTIONS = [
+  { label: 'Playlist Analytics', value: 'playlist_analytics' },
+  { label: 'Traffic sources', value: 'traffic' },
+  { label: 'Channel analytics', value: 'channel_analytics' },
+  { label: 'Video analytics', value: 'video_analytics' },
+  { label: 'Video traffic source', value: 'video_traffic_source' },
+  { label: 'Video search insights', value: 'video_search_insights' },
+]
+
+function resolveAnalyticsDates(
+  rangeMode: string,
+  year: string,
+  startDate: string,
+  endDate: string,
+  todayStr: string,
+): { start: string | null; end: string | null } {
+  if (rangeMode === 'year' && year) return { start: `${year}-01-01`, end: `${year}-12-31` }
+  if (rangeMode === 'custom') return { start: startDate || todayStr, end: endDate || todayStr }
+  return { start: null, end: null }
+}
+
+const PULL_COLORS: Record<string, string> = {
+  videos: '#0ea5e9',
+  comments: '#f97316',
+  audience: '#22c55e',
+  playlists: '#8b5cf6',
+  playlist_analytics: '#ef4444',
+  traffic: '#06b6d4',
+  channel_analytics: '#eab308',
+  video_analytics: '#f43f5e',
+  video_traffic_source: '#14b8a6',
+  video_search_insights: '#6366f1',
+}
+
+type ApiCallRow = {
+  total: number
+  max: number
+  segments: { key: string; color: string; ratio: number; title: string }[]
+  legendItems: { key: string; label: string; value: number; color: string }[]
+}
+
+function buildApiCallRow(
+  selectedPulls: string[],
+  allOptions: { label: string; value: string }[],
+  byPull: Record<string, number>,
+  max: number,
+): ApiCallRow {
+  const activePulls =
+    selectedPulls.length > 0
+      ? selectedPulls.filter((p) => allOptions.some((o) => o.value === p))
+      : allOptions.map((o) => o.value)
+  const optionLabel = (key: string) => allOptions.find((o) => o.value === key)?.label ?? key
+  const total = activePulls.reduce((sum, p) => sum + (byPull[p] ?? 0), 0)
+  const visible = activePulls.filter((p) => (byPull[p] ?? 0) > 0)
+  return {
+    total,
+    max,
+    segments: visible.map((p) => ({
+      key: p,
+      color: PULL_COLORS[p] ?? '#64748b',
+      ratio: max > 0 ? ((byPull[p] ?? 0) / max) * 100 : 0,
+      title: `${optionLabel(p)}: ${(byPull[p] ?? 0).toLocaleString()}`,
+    })),
+    legendItems: visible.map((p) => ({
+      key: p,
+      label: optionLabel(p),
+      value: byPull[p] ?? 0,
+      color: PULL_COLORS[p] ?? '#64748b',
+    })),
   }
+}
+
+type ProgressState = {
+  is_syncing: boolean
+  current_step: number
+  max_steps: number
+  message: string
+  stop_requested?: boolean
+}
+
+type SyncRun = {
+  id: number
+  started_at: string
+  finished_at: string | null
+  status: string
+  error: string | null
+  start_date: string | null
+  end_date: string | null
+  table_name: string
+  deep_sync: number
+  total_api_calls: number
+}
+
+function SyncSettings() {
+  const today = new Date().toISOString().slice(0, 10)
+
+  type PullConfig = { included: boolean; deepSync: boolean }
+  type AnalyticsPullConfig = PullConfig & {
+    rangeMode: string
+    year: string
+    startDate: string
+    endDate: string
+  }
+
+  const storedData = getStored(
+    'syncSettingsData',
+    null as { pullConfigs?: Record<string, { included?: boolean; deepSync?: boolean }> } | null,
+  )
+  const storedAnalytics = getStored(
+    'syncSettingsAnalytics',
+    null as {
+      pullConfigs?: Record<
+        string,
+        { included?: boolean; deepSync?: boolean; rangeMode?: string; year?: string; startDate?: string; endDate?: string }
+      >
+    } | null,
+  )
+
+  // Data sync state
+  const [dataPullConfigs, setDataPullConfigs] = useState<Record<string, PullConfig>>(() => {
+    const stored = storedData?.pullConfigs ?? {}
+    return Object.fromEntries(
+      DATA_STAGES.map((s) => [
+        s,
+        { included: stored[s]?.included ?? true, deepSync: stored[s]?.deepSync ?? false },
+      ]),
+    )
+  })
+  const [dataPullApiCallsLoading, setDataPullApiCallsLoading] = useState(false)
+  const [dataPullApiCallsError, setDataPullApiCallsError] = useState<string | null>(null)
+  const [dataPullApiCallsByPull, setDataPullApiCallsByPull] = useState<Record<string, number>>({})
+  const [dataSyncError, setDataSyncError] = useState<string | null>(null)
+
+  // Analytics sync state
+  const [analyticsPullConfigs, setAnalyticsPullConfigs] = useState<
+    Record<string, AnalyticsPullConfig>
+  >(() => {
+    const stored = storedAnalytics?.pullConfigs ?? {}
+    return Object.fromEntries(
+      ANALYTICS_STAGES.map((s) => [
+        s,
+        {
+          included: stored[s]?.included ?? true,
+          deepSync: stored[s]?.deepSync ?? false,
+          rangeMode: stored[s]?.rangeMode ?? 'full',
+          year: stored[s]?.year ?? '',
+          startDate: stored[s]?.startDate ?? today,
+          endDate: stored[s]?.endDate ?? today,
+        },
+      ]),
+    )
+  })
+  const [analyticsPullApiCallsLoading, setAnalyticsPullApiCallsLoading] = useState(false)
+  const [analyticsPullApiCallsError, setAnalyticsPullApiCallsError] = useState<string | null>(null)
+  const [analyticsPullApiCallsByPull, setAnalyticsPullApiCallsByPull] = useState<
+    Record<string, number>
+  >({})
+  const [analyticsSyncError, setAnalyticsSyncError] = useState<string | null>(null)
+
+  // Shared sync/progress state
   const [isSyncing, setIsSyncing] = useState(false)
-  const storedSync = getStored('syncSettings', null as {
-    rangeMode?: string
-    startDate?: string
-    endDate?: string
-    year?: string
-    deepSync?: boolean
-    selectedPulls?: string[]
-  } | null)
-  const [runs, setRuns] = useState<
-    {
-      id: number
-      started_at: string
-      finished_at: string | null
-      status: string
-      error: string | null
-      start_date: string | null
-      end_date: string | null
-      deep_sync: number | null
-      pulls: string | null
-    }[]
-  >([])
+  const [progress, setProgress] = useState<ProgressState | null>(null)
+  const [syncNotice, setSyncNotice] = useState<string | null>(null)
+  const [stopRequestedByUser, setStopRequestedByUser] = useState(false)
+
+  // Runs state
+  const [runs, setRuns] = useState<SyncRun[]>([])
   const [runsTotal, setRunsTotal] = useState(0)
   const {
     page: runsPage,
@@ -69,76 +206,31 @@ function SyncSettings() {
     setPageSize: setRunsPageSize,
     totalPages: runsTotalPages,
   } = usePagination({ total: runsTotal, defaultPageSize: 10 })
-  const [overview, setOverview] = useState({
-    db_size_bytes: 0,
-    total_uploads: 0,
-    total_comments: 0,
-    total_audience: 0,
-    total_playlists: 0,
-    total_views: 0,
-    earliest_date: null as string | null,
-    latest_date: null as string | null,
-    video_analytics_rows: 0,
-    channel_analytics_rows: 0,
-    traffic_sources_rows: 0,
-    video_traffic_source_rows: 0,
-    video_search_rows: 0,
-    playlist_analytics_rows: 0,
-    table_storage: [] as { table: string; bytes: number; percent: number }[],
-    table_row_counts: [] as { table: string; rows: number }[],
-  })
-  const [deepSync, setDeepSync] = useState(storedSync?.deepSync ?? false)
-  const [progress, setProgress] = useState<{ is_syncing: boolean; current_step: number; max_steps: number; message: string; stop_requested?: boolean } | null>(null)
-  const [syncError, setSyncError] = useState<string | null>(null)
-  const [syncNotice, setSyncNotice] = useState<string | null>(null)
-  const [stopRequestedByUser, setStopRequestedByUser] = useState(false)
-  const [selectedRunError, setSelectedRunError] = useState<{ runId: number; text: string } | null>(null)
-  const [hoveredStorageSegment, setHoveredStorageSegment] = useState<DonutSegmentResolved | null>(null)
-  const [selectedOverviewTable, setSelectedOverviewTable] = useState('')
-  const [showTableColumns, setShowTableColumns] = useState(false)
-  const [tableDetailsLoading, setTableDetailsLoading] = useState(false)
-  const [tableDetailsError, setTableDetailsError] = useState<string | null>(null)
-  const [tableDetails, setTableDetails] = useState<{
-    table: string
-    date_column: string | null
-    oldest_item_date: string | null
-    newest_item_date: string | null
-    columns: { name: string; declared_type: string; expected_value: string }[]
+  const [selectedRunError, setSelectedRunError] = useState<{
+    runId: number
+    text: string
   } | null>(null)
-  const [pullApiCallsLoading, setPullApiCallsLoading] = useState(false)
-  const [pullApiCallsError, setPullApiCallsError] = useState<string | null>(null)
-  const [pullApiCallsByPull, setPullApiCallsByPull] = useState<Record<string, number>>({})
-  const today = new Date().toISOString().slice(0, 10)
-  const [startDate, setStartDate] = useState(storedSync?.startDate ?? today)
-  const [endDate, setEndDate] = useState(storedSync?.endDate ?? today)
-  const [rangeMode, setRangeMode] = useState(storedSync?.rangeMode ?? 'full')
-  const [year, setYear] = useState(storedSync?.year ?? '')
-  const pullOptions = [
-    { label: 'Videos', value: 'videos' },
-    { label: 'Comments', value: 'comments' },
-    { label: 'Audience', value: 'audience' },
-    { label: 'Playlists', value: 'playlists' },
-    { label: 'Playlist Analytics', value: 'playlist_analytics' },
-    { label: 'Traffic sources', value: 'traffic' },
-    { label: 'Channel analytics', value: 'channel_analytics' },
-    { label: 'Video analytics', value: 'video_analytics' },
-    { label: 'Video traffic source', value: 'video_traffic_source' },
-    { label: 'Video search insights', value: 'video_search_insights' },
-  ]
-  const [selectedPulls, setSelectedPulls] = useState(
-    storedSync?.selectedPulls?.length ? storedSync.selectedPulls : []
-  )
-  const validPullValues = useMemo(() => new Set(pullOptions.map((item) => item.value)), [pullOptions])
-  const invalidSelectedPulls = useMemo(
-    () => selectedPulls.filter((value) => !validPullValues.has(value)),
-    [selectedPulls, validPullValues]
-  )
 
-  const loadRuns = async () => {
+  // Derived sync state
+  const progressState: ProgressState | null =
+    progress ??
+    (isSyncing
+      ? {
+          is_syncing: true,
+          current_step: 0,
+          max_steps: 0,
+          message: 'Starting sync…',
+          stop_requested: false,
+        }
+      : null)
+  const isSyncActive = Boolean(progressState?.is_syncing) || isSyncing
+  const isStopPending = Boolean(stopRequestedByUser || progressState?.stop_requested)
+
+  const loadRuns = useCallback(async () => {
     try {
       const offset = (runsPage - 1) * runsPageSize
       const response = await fetch(
-        `http://localhost:8000/sync/runs?limit=${runsPageSize}&offset=${offset}`
+        `http://localhost:8000/sync/runs?limit=${runsPageSize}&offset=${offset}`,
       )
       const data = await response.json()
       setRuns(Array.isArray(data.items) ? data.items : [])
@@ -146,424 +238,284 @@ function SyncSettings() {
     } catch (error) {
       console.error('Failed to load sync runs', error)
     }
-  }
-
-  const loadOverview = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/stats/overview')
-      const data = await response.json()
-      setOverview({
-        db_size_bytes: data.db_size_bytes ?? 0,
-        total_uploads: data.total_uploads ?? 0,
-        total_comments: data.total_comments ?? 0,
-        total_audience: data.total_audience ?? 0,
-        total_playlists: data.total_playlists ?? 0,
-        total_views: data.total_views ?? 0,
-        earliest_date: data.earliest_date ?? null,
-        latest_date: data.latest_date ?? null,
-        video_analytics_rows: data.video_analytics_rows ?? 0,
-        channel_analytics_rows: data.channel_analytics_rows ?? 0,
-        traffic_sources_rows: data.traffic_sources_rows ?? 0,
-        video_traffic_source_rows: data.video_traffic_source_rows ?? 0,
-        video_search_rows: data.video_search_rows ?? 0,
-        playlist_analytics_rows: data.playlist_analytics_rows ?? 0,
-        table_storage: Array.isArray(data.table_storage)
-          ? data.table_storage
-            .map((item: { table?: string; bytes?: number; percent?: number }) => ({
-              table: item.table ?? '',
-              bytes: typeof item.bytes === 'number' ? item.bytes : 0,
-              percent: typeof item.percent === 'number' ? item.percent : 0,
-            }))
-            .filter((item: { table: string }) => item.table.length > 0)
-          : [],
-        table_row_counts: Array.isArray(data.table_row_counts)
-          ? data.table_row_counts
-            .map((item: { table?: string; rows?: number }) => ({
-              table: item.table ?? '',
-              rows: typeof item.rows === 'number' ? item.rows : 0,
-            }))
-            .filter((item: { table: string }) => item.table.length > 0)
-          : [],
-      })
-    } catch (error) {
-      console.error('Failed to load overview stats', error)
-    }
-  }
-
-  useEffect(() => {
-    loadRuns()
   }, [runsPage, runsPageSize])
 
   useEffect(() => {
-    setStored('syncSettings', {
-      rangeMode,
-      startDate,
-      endDate,
-      year,
-      deepSync,
-      selectedPulls,
-    })
-  }, [rangeMode, startDate, endDate, year, deepSync, selectedPulls])
+    loadRuns()
+  }, [loadRuns])
 
   useEffect(() => {
-    loadOverview()
-  }, [])
+    setStored('syncSettingsData', { pullConfigs: dataPullConfigs })
+  }, [dataPullConfigs])
 
-  const progressState =
-    progress ??
-    (isSyncing
-      ? { is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting sync…', stop_requested: false }
-      : null)
-  const isSyncActive = Boolean(isSyncing || progressState?.is_syncing)
-  const isStopPending = Boolean(stopRequestedByUser || progressState?.stop_requested)
+  useEffect(() => {
+    setStored('syncSettingsAnalytics', { pullConfigs: analyticsPullConfigs })
+  }, [analyticsPullConfigs])
 
   useEffect(() => {
     if (!isSyncActive) {
       setSyncNotice(null)
       setStopRequestedByUser(false)
+      setPendingSyncType(null)
     }
   }, [isSyncActive])
 
-  const computeProgress = () => {
-    if (!progressState?.max_steps || progressState.max_steps === 0) {
-      return 0
+  const analyticsSyncPeriodForEstimate = useMemo(() => {
+    const included = ANALYTICS_STAGES.filter(
+      (s) => analyticsPullConfigs[s]?.included !== false,
+    )
+    const starts = included
+      .map((s) => resolveAnalyticsDates(
+        analyticsPullConfigs[s].rangeMode,
+        analyticsPullConfigs[s].year,
+        analyticsPullConfigs[s].startDate,
+        analyticsPullConfigs[s].endDate,
+        today,
+      ).start)
+      .filter((v): v is string => v !== null)
+    const ends = included
+      .map((s) => resolveAnalyticsDates(
+        analyticsPullConfigs[s].rangeMode,
+        analyticsPullConfigs[s].year,
+        analyticsPullConfigs[s].startDate,
+        analyticsPullConfigs[s].endDate,
+        today,
+      ).end)
+      .filter((v): v is string => v !== null)
+    return {
+      start: starts.length === included.length ? [...starts].sort()[0] : null,
+      end: ends.length === included.length ? [...ends].sort().reverse()[0] : null,
     }
-    const current = Math.max(0, progressState.current_step)
-    const percent = (current / progressState.max_steps) * 100
-    return Math.max(0, Math.min(100, percent))
-  }
-
-  const currentStatus = () => {
-    if (!progressState?.is_syncing) {
-      return ''
-    }
-    return progressState.message || ''
-  }
-  const formatBytes = (value: number) => {
-    if (value >= 1024 * 1024) {
-      return `${(value / (1024 * 1024)).toFixed(2)} MB`
-    }
-    if (value >= 1024) {
-      return `${(value / 1024).toFixed(2)} KB`
-    }
-    return `${value} B`
-  }
-  const pieSegments = useMemo(() => {
-    const colors = ['#0ea5e9', '#14b8a6', '#f59e0b', '#f97316', '#84cc16', '#22c55e', '#6366f1', '#e11d48']
-    return overview.table_storage
-      .filter((item) => item.percent > 0)
-      .map((item, index) => {
-        return {
-          key: item.table,
-          label: item.table,
-          value: item.bytes,
-          bytes: item.bytes,
-          percent: item.percent,
-          color: colors[index % colors.length],
-        }
-      })
-  }, [overview.table_storage])
-  const orderedTableRowCounts = useMemo(() => {
-    const order: Record<string, number> = {
-      videos: 1,
-      comments: 2,
-      audience: 3,
-      playlists: 4,
-      playlist_items: 5,
-      video_analytics: 6,
-      channel_analytics: 7,
-      playlist_daily_analytics: 8,
-      traffic_sources_daily: 9,
-      video_traffic_source: 10,
-      video_search_insights: 11,
-    }
-    return [...overview.table_row_counts].sort((a, b) => {
-      const aRank = order[a.table] ?? 999
-      const bRank = order[b.table] ?? 999
-      if (aRank !== bRank) {
-        return aRank - bRank
-      }
-      return formatTableMetricLabel(a.table).localeCompare(formatTableMetricLabel(b.table))
-    })
-  }, [overview.table_row_counts])
-  const overviewTableItems = useMemo(
-    () =>
-      orderedTableRowCounts.map((item) => ({
-        type: 'option' as const,
-        label: formatTableMetricLabel(item.table),
-        value: item.table,
-      })),
-    [orderedTableRowCounts]
-  )
+  }, [analyticsPullConfigs, today])
 
   useEffect(() => {
-    if (overviewTableItems.length === 0) {
-      if (selectedOverviewTable) {
-        setSelectedOverviewTable('')
-      }
-      return
-    }
-    const stillExists = overviewTableItems.some((item) => item.value === selectedOverviewTable)
-    if (!selectedOverviewTable || !stillExists) {
-      const videosOption = overviewTableItems.find((item) => item.value === 'videos')
-      setSelectedOverviewTable(videosOption?.value ?? overviewTableItems[0].value)
-    }
-  }, [overviewTableItems, selectedOverviewTable])
-
-  useEffect(() => {
-    async function loadTableDetails() {
-      if (!selectedOverviewTable) {
-        setTableDetails(null)
+    let active = true
+    async function load() {
+      const pulls = DATA_STAGES.filter((s) => dataPullConfigs[s]?.included !== false)
+      if (pulls.length === 0) {
+        setDataPullApiCallsByPull({})
+        setDataPullApiCallsLoading(false)
         return
       }
-      setTableDetailsLoading(true)
-      setTableDetailsError(null)
+      setDataPullApiCallsLoading(true)
+      setDataPullApiCallsError(null)
       try {
-        const response = await fetch(
-          `http://localhost:8000/stats/table-details?table=${encodeURIComponent(selectedOverviewTable)}`
-        )
-        if (!response.ok) {
-          throw new Error(`Failed to load table details (${response.status})`)
-        }
+        const anyDeepSync = pulls.some((s) => dataPullConfigs[s]?.deepSync)
+        const params = new URLSearchParams({ pull: pulls.join(',') })
+        if (anyDeepSync) params.set('deep_sync', 'true')
+        const response = await fetch(`http://localhost:8000/sync/data/estimate?${params}`)
+        if (!response.ok) throw new Error(`Request failed (${response.status})`)
         const data = await response.json()
-        setTableDetails({
-          table: data.table ?? selectedOverviewTable,
-          date_column: data.date_column ?? null,
-          oldest_item_date: data.oldest_item_date ?? null,
-          newest_item_date: data.newest_item_date ?? null,
-          columns: Array.isArray(data.columns)
-            ? data.columns.map((item: { name?: string; declared_type?: string; expected_value?: string }) => ({
-              name: item.name ?? '',
-              declared_type: item.declared_type ?? 'TEXT',
-              expected_value: item.expected_value ?? '',
-            }))
-            : [],
-        })
+        if (active) {
+          setDataPullApiCallsByPull(
+            typeof data.by_pull === 'object' && data.by_pull
+              ? (data.by_pull as Record<string, number>)
+              : {},
+          )
+        }
       } catch (error) {
-        console.error('Failed to load table details', error)
-        setTableDetailsError(error instanceof Error ? error.message : 'Failed to load table details')
-        setTableDetails(null)
+        if (active) {
+          setDataPullApiCallsError(
+            error instanceof Error ? error.message : 'Failed to load estimate',
+          )
+          setDataPullApiCallsByPull({})
+        }
       } finally {
-        setTableDetailsLoading(false)
+        if (active) setDataPullApiCallsLoading(false)
       }
     }
-
-    loadTableDetails()
-  }, [selectedOverviewTable])
-
-  const selectedSyncPeriod = useMemo(() => {
-    if (rangeMode === 'year' && year) {
-      return { start: `${year}-01-01`, end: `${year}-12-31` }
+    load()
+    return () => {
+      active = false
     }
-    if (rangeMode === 'latest' && overview.latest_date) {
-      return { start: overview.latest_date, end: today }
-    }
-    if (rangeMode === 'custom') {
-      return { start: startDate || null, end: endDate || null }
-    }
-    return { start: null, end: null }
-  }, [rangeMode, year, overview.latest_date, today, startDate, endDate])
-
-  const selectedPullKeys = useMemo(() => {
-    return selectedPulls
-  }, [selectedPulls])
-  const apiCallBarRows = useMemo(() => {
-    const apiMaxByFamily: Record<string, number> = {
-      'YouTube Data API v3': 10000,
-      'YouTube Analytics API v2': 100000,
-    }
-    const pullToApiFamily: Record<string, string> = {
-      videos: 'YouTube Data API v3',
-      comments: 'YouTube Data API v3',
-      audience: 'YouTube Data API v3',
-      playlists: 'YouTube Data API v3',
-      playlist_analytics: 'YouTube Analytics API v2',
-      traffic: 'YouTube Analytics API v2',
-      channel_analytics: 'YouTube Analytics API v2',
-      video_analytics: 'YouTube Analytics API v2',
-      video_traffic_source: 'YouTube Analytics API v2',
-      video_search_insights: 'YouTube Analytics API v2',
-    }
-    const pullLabelByKey = Object.fromEntries(pullOptions.map((item) => [item.value, item.label])) as Record<string, string>
-    const colorByPull: Record<string, string> = {
-      videos: '#0ea5e9',
-      comments: '#f97316',
-      audience: '#22c55e',
-      playlists: '#8b5cf6',
-      playlist_analytics: '#ef4444',
-      traffic: '#06b6d4',
-      channel_analytics: '#eab308',
-      video_analytics: '#f43f5e',
-      video_traffic_source: '#14b8a6',
-      video_search_insights: '#6366f1',
-    }
-    const rows = [
-      { label: 'YouTube Data API v3', segments: [] as { key: string; label: string; value: number; color: string }[] },
-      { label: 'YouTube Analytics API v2', segments: [] as { key: string; label: string; value: number; color: string }[] },
-    ]
-    for (const pullKey of selectedPullKeys) {
-      const family = pullToApiFamily[pullKey]
-      const value = pullApiCallsByPull[pullKey] ?? 0
-      if (!family) {
-        continue
-      }
-      const row = rows.find((item) => item.label === family)
-      if (!row) {
-        continue
-      }
-      row.segments.push({
-        key: pullKey,
-        label: pullLabelByKey[pullKey] ?? pullKey,
-        value,
-        color: colorByPull[pullKey] ?? '#64748b',
-      })
-    }
-    return rows.map((row) => {
-      const total = row.segments.reduce((sum, segment) => sum + segment.value, 0)
-      const max = apiMaxByFamily[row.label] ?? 1
-      return {
-        label: row.label,
-        value: total,
-        max,
-        segments: row.segments.map((segment) => ({
-          key: segment.key,
-          color: segment.color,
-          ratio: max > 0 ? (segment.value / max) * 100 : 0,
-          title: `${segment.label}: ${segment.value.toLocaleString()}`,
-        })),
-        legendItems: row.segments.map((segment) => ({
-          key: segment.key,
-          label: segment.label,
-          value: segment.value,
-          color: segment.color,
-        })),
-      }
-    })
-  }, [pullApiCallsByPull, pullOptions, selectedPullKeys])
+  }, [dataPullConfigs])
 
   useEffect(() => {
-    async function loadPullApiCalls() {
-      if (selectedPullKeys.length === 0) {
-        setPullApiCallsByPull({})
+    let active = true
+    async function load() {
+      const pulls = ANALYTICS_STAGES.filter((s) => analyticsPullConfigs[s]?.included !== false)
+      if (pulls.length === 0) {
+        setAnalyticsPullApiCallsByPull({})
+        setAnalyticsPullApiCallsLoading(false)
         return
       }
-      setPullApiCallsLoading(true)
-      setPullApiCallsError(null)
+      setAnalyticsPullApiCallsLoading(true)
+      setAnalyticsPullApiCallsError(null)
       try {
-        const pullToTable: Record<string, string> = {
-          videos: 'videos',
-          comments: 'comments',
-          audience: 'audience',
-          playlists: 'playlists',
-          playlist_analytics: 'playlist_daily_analytics',
-          traffic: 'traffic_sources_daily',
-          channel_analytics: 'channel_analytics',
-          video_analytics: 'video_analytics',
-          video_traffic_source: 'video_traffic_source',
-          video_search_insights: 'video_search_insights',
+        const anyDeepSync = pulls.some((s) => analyticsPullConfigs[s]?.deepSync)
+        const params = new URLSearchParams({ pull: pulls.join(',') })
+        if (analyticsSyncPeriodForEstimate.start)
+          params.set('start_date', analyticsSyncPeriodForEstimate.start)
+        if (analyticsSyncPeriodForEstimate.end)
+          params.set('end_date', analyticsSyncPeriodForEstimate.end)
+        if (anyDeepSync) params.set('deep_sync', 'true')
+        const response = await fetch(`http://localhost:8000/sync/analytics/estimate?${params}`)
+        if (!response.ok) throw new Error(`Request failed (${response.status})`)
+        const data = await response.json()
+        if (active) {
+          setAnalyticsPullApiCallsByPull(
+            typeof data.by_pull === 'object' && data.by_pull
+              ? (data.by_pull as Record<string, number>)
+              : {},
+          )
         }
-        const callsByPull: Record<string, number> = {}
-        for (const pullKey of selectedPullKeys) {
-          const table = pullToTable[pullKey]
-          if (!table) {
-            continue
-          }
-          const params = new URLSearchParams({ table })
-          if (selectedSyncPeriod.start) {
-            params.set('start_date', selectedSyncPeriod.start)
-          }
-          if (selectedSyncPeriod.end) {
-            params.set('end_date', selectedSyncPeriod.end)
-          }
-          if (deepSync) {
-            params.set('deep_sync', 'true')
-          }
-          const response = await fetch(`http://localhost:8000/stats/table-api-calls?${params.toString()}`)
-          if (!response.ok) {
-            throw new Error(`Failed to load API call estimate (${response.status})`)
-          }
-          const data = await response.json()
-          const count = typeof data.minimum_api_calls === 'number' ? data.minimum_api_calls : 0
-          callsByPull[pullKey] = count
-        }
-        setPullApiCallsByPull(callsByPull)
       } catch (error) {
-        console.error('Failed to load API call estimate', error)
-        setPullApiCallsError(error instanceof Error ? error.message : 'Failed to load API call estimate')
-        setPullApiCallsByPull({})
+        if (active) {
+          setAnalyticsPullApiCallsError(
+            error instanceof Error ? error.message : 'Failed to load estimate',
+          )
+          setAnalyticsPullApiCallsByPull({})
+        }
       } finally {
-        setPullApiCallsLoading(false)
+        if (active) setAnalyticsPullApiCallsLoading(false)
       }
     }
+    load()
+    return () => {
+      active = false
+    }
+  }, [analyticsPullConfigs, analyticsSyncPeriodForEstimate.start, analyticsSyncPeriodForEstimate.end])
 
-    loadPullApiCalls()
-  }, [selectedPullKeys, selectedSyncPeriod.start, selectedSyncPeriod.end, deepSync])
+  const dataApiCallRow = useMemo(() => {
+    const includedPulls = DATA_STAGES.filter((s) => dataPullConfigs[s]?.included !== false)
+    return buildApiCallRow(includedPulls, DATA_PULL_OPTIONS, dataPullApiCallsByPull, 10000)
+  }, [dataPullConfigs, dataPullApiCallsByPull])
+  const analyticsApiCallRow = useMemo(() => {
+    const includedPulls = ANALYTICS_STAGES.filter(
+      (s) => analyticsPullConfigs[s]?.included !== false,
+    )
+    return buildApiCallRow(includedPulls, ANALYTICS_PULL_OPTIONS, analyticsPullApiCallsByPull, 100000)
+  }, [analyticsPullConfigs, analyticsPullApiCallsByPull])
+
+  const computeProgress = () => {
+    if (!progressState?.max_steps) return 0
+    return Math.max(
+      0,
+      Math.min(100, (Math.max(0, progressState.current_step) / progressState.max_steps) * 100),
+    )
+  }
 
   const pollActiveRef = useRef(false)
   useEffect(() => {
     pollActiveRef.current = true
     let timer: number | null = null
-    async function pollProgress() {
+    async function poll() {
       if (!pollActiveRef.current) return
       try {
         const response = await fetch('http://localhost:8000/sync/progress')
         const data = await response.json()
-        if (pollActiveRef.current && data && data.is_syncing !== undefined) {
-          setProgress(data)
+        if (pollActiveRef.current && data?.is_syncing !== undefined) {
+          setProgress(data as ProgressState)
         }
       } catch (error) {
         if (pollActiveRef.current) console.error('Failed to load sync progress', error)
       } finally {
         if (pollActiveRef.current) {
-          timer = window.setTimeout(pollProgress, 500)
+          timer = window.setTimeout(poll, 500)
         }
       }
     }
-
-    pollProgress()
+    poll()
     return () => {
       pollActiveRef.current = false
       if (timer) window.clearTimeout(timer)
     }
   }, [])
 
-  const handleSync = async () => {
-    if (invalidSelectedPulls.length > 0) {
-      setSyncError(`Invalid pull keys in saved settings: ${invalidSelectedPulls.join(', ')}`)
+  const toggleDataConfig = (stage: string, key: 'included' | 'deepSync') => {
+    setDataPullConfigs((prev) => ({
+      ...prev,
+      [stage]: { ...prev[stage], [key]: !prev[stage][key] },
+    }))
+  }
+
+  const toggleAnalyticsConfig = (stage: string, key: 'included' | 'deepSync') => {
+    setAnalyticsPullConfigs((prev) => ({
+      ...prev,
+      [stage]: { ...prev[stage], [key]: !prev[stage][key] },
+    }))
+  }
+
+  const setAnalyticsDateField = (
+    stage: string,
+    field: 'rangeMode' | 'year' | 'startDate' | 'endDate',
+    value: string,
+  ) => {
+    setAnalyticsPullConfigs((prev) => ({
+      ...prev,
+      [stage]: { ...prev[stage], [field]: value },
+    }))
+  }
+
+  const handleDataSync = async () => {
+    const items = DATA_STAGES.filter((s) => dataPullConfigs[s]?.included !== false).map((s) => ({
+      stage: s,
+      deep_sync: dataPullConfigs[s]?.deepSync ?? false,
+    }))
+    if (items.length === 0) {
+      setDataSyncError('Select at least one pull to sync.')
       return
     }
-    setSyncError(null)
+    setDataSyncError(null)
     setSyncNotice(null)
     setStopRequestedByUser(false)
     setIsSyncing(true)
-    setProgress({ is_syncing: true, current_step: 0, max_steps: 0, message: 'Starting sync…', stop_requested: false })
+    setProgress({
+      is_syncing: true,
+      current_step: 0,
+      max_steps: 0,
+      message: 'Starting data sync…',
+      stop_requested: false,
+    })
     try {
-      const params = new URLSearchParams()
-      if (rangeMode === 'year' && year) {
-        params.set('start_date', `${year}-01-01`)
-        params.set('end_date', `${year}-12-31`)
-      }
-      if (rangeMode === 'latest' && overview.latest_date) {
-        params.set('start_date', overview.latest_date)
-        params.set('end_date', today)
-      }
-      if (rangeMode === 'custom') {
-        if (startDate) {
-          params.set('start_date', startDate)
-        }
-        if (endDate) {
-          params.set('end_date', endDate)
-        }
-      }
-      if (deepSync) {
-        params.set('deep_sync', 'true')
-      }
-      if (selectedPulls.length > 0 && selectedPulls.length < pullOptions.length) {
-        params.set('pull', selectedPulls.join(','))
-      }
-      await fetch(`http://localhost:8000/sync?${params.toString()}`, { method: 'POST' })
+      const response = await fetch('http://localhost:8000/sync/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      if (response.status === 409) setDataSyncError('A sync is already running.')
     } catch (error) {
-      console.error('Failed to start sync', error)
+      console.error('Failed to start data sync', error)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleAnalyticsSync = async () => {
+    const items = ANALYTICS_STAGES.filter(
+      (s) => analyticsPullConfigs[s]?.included !== false,
+    ).map((s) => {
+      const cfg = analyticsPullConfigs[s]
+      const { start, end } = resolveAnalyticsDates(
+        cfg.rangeMode, cfg.year, cfg.startDate, cfg.endDate, today,
+      )
+      return { stage: s, deep_sync: cfg.deepSync, start_date: start, end_date: end }
+    })
+    if (items.length === 0) {
+      setAnalyticsSyncError('Select at least one pull to sync.')
+      return
+    }
+    setAnalyticsSyncError(null)
+    setSyncNotice(null)
+    setStopRequestedByUser(false)
+    setIsSyncing(true)
+    setProgress({
+      is_syncing: true,
+      current_step: 0,
+      max_steps: 0,
+      message: 'Starting analytics sync…',
+      stop_requested: false,
+    })
+    try {
+      const body: Record<string, unknown> = { items }
+      const response = await fetch('http://localhost:8000/sync/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (response.status === 409) setAnalyticsSyncError('A sync is already running.')
+    } catch (error) {
+      console.error('Failed to start analytics sync', error)
     } finally {
       setIsSyncing(false)
     }
@@ -583,270 +535,249 @@ function SyncSettings() {
   }
 
   const formatDuration = (started: string, finished: string | null) => {
-    if (!finished) {
-      return '—'
-    }
-    const start = new Date(started).getTime()
-    const end = new Date(finished).getTime()
-    const totalSeconds = Math.max(0, Math.floor((end - start) / 1000))
+    if (!finished) return '—'
+    const totalSeconds = Math.max(
+      0,
+      Math.floor((new Date(finished).getTime() - new Date(started).getTime()) / 1000),
+    )
     const hours = Math.floor(totalSeconds / 3600)
     const minutes = Math.floor((totalSeconds % 3600) / 60)
     const seconds = totalSeconds % 60
-    if (hours > 0) {
-      return `${hours}hr ${minutes}min`
-    }
+    if (hours > 0) return `${hours}hr ${minutes}min`
     return `${minutes}min ${seconds}s`
   }
 
-
-  const formatRange = (run: {
-    start_date: string | null
-    end_date: string | null
-  }) => {
-    if (run.start_date && run.end_date) {
+  const formatRange = (run: { start_date: string | null; end_date: string | null }) => {
+    if (run.start_date && run.end_date)
       return `${formatDisplayDate(run.start_date)} → ${formatDisplayDate(run.end_date)}`
-    }
-    if (run.start_date) {
-      return `${formatDisplayDate(run.start_date)} → ?`
-    }
-    if (run.end_date) {
-      return `? → ${formatDisplayDate(run.end_date)}`
-    }
-    return 'Full data'
+    if (run.start_date) return `${formatDisplayDate(run.start_date)} → ?`
+    if (run.end_date) return `? → ${formatDisplayDate(run.end_date)}`
+    return '—'
   }
+
+  const renderEstimate = (
+    apiLabel: string,
+    loading: boolean,
+    error: string | null,
+    row: ApiCallRow,
+  ) => (
+    <div className="sync-estimate-section">
+      <div className="sync-stat-label">Minimum API calls for selected pulls</div>
+      {loading ? (
+        <div className="sync-estimate-meta">Loading...</div>
+      ) : error ? (
+        <div className="sync-estimate-meta">{error}</div>
+      ) : (
+        <div className="sync-estimate-bar-row">
+          <div className="sync-estimate-bar-header">
+            <span className="sync-estimate-api-label">{apiLabel}</span>
+            <span>{`${row.total.toLocaleString()} / ${row.max.toLocaleString()}`}</span>
+          </div>
+          <RatioBar length="100%" ratio={100} color="#94a3b8" segments={row.segments} />
+          <div className="sync-estimate-legend">
+            {row.legendItems.map((item) => (
+              <div key={item.key} className="sync-estimate-legend-item">
+                <span
+                  className="sync-estimate-legend-dot"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="sync-estimate-legend-label">{item.label}</span>
+                <span className="sync-estimate-legend-value">{item.value.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <section className="page">
-      <header className="page-header header-row">
+      <header className="page-header">
         <div className="header-text">
           <h1>Sync</h1>
         </div>
-        <div className="sync-header-controls">
-          <div className="sync-control-col">
-            <Dropdown
-              value={rangeMode}
-              onChange={setRangeMode}
-              placeholder="Full data"
-              items={[
-                { type: 'option' as const, label: 'Full data', value: 'full' },
-                { type: 'option' as const, label: 'From Latest Date', value: 'latest' },
-                { type: 'option' as const, label: 'Year', value: 'year' },
-                { type: 'option' as const, label: 'Custom range', value: 'custom' },
-              ]}
-            />
-          </div>
-          {rangeMode === 'year' ? (
-            <div className="sync-control-col">
-              <YearInput value={year} onChange={setYear} />
-            </div>
-          ) : null}
-          {rangeMode === 'custom' ? (
-            <div className="sync-control-col">
-              <DateRangePicker
-                startDate={startDate}
-                endDate={endDate}
-                onChange={(nextStart, nextEnd) => {
-                  setStartDate(nextStart)
-                  setEndDate(nextEnd)
-                }}
-              />
-            </div>
-          ) : null}
-          <div className="sync-control-col">
-            <MultiSelect
-              items={pullOptions}
-              selected={selectedPulls}
-              onChange={(next) => {
-                setSyncError(null)
-                setSelectedPulls(next.filter((value) => validPullValues.has(value)))
-              }}
-              placeholder="All data"
-            />
-          </div>
-          <div className="sync-control-col">
-            <label className="sync-check">
-              <input
-                type="checkbox"
-                checked={deepSync}
-                onChange={(event) => setDeepSync(event.target.checked)}
-              />
-              <span>Deep sync</span>
-              <span
-                className="sync-help"
-                title="Deep sync re-pulls all data in the selected range, even if it already exists."
-              >
-                ?
-              </span>
-            </label>
-          </div>
-          <div className="sync-control-col sync-control-action">
-            <div className="sync-action-wrap">
-              <ActionButton
-                label={isSyncActive ? (isStopPending ? 'Stopping...' : 'Stop sync') : 'Start sync'}
-                onClick={isSyncActive ? handleStopSync : handleSync}
-                title={isSyncActive ? 'Request stop sync' : 'Start syncing'}
-                disabled={(isSyncActive && isStopPending) || (!isSyncActive && invalidSelectedPulls.length > 0)}
-                variant={isSyncActive ? 'danger' : 'primary'}
-              />
-              {isSyncActive && syncNotice ? (
-                <span className="sync-stop-tooltip-wrap" aria-label={syncNotice}>
-                  <span className="sync-help sync-stop-tooltip-trigger">i</span>
-                  <span className="sync-stop-tooltip-bubble">{syncNotice}</span>
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
-        {syncError ? <div className="sync-error-text">{syncError}</div> : null}
       </header>
       <div className="page-body">
+        {/* Data Sync Card */}
         <div className="page-row">
-          <div className="sync-table">
+          <div className="sync-card">
             <div className="sync-card-header-row">
-              <div className="sync-card-header">Database Overview</div>
-              <ActionButton
-                label="Refresh"
-                onClick={loadOverview}
-                variant="soft"
-                className="sync-refresh-button"
-              />
+              <div className="sync-card-header">Data Sync</div>
+              <span className="sync-api-badge">YouTube Data API v3</span>
             </div>
-            <div className="db-overview-grid">
-              <div className="db-overview-size db-overview-pane">
-                <div className="db-overview-pie-wrap">
-                  <div className="db-overview-pie-chart">
-                    <DonutChart
-                      segments={pieSegments.map((segment) => ({
-                        key: segment.key,
-                        label: segment.label,
-                        value: segment.value,
-                        color: segment.color,
-                      }))}
-                      centerLabel="Total size"
-                      centerValue={formatBytes(overview.db_size_bytes)}
-                      ariaLabel="Table storage distribution"
-                      size={220}
-                      strokeWidth={24}
-                      onHoverChange={setHoveredStorageSegment}
-                    />
-                  </div>
+            <div className="sync-controls">
+              <div className="sync-stage-table">
+                <div className="sync-stage-header">
+                  <span>Pull</span>
+                  <span>Include</span>
+                  <span>Deep Sync</span>
                 </div>
-                {pieSegments.length === 0 ? (
-                  <div className="sync-storage-empty">No table storage data available.</div>
-                ) : (
-                  <div className="db-overview-hover">
-                    {hoveredStorageSegment ? (
-                      <span>{`${hoveredStorageSegment.label}: ${formatBytes(hoveredStorageSegment.value)} (${hoveredStorageSegment.percent.toFixed(2)}%)`}</span>
-                    ) : (
-                      <span>Hover a slice to see table size and percentage</span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="db-overview-table-metrics db-overview-pane">
-                {orderedTableRowCounts.map((item) => (
-                  <StatCard
-                    key={item.table}
-                    label={formatTableMetricLabel(item.table)}
-                    value={item.rows.toLocaleString()}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="db-overview-estimate-section">
-              <div className="db-overview-api-calls-plain">
-                <div className="sync-stat-label">Minimum API calls for selected pulls</div>
-                {pullApiCallsLoading ? (
-                  <div className="db-overview-api-calls-meta">Loading...</div>
-                ) : pullApiCallsError ? (
-                  <div className="db-overview-api-calls-meta">{pullApiCallsError}</div>
-                ) : (
-                  <div className="db-overview-api-calls-breakdown">
-                    {apiCallBarRows.map((row) => (
-                      <div key={row.label} className="db-overview-api-calls-bar-row">
-                        <div className="db-overview-api-calls-row">
-                          <span>{row.label}</span>
-                          <span>{`${row.value.toLocaleString()} / ${row.max.toLocaleString()}`}</span>
-                        </div>
-                        <RatioBar length="100%" ratio={100} color="#94a3b8" segments={row.segments} />
-                        <div className="db-overview-api-calls-legend">
-                          {row.legendItems
-                            .filter((item) => item.value > 0)
-                            .map((item) => (
-                              <div key={item.key} className="db-overview-api-calls-legend-item">
-                                <span className="db-overview-api-calls-legend-dot" style={{ backgroundColor: item.color }} />
-                                <span className="db-overview-api-calls-legend-label">{item.label}</span>
-                                <span className="db-overview-api-calls-legend-value">{item.value.toLocaleString()}</span>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="db-overview-selector-row">
-              <ActionButton
-                label={showTableColumns ? 'Hide Table Columns' : 'See Table Columns'}
-                onClick={() => setShowTableColumns((prev) => !prev)}
-                variant="soft"
-                className="db-overview-toggle-button"
-              />
-              <div className="db-overview-selector-label">Database table:</div>
-              <div className="db-overview-selector-control">
-                <Dropdown
-                  value={selectedOverviewTable}
-                  onChange={setSelectedOverviewTable}
-                  placeholder="Select table"
-                  items={overviewTableItems}
-                />
-              </div>
-            </div>
-            <div className="db-overview-details">
-              <div className="db-overview-date-grid">
-                <StatCard
-                  label="Oldest item"
-                  value={tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.oldest_item_date ?? null)}
-                />
-                <StatCard
-                  label="Newest item"
-                  value={tableDetailsLoading ? 'Loading...' : formatDisplayDate(tableDetails?.newest_item_date ?? null)}
-                />
-              </div>
-              {showTableColumns ? (
-                <div className="db-overview-columns-wrap">
-                  {tableDetailsError ? (
-                    <div className="sync-empty">{tableDetailsError}</div>
-                  ) : tableDetailsLoading ? (
-                    <div className="sync-empty">Loading columns...</div>
-                  ) : (
-                    <div className="db-overview-columns-table">
-                      <div className="db-overview-columns-header">
-                        <span>Column</span>
-                        <span>Type</span>
-                        <span>Expected values</span>
-                      </div>
-                      {tableDetails?.columns.length ? (
-                        tableDetails.columns.map((column) => (
-                          <div key={column.name} className="db-overview-columns-row">
-                            <span>{column.name}</span>
-                            <span>{column.declared_type}</span>
-                            <span>{column.expected_value}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="sync-empty">No columns found.</div>
-                      )}
+                {DATA_PULL_OPTIONS.map((opt) => {
+                  const cfg = dataPullConfigs[opt.value]
+                  return (
+                    <div key={opt.value} className="sync-stage-row">
+                      <span className="sync-stage-label">{opt.label}</span>
+                      <span className="sync-stage-check-cell">
+                        <input
+                          type="checkbox"
+                          checked={cfg.included}
+                          onChange={() => toggleDataConfig(opt.value, 'included')}
+                        />
+                      </span>
+                      <span className="sync-stage-check-cell">
+                        <input
+                          type="checkbox"
+                          checked={cfg.deepSync}
+                          disabled={!cfg.included}
+                          onChange={() => toggleDataConfig(opt.value, 'deepSync')}
+                        />
+                      </span>
                     </div>
-                  )}
+                  )
+                })}
+              </div>
+              <div className="sync-card-footer">
+                <div className="sync-action-wrap">
+                  <ActionButton
+                    label={
+                      isSyncActive
+                        ? isStopPending
+                          ? 'Stopping...'
+                          : 'Stop sync'
+                        : 'Start sync'
+                    }
+                    onClick={isSyncActive ? handleStopSync : handleDataSync}
+                    disabled={isStopPending}
+                    variant={isSyncActive ? 'danger' : 'primary'}
+                  />
+                  {isSyncActive && syncNotice ? (
+                    <span className="sync-stop-tooltip-wrap" aria-label={syncNotice}>
+                      <span className="sync-help sync-stop-tooltip-trigger">i</span>
+                      <span className="sync-stop-tooltip-bubble">{syncNotice}</span>
+                    </span>
+                  ) : null}
                 </div>
-              ) : null}
+                {dataSyncError ? <div className="sync-error-text">{dataSyncError}</div> : null}
+              </div>
             </div>
+            {renderEstimate(
+              'YouTube Data API v3',
+              dataPullApiCallsLoading,
+              dataPullApiCallsError,
+              dataApiCallRow,
+            )}
           </div>
         </div>
+
+        {/* Analytics Sync Card */}
         <div className="page-row">
-          <div className="sync-table">
+          <div className="sync-card">
+            <div className="sync-card-header-row">
+              <div className="sync-card-header">Analytics Sync</div>
+              <span className="sync-api-badge">YouTube Analytics API v2</span>
+            </div>
+            <div className="sync-controls">
+              <div className="sync-stage-table">
+                <div className="sync-stage-header">
+                  <span>Pull</span>
+                  <span>Include</span>
+                  <span>Deep Sync</span>
+                </div>
+                {ANALYTICS_PULL_OPTIONS.map((opt) => {
+                  const cfg = analyticsPullConfigs[opt.value]
+                  return (
+                    <div key={opt.value} className="sync-stage-row">
+                      <span className="sync-stage-label-cell">
+                        <span className="sync-stage-label">{opt.label}</span>
+                        {cfg.included ? (
+                          <div className="sync-stage-date-controls">
+                            <Dropdown
+                              value={cfg.rangeMode}
+                              onChange={(v) => setAnalyticsDateField(opt.value, 'rangeMode', v)}
+                              placeholder="Full data"
+                              items={[
+                                { type: 'option' as const, label: 'Full data', value: 'full' },
+                                { type: 'option' as const, label: 'Year', value: 'year' },
+                                { type: 'option' as const, label: 'Custom range', value: 'custom' },
+                              ]}
+                            />
+                            {cfg.rangeMode === 'year' ? (
+                              <YearInput
+                                value={cfg.year}
+                                onChange={(v) => setAnalyticsDateField(opt.value, 'year', v)}
+                              />
+                            ) : null}
+                            {cfg.rangeMode === 'custom' ? (
+                              <DateRangePicker
+                                startDate={cfg.startDate}
+                                endDate={cfg.endDate}
+                                onChange={(start, end) => {
+                                  setAnalyticsDateField(opt.value, 'startDate', start)
+                                  setAnalyticsDateField(opt.value, 'endDate', end)
+                                }}
+                              />
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </span>
+                      <span className="sync-stage-check-cell">
+                        <input
+                          type="checkbox"
+                          checked={cfg.included}
+                          onChange={() => toggleAnalyticsConfig(opt.value, 'included')}
+                        />
+                      </span>
+                      <span className="sync-stage-check-cell">
+                        <input
+                          type="checkbox"
+                          checked={cfg.deepSync}
+                          disabled={!cfg.included}
+                          onChange={() => toggleAnalyticsConfig(opt.value, 'deepSync')}
+                        />
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="sync-card-footer">
+                <div className="sync-action-wrap">
+                  <ActionButton
+                    label={
+                      isSyncActive
+                        ? isStopPending
+                          ? 'Stopping...'
+                          : 'Stop sync'
+                        : 'Start sync'
+                    }
+                    onClick={isSyncActive ? handleStopSync : handleAnalyticsSync}
+                    disabled={isStopPending}
+                    variant={isSyncActive ? 'danger' : 'primary'}
+                  />
+                  {isSyncActive && syncNotice ? (
+                    <span className="sync-stop-tooltip-wrap" aria-label={syncNotice}>
+                      <span className="sync-help sync-stop-tooltip-trigger">i</span>
+                      <span className="sync-stop-tooltip-bubble">{syncNotice}</span>
+                    </span>
+                  ) : null}
+                </div>
+                {analyticsSyncError ? (
+                  <div className="sync-error-text">{analyticsSyncError}</div>
+                ) : null}
+              </div>
+            </div>
+            {renderEstimate(
+              'YouTube Analytics API v2',
+              analyticsPullApiCallsLoading,
+              analyticsPullApiCallsError,
+              analyticsApiCallRow,
+            )}
+          </div>
+        </div>
+
+        {/* Sync Runs Card */}
+        <div className="page-row">
+          <div className="sync-card">
             <div className="sync-card-header-row">
               <div className="sync-card-header">Sync Runs</div>
               <ActionButton
@@ -862,17 +793,18 @@ function SyncSettings() {
                   <ProgressBar
                     label="Sync progress"
                     progress={computeProgress()}
-                    stepText={`[${progressState?.current_step ?? 0}/${progressState?.max_steps ?? 0}]`}
+                    stepText={`[${progressState.current_step ?? 0}/${progressState.max_steps ?? 0}]`}
                   />
                 </div>
-                <div className="sync-status-text">{currentStatus()}</div>
+                <div className="sync-status-text">{progressState.message}</div>
               </div>
             ) : null}
             <div className="sync-table-header">
               <span>Date</span>
-              <span>Range</span>
-              <span>Pulls</span>
+              <span>Date Range</span>
+              <span>Table</span>
               <span>Deep Sync</span>
+              <span className="right">API Calls</span>
               <span className="right">Duration</span>
               <span className="right">Status</span>
               <span>Error</span>
@@ -885,8 +817,9 @@ function SyncSettings() {
                   <div key={run.id} className="sync-table-row">
                     <span>{formatDisplayDate(run.started_at)}</span>
                     <span>{formatRange(run)}</span>
-                    <span>{run.pulls ? run.pulls : 'All'}</span>
+                    <span>{run.table_name}</span>
                     <span>{run.deep_sync ? 'Yes' : 'No'}</span>
+                    <span className="right">{run.total_api_calls.toLocaleString()}</span>
                     <span className="right">{formatDuration(run.started_at, run.finished_at)}</span>
                     <span className="right">
                       <span className="sync-run-status">
@@ -912,7 +845,9 @@ function SyncSettings() {
                         <button
                           type="button"
                           className="sync-error-link"
-                          onClick={() => setSelectedRunError({ runId: run.id, text: run.error as string })}
+                          onClick={() =>
+                            setSelectedRunError({ runId: run.id, text: run.error as string })
+                          }
                         >
                           View
                         </button>
@@ -927,7 +862,11 @@ function SyncSettings() {
             {runs.length > 0 ? (
               <div className="pagination-footer">
                 <div className="pagination-main">
-                  <PageSwitcher currentPage={runsPage} totalPages={runsTotalPages} onPageChange={setRunsPage} />
+                  <PageSwitcher
+                    currentPage={runsPage}
+                    totalPages={runsTotalPages}
+                    onPageChange={setRunsPage}
+                  />
                 </div>
                 <div className="pagination-size">
                   <PageSizePicker value={runsPageSize} onChange={setRunsPageSize} />
@@ -937,14 +876,24 @@ function SyncSettings() {
           </div>
         </div>
       </div>
+
       {selectedRunError ? (
         <div className="sync-error-modal-overlay" onClick={() => setSelectedRunError(null)}>
-          <div className="sync-error-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="sync-error-modal" onClick={(e) => e.stopPropagation()}>
             <div className="sync-error-modal-header">
               <div className="sync-card-header">Sync Error</div>
-              <ActionButton label="Close" onClick={() => setSelectedRunError(null)} variant="soft" className="sync-refresh-button" />
+              <ActionButton
+                label="Close"
+                onClick={() => setSelectedRunError(null)}
+                variant="soft"
+                className="sync-refresh-button"
+              />
             </div>
-            <textarea className="sync-error-modal-textbox" value={selectedRunError.text} readOnly />
+            <textarea
+              className="sync-error-modal-textbox"
+              value={selectedRunError.text}
+              readOnly
+            />
           </div>
         </div>
       ) : null}
@@ -953,5 +902,3 @@ function SyncSettings() {
 }
 
 export default SyncSettings
-
-

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import traceback
+from dataclasses import dataclass
 from datetime import datetime
 
 from src.helper.sync_dates import (
@@ -43,17 +44,48 @@ from src.utils.logger import get_logger
 sync_progress = SyncProgress()
 sync_logger = get_logger("sync", filename="sync.log")
 
+DATA_STAGES = ["videos", "comments", "audience", "playlists"]
+ANALYTICS_STAGES = [
+    "playlist_analytics",
+    "traffic",
+    "channel_analytics",
+    "video_analytics",
+    "video_traffic_source",
+    "video_search_insights",
+]
+
+_STAGE_TABLE: dict[str, str] = {
+    "videos": "videos",
+    "comments": "comments",
+    "audience": "audience",
+    "playlists": "playlists",
+    "playlist_analytics": "playlist_daily_analytics",
+    "traffic": "traffic_sources_daily",
+    "channel_analytics": "channel_analytics",
+    "video_analytics": "video_analytics",
+    "video_traffic_source": "video_traffic_source",
+    "video_search_insights": "video_search_insights",
+}
+
+
+@dataclass
+class SyncQueueItem:
+    """A single enqueued sync stage with per-item options."""
+
+    stage: str
+    deep_sync: bool = False
+    start_date: str | None = None
+    end_date: str | None = None
+
+
+# ── utilities ─────────────────────────────────────────────────────────────────
+
 
 def _log_sync_error(stage: str, error: Exception, **context: object) -> None:
     """Log sync errors with stage-specific context metadata."""
     context_pairs = [f"{key}={value!r}" for key, value in context.items()]
     context_text = ", ".join(context_pairs) if context_pairs else "no context"
-    sync_logger.error(
-        "Sync stage '%s' failed: %s | %s",
-        stage,
-        str(error),
-        context_text
-    )
+    sync_logger.error("Sync stage '%s' failed: %s | %s", stage, str(error), context_text)
 
 
 def month_start(iso_date: str) -> str:
@@ -76,43 +108,38 @@ def find_next_month_sync_date(latest_date: str | None, fallback_start: str) -> s
     return next_month_start(latest_date)
 
 
+# ── data API stage functions ─────────────────────────────────────────────────
+
+
 def sync_videos() -> None:
     """Sync all video metadata into the database."""
     sync_progress.set_total(3)
     sync_progress.set_current(0)
-    sync_progress.format_message("Pulling videos [{current}/{total}] stage 1/3: loading uploads")
-    sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-    try:
-        videos = safe_get_videos()
-    except Exception as exc:
-        _log_sync_error("videos", exc, step="load_uploads")
-        raise
+    sync_progress.format_message("Pulling videos [{current}/{total}] 1/3: loading uploads")
+    sync_progress.raise_if_stop_requested("Stop requested.")
+    videos = safe_get_videos()
+    sync_progress.increment_api_calls()
     sync_progress.increment()
-    sync_progress.format_message("Pulling videos [{current}/{total}] stage 2/3: loading shorts IDs")
-    sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-    try:
-        short_video_ids = get_short_video_ids()
-        upsert_videos(videos, short_video_ids=short_video_ids)
-    except Exception as exc:
-        _log_sync_error("videos", exc, step="load_shorts_ids")
-        raise
+
+    sync_progress.format_message("Pulling videos [{current}/{total}] 2/3: loading shorts IDs")
+    sync_progress.raise_if_stop_requested("Stop requested.")
+    short_video_ids = get_short_video_ids()
+    sync_progress.increment_api_calls()
+    upsert_videos(videos, short_video_ids=short_video_ids)
     sync_progress.increment()
-    sync_progress.format_message("Pulling videos [{current}/{total}] stage 3/3: reconciling playlist items")
-    sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-    try:
-        missing_video_ids = list_playlist_video_ids_missing_video_rows()
-        recovered_videos: list[dict] = []
-        for index in range(0, len(missing_video_ids), 50):
-            sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-            recovered_videos.extend(fetch_video_details(missing_video_ids[index : index + 50]))
-        if recovered_videos:
-            upsert_videos(recovered_videos, short_video_ids=short_video_ids)
-    except Exception as exc:
-        _log_sync_error("videos", exc, step="reconcile_playlist_items")
-        raise
+
+    sync_progress.format_message("Pulling videos [{current}/{total}] 3/3: reconciling playlist items")
+    sync_progress.raise_if_stop_requested("Stop requested.")
+    missing_video_ids = list_playlist_video_ids_missing_video_rows()
+    recovered_videos: list[dict] = []
+    for index in range(0, len(missing_video_ids), 50):
+        sync_progress.raise_if_stop_requested("Stop requested.")
+        recovered_videos.extend(fetch_video_details(missing_video_ids[index : index + 50]))
+        sync_progress.increment_api_calls()
+    if recovered_videos:
+        upsert_videos(recovered_videos, short_video_ids=short_video_ids)
     sync_progress.set_current(3)
     sync_progress.format_message("Pulling videos [{current}/{total}] complete")
-    return None
 
 
 def list_video_ids() -> list[str]:
@@ -137,9 +164,7 @@ def build_video_publish_map() -> dict[str, str]:
         ).fetchall()
     publish_map: dict[str, str] = {}
     for row in rows:
-        # Normalize published_at to YYYY-MM-DD for analytics comparisons.
-        published_at = str(row["published_at"])
-        publish_map[row["id"]] = normalize_iso_datetime_to_date(published_at)
+        publish_map[row["id"]] = normalize_iso_datetime_to_date(str(row["published_at"]))
     return publish_map
 
 
@@ -160,26 +185,21 @@ def sync_video_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
     deep_sync: bool = False,
-    segments: list[DateRange] | None = None,
 ) -> None:
-    """Sync video-level daily analytics rows into the database."""
+    """Sync video-level daily analytics rows."""
     video_ids = list_video_ids()
     if not video_ids:
         sync_videos()
         video_ids = list_video_ids()
     earliest = get_earliest_date("videos", "published_at", is_timestamp=True)
     if not earliest:
-        return None
-
+        return
     date_range = build_sync_date_range(earliest, start_date=start_date, end_date=end_date)
     if date_range is None:
-        return None
-
+        return
     latest_by_video = {} if deep_sync else get_latest_grouped_dates("video_analytics", "video_id")
-    if segments is None:
-        segments = chunk_date_range(date_range)
+    segments = chunk_date_range(date_range)
     publish_map = build_video_publish_map()
-    total_rows = 0
     segment_video_sets: list[list[str]] = []
     total_videos = 0
     for segment in segments:
@@ -189,8 +209,7 @@ def sync_video_analytics(
             if publish_date and publish_date > segment.end:
                 continue
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
-            query_start = max(next_start, segment.start)
-            if query_start > segment.end:
+            if max(next_start, segment.start) > segment.end:
                 continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
@@ -198,8 +217,8 @@ def sync_video_analytics(
     if total_videos == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.format_message("Video analytics [{current}/{total}] no videos to sync")
-        return None
+        sync_progress.format_message("Video analytics [{current}/{total}] nothing to sync")
+        return
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
     sync_progress.format_message("Video analytics [{current}/{total}] starting")
@@ -207,47 +226,27 @@ def sync_video_analytics(
         segment_videos = segment_video_sets[segment_index - 1]
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
-            sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+            sync_progress.raise_if_stop_requested("Stop requested.")
             sync_progress.format_message(
                 "Video analytics [{current}/{total}] {detail}",
-                detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
+                detail=f"{segment.start} → {segment.end} [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
             query_start = max(next_start, segment.start)
             if query_start > segment.end:
                 continue
-            try:
-                rows = fetch_video_daily_metrics(
-                    video_id,
-                    query_start,
-                    segment.end,
-                    publish_date=publish_date,
-                )
-                total_rows += upsert_daily_analytics(video_id, rows)
-                latest_by_video[video_id] = segment.end
-                sync_progress.increment()
-            except Exception as exc:
-                _log_sync_error(
-                    "video_analytics",
-                    exc,
-                    video_id=video_id,
-                    segment_start=segment.start,
-                    segment_end=segment.end,
-                    next_start=next_start,
-                    query_start=query_start,
-                    publish_date=publish_date,
-                )
-                raise
-
-    return None
+            rows = fetch_video_daily_metrics(video_id, query_start, segment.end, publish_date=publish_date)
+            sync_progress.increment_api_calls()
+            upsert_daily_analytics(video_id, rows)
+            latest_by_video[video_id] = segment.end
+            sync_progress.increment()
 
 
 def sync_video_traffic_source(
     start_date: str | None = None,
     end_date: str | None = None,
     deep_sync: bool = False,
-    segments: list[DateRange] | None = None,
 ) -> None:
     """Sync per-video daily traffic-source rows."""
     video_ids = list_video_ids()
@@ -256,17 +255,13 @@ def sync_video_traffic_source(
         video_ids = list_video_ids()
     earliest = get_earliest_date("videos", "published_at", is_timestamp=True)
     if not earliest:
-        return None
-
+        return
     date_range = build_sync_date_range(earliest, start_date=start_date, end_date=end_date)
     if date_range is None:
-        return None
-
-    latest_traffic_by_video = {} if deep_sync else get_latest_grouped_dates("video_traffic_source", "video_id")
-    if segments is None:
-        segments = chunk_date_range(date_range)
+        return
+    latest_by_video = {} if deep_sync else get_latest_grouped_dates("video_traffic_source", "video_id")
+    segments = chunk_date_range(date_range)
     publish_map = build_video_publish_map()
-    total_rows = 0
     segment_video_sets: list[list[str]] = []
     total_videos = 0
     for segment in segments:
@@ -275,9 +270,8 @@ def sync_video_traffic_source(
             publish_date = publish_map.get(video_id)
             if publish_date and publish_date > segment.end:
                 continue
-            traffic_start = find_next_sync_date(latest_traffic_by_video.get(video_id), segment.start)
-            query_start = max(traffic_start, segment.start)
-            if query_start > segment.end:
+            next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
+            if max(next_start, segment.start) > segment.end:
                 continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
@@ -285,8 +279,8 @@ def sync_video_traffic_source(
     if total_videos == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.format_message("Video traffic source [{current}/{total}] no videos to sync")
-        return None
+        sync_progress.format_message("Video traffic source [{current}/{total}] nothing to sync")
+        return
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
     sync_progress.format_message("Video traffic source [{current}/{total}] starting")
@@ -294,66 +288,43 @@ def sync_video_traffic_source(
         segment_videos = segment_video_sets[segment_index - 1]
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
-            sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+            sync_progress.raise_if_stop_requested("Stop requested.")
             sync_progress.format_message(
                 "Video traffic source [{current}/{total}] {detail}",
-                detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
+                detail=f"{segment.start} → {segment.end} [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
-            traffic_start = find_next_sync_date(latest_traffic_by_video.get(video_id), segment.start)
-            query_start = max(traffic_start, segment.start)
-            if query_start <= segment.end:
-                try:
-                    traffic_rows = fetch_video_traffic_source_metrics(
-                        video_id,
-                        query_start,
-                        segment.end,
-                        publish_date=publish_date,
-                    )
-                    total_rows += upsert_video_traffic_source(video_id, traffic_rows)
-                    latest_traffic_by_video[video_id] = segment.end
-                    sync_progress.increment()
-                except Exception as exc:
-                    _log_sync_error(
-                        "video_traffic_source",
-                        exc,
-                        video_id=video_id,
-                        segment_start=segment.start,
-                        segment_end=segment.end,
-                        traffic_start=traffic_start,
-                        query_start=query_start,
-                        publish_date=publish_date,
-                    )
-                    raise
-
-    return None
+            next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
+            query_start = max(next_start, segment.start)
+            if query_start > segment.end:
+                continue
+            rows = fetch_video_traffic_source_metrics(video_id, query_start, segment.end, publish_date=publish_date)
+            sync_progress.increment_api_calls()
+            upsert_video_traffic_source(video_id, rows)
+            latest_by_video[video_id] = segment.end
+            sync_progress.increment()
 
 
 def sync_video_search_insights(
     start_date: str | None = None,
     end_date: str | None = None,
     deep_sync: bool = False,
-    segments: list[DateRange] | None = None,
 ) -> None:
-    """Sync per-video monthly YouTube-search term insight rows."""
+    """Sync per-video monthly search insight rows."""
     video_ids = list_video_ids()
     if not video_ids:
         sync_videos()
         video_ids = list_video_ids()
     earliest = get_earliest_date("videos", "published_at", is_timestamp=True)
     if not earliest:
-        return None
-
+        return
     date_range = build_sync_date_range(earliest, start_date=start_date, end_date=end_date)
     if date_range is None:
-        return None
-
-    latest_search_by_video = {} if deep_sync else get_latest_grouped_dates("video_search_insights", "video_id")
+        return
+    latest_by_video = {} if deep_sync else get_latest_grouped_dates("video_search_insights", "video_id")
     month_aligned_range = DateRange(start=month_start(date_range.start), end=date_range.end)
-    if segments is None:
-        segments = chunk_date_range(month_aligned_range)
+    segments = chunk_date_range(month_aligned_range)
     publish_map = build_video_publish_map()
-    total_rows = 0
     segment_video_sets: list[list[str]] = []
     total_videos = 0
     for segment in segments:
@@ -363,9 +334,8 @@ def sync_video_search_insights(
             if publish_date and publish_date > segment.end:
                 continue
             segment_start = max(segment.start, date_range.start)
-            search_start = find_next_month_sync_date(latest_search_by_video.get(video_id), segment_start)
-            query_start = max(search_start, segment_start)
-            if query_start > segment.end:
+            search_start = find_next_month_sync_date(latest_by_video.get(video_id), segment_start)
+            if max(search_start, segment_start) > segment.end:
                 continue
             segment_videos.append(video_id)
         segment_video_sets.append(segment_videos)
@@ -373,50 +343,31 @@ def sync_video_search_insights(
     if total_videos == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.format_message("Video search insights [{current}/{total}] no videos to sync")
-        return None
+        sync_progress.format_message("Video search insights [{current}/{total}] nothing to sync")
+        return
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
     sync_progress.format_message("Video search insights [{current}/{total}] starting")
-
     for segment_index, segment in enumerate(segments, start=1):
         segment_videos = segment_video_sets[segment_index - 1]
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
-            sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+            sync_progress.raise_if_stop_requested("Stop requested.")
             sync_progress.format_message(
                 "Video search insights [{current}/{total}] {detail}",
-                detail=f"{segment.start} -> {segment.end} Video [{video_index}/{segment_total}]",
+                detail=f"{segment.start} → {segment.end} [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             segment_start = max(segment.start, date_range.start)
-            search_start = find_next_month_sync_date(latest_search_by_video.get(video_id), segment_start)
+            search_start = find_next_month_sync_date(latest_by_video.get(video_id), segment_start)
             query_start = max(search_start, segment_start)
-            if query_start <= segment.end:
-                try:
-                    search_rows = fetch_video_search_insight_metrics(
-                        video_id,
-                        query_start,
-                        segment.end,
-                        publish_date=publish_date,
-                    )
-                    total_rows += upsert_video_search_insights(video_id, search_rows)
-                    latest_search_by_video[video_id] = month_start(segment.end)
-                    sync_progress.increment()
-                except Exception as exc:
-                    _log_sync_error(
-                        "video_search_insights",
-                        exc,
-                        video_id=video_id,
-                        segment_start=segment.start,
-                        segment_end=segment.end,
-                        search_start=search_start,
-                        query_start=query_start,
-                        publish_date=publish_date,
-                    )
-                    raise
-
-    return None
+            if query_start > segment.end:
+                continue
+            rows = fetch_video_search_insight_metrics(video_id, query_start, segment.end, publish_date=publish_date)
+            sync_progress.increment_api_calls()
+            upsert_video_search_insights(video_id, rows)
+            latest_by_video[video_id] = month_start(segment.end)
+            sync_progress.increment()
 
 
 def sync_channel_analytics(
@@ -424,45 +375,33 @@ def sync_channel_analytics(
     end_date: str | None = None,
     deep_sync: bool = False,
 ) -> None:
-    """Sync channel-level analytics rows."""
+    """Sync channel-level daily analytics rows."""
     earliest = get_earliest_date("videos", "published_at", is_timestamp=True)
     if not earliest:
-        return None
+        return
     date_range = build_sync_date_range(earliest, start_date=start_date, end_date=end_date)
     if date_range is None:
-        return None
+        return
     latest = None if deep_sync else get_latest_date("channel_analytics")
     if latest:
         next_date = next_day(latest)
         if next_date > date_range.start:
             date_range = DateRange(start=next_date, end=date_range.end)
     if date_range.start > date_range.end:
-        return None
+        return
     segments = chunk_date_range(date_range, months_per_chunk=4)
     sync_progress.set_total(max(len(segments), 1))
     sync_progress.set_current(0)
-    total_rows = 0
     for index, segment in enumerate(segments, start=1):
-        sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+        sync_progress.raise_if_stop_requested("Stop requested.")
         sync_progress.format_message(
             "Channel analytics [{current}/{total}] {detail}",
-            detail=f"{segment.start} -> {segment.end} Segment [{index}/{len(segments)}]",
+            detail=f"{segment.start} → {segment.end} [{index}/{len(segments)}]",
         )
-        try:
-            rows = fetch_channel_analytics(segment.start, segment.end)
-            total_rows += upsert_channel_daily(rows)
-            sync_progress.increment()
-        except Exception as exc:
-            _log_sync_error(
-                "channel_analytics",
-                exc,
-                segment_start=segment.start,
-                segment_end=segment.end,
-                segment_index=index,
-                total_segments=len(segments),
-            )
-            raise
-    return None
+        rows = fetch_channel_analytics(segment.start, segment.end)
+        sync_progress.increment_api_calls()
+        upsert_channel_daily(rows)
+        sync_progress.increment()
 
 
 def sync_traffic_sources(
@@ -473,42 +412,30 @@ def sync_traffic_sources(
     """Sync traffic source analytics rows."""
     earliest = get_earliest_date("videos", "published_at", is_timestamp=True)
     if not earliest:
-        return None
+        return
     date_range = build_sync_date_range(earliest, start_date=start_date, end_date=end_date)
     if date_range is None:
-        return None
+        return
     latest = None if deep_sync else get_latest_date("traffic_sources_daily")
     if latest:
         next_date = next_day(latest)
         if next_date > date_range.start:
             date_range = DateRange(start=next_date, end=date_range.end)
     if date_range.start > date_range.end:
-        return None
+        return
     segments = chunk_date_range(date_range, months_per_chunk=12)
     sync_progress.set_total(max(len(segments), 1))
     sync_progress.set_current(0)
-    total_rows = 0
     for index, segment in enumerate(segments, start=1):
-        sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+        sync_progress.raise_if_stop_requested("Stop requested.")
         sync_progress.format_message(
             "Traffic sources [{current}/{total}] {detail}",
-            detail=f"{segment.start} -> {segment.end} Segment [{index}/{len(segments)}]",
+            detail=f"{segment.start} → {segment.end} [{index}/{len(segments)}]",
         )
-        try:
-            rows = fetch_traffic_sources(segment.start, segment.end)
-            total_rows += upsert_traffic_sources(rows)
-            sync_progress.increment()
-        except Exception as exc:
-            _log_sync_error(
-                "traffic",
-                exc,
-                segment_start=segment.start,
-                segment_end=segment.end,
-                segment_index=index,
-                total_segments=len(segments),
-            )
-            raise
-    return None
+        rows = fetch_traffic_sources(segment.start, segment.end)
+        sync_progress.increment_api_calls()
+        upsert_traffic_sources(rows)
+        sync_progress.increment()
 
 
 def sync_comments() -> None:
@@ -520,63 +447,56 @@ def sync_comments() -> None:
     total_videos = max(len(video_ids), 1)
     sync_progress.set_total(total_videos)
     sync_progress.set_current(0)
-    sync_progress.format_message("Pulling comments... [{current}/{total}]")
-    total = 0
-    for index, video_id in enumerate(video_ids, start=1):
-        sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
-        sync_progress.format_message("Pulling comments... [{current}/{total}]")
-        try:
-            rows = extract_comments(video_id)
-            total += upsert_comments(rows)
-            sync_progress.increment()
-        except Exception as exc:
-            _log_sync_error("comments", exc, video_id=video_id, index=index, total=total_videos)
-            raise
+    sync_progress.format_message("Pulling comments [{current}/{total}]")
+    for video_id in video_ids:
+        sync_progress.raise_if_stop_requested("Stop requested.")
+        rows = extract_comments(video_id)
+        sync_progress.increment_api_calls()
+        upsert_comments(rows)
+        sync_progress.increment()
+        sync_progress.format_message("Pulling comments [{current}/{total}]")
 
 
 def sync_audience() -> None:
-    """Sync public subscribers, then backfill commenter-only audience from comments DB."""
-    try:
-        subscriber_rows = extract_public_subscribers()
-        upsert_audience(subscriber_rows)
-        upsert_commenters_from_comments()
-    except Exception as exc:
-        _log_sync_error("audience", exc)
-        raise
+    """Sync public subscribers then backfill commenter-only audience from comments."""
+    sync_progress.set_total(1)
+    sync_progress.set_current(0)
+    sync_progress.format_message("Pulling audience [{current}/{total}]")
+    sync_progress.raise_if_stop_requested("Stop requested.")
+    subscriber_rows = extract_public_subscribers()
+    sync_progress.increment_api_calls()
+    upsert_audience(subscriber_rows)
+    upsert_commenters_from_comments()
+    sync_progress.set_current(1)
+    sync_progress.format_message("Pulling audience [{current}/{total}] complete")
 
 
 def sync_playlists() -> None:
-    """Sync playlists and playlist items, tracking progress per playlist."""
-    try:
-        playlists = [playlist for playlist in get_all_playlists() if playlist.get("id")]
-        upsert_playlists(playlists)
-        delete_playlists_not_in([str(playlist["id"]) for playlist in playlists if playlist.get("id")])
-    except Exception as exc:
-        _log_sync_error("playlists", exc, step="load_playlists")
-        raise
+    """Sync playlists and playlist items."""
+    sync_progress.set_total(1)
+    sync_progress.set_current(0)
+    sync_progress.format_message("Pulling playlists [{current}/{total}] loading playlists")
+    sync_progress.raise_if_stop_requested("Stop requested.")
+    playlists = [p for p in get_all_playlists() if p.get("id")]
+    sync_progress.increment_api_calls()
+    upsert_playlists(playlists)
+    delete_playlists_not_in([str(p["id"]) for p in playlists])
     total_playlists = max(len(playlists), 1)
     sync_progress.set_total(total_playlists)
     sync_progress.set_current(0)
-    sync_progress.format_message("Pulling playlists... [{current}/{total}]")
-    for index, playlist in enumerate(playlists, start=1):
-        sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+    sync_progress.format_message("Pulling playlists [{current}/{total}]")
+    for playlist in playlists:
+        sync_progress.raise_if_stop_requested("Stop requested.")
         playlist_id = str(playlist["id"])
         playlist_title = str(playlist.get("snippet", {}).get("title") or playlist_id)
-        try:
-            rows = get_all_playlist_items(playlist_id=playlist_id)
-            replace_playlist_items(playlist_id, rows)
-            sync_progress.increment()
-            sync_progress.format_message("Pulling playlists... [{current}/{total}] {title}", title=playlist_title)
-        except Exception as exc:
-            _log_sync_error(
-                "playlists",
-                exc,
-                playlist_id=playlist_id,
-                playlist_title=playlist_title,
-                index=index,
-                total=total_playlists,
-            )
-            raise
+        rows = get_all_playlist_items(playlist_id=playlist_id)
+        sync_progress.increment_api_calls()
+        replace_playlist_items(playlist_id, rows)
+        sync_progress.increment()
+        sync_progress.format_message("Pulling playlists [{current}/{total}] {title}", title=playlist_title)
+
+
+# ── analytics API stage functions ───────────────────────────────────────────
 
 
 def sync_playlist_analytics(
@@ -591,12 +511,10 @@ def sync_playlist_analytics(
         playlist_ids = list_playlist_ids()
     earliest = get_earliest_date("playlists", "published_at", is_timestamp=True)
     if not earliest:
-        return None
-
+        return
     date_range = build_sync_date_range(earliest, start_date=start_date, end_date=end_date)
     if date_range is None:
-        return None
-
+        return
     latest_by_playlist = {} if deep_sync else get_latest_grouped_dates("playlist_daily_analytics", "playlist_id")
     segments = chunk_date_range(date_range)
     publish_map = build_playlist_publish_map()
@@ -619,8 +537,8 @@ def sync_playlist_analytics(
     if total_playlists == 0:
         sync_progress.set_total(1)
         sync_progress.set_current(0)
-        sync_progress.format_message("Playlist analytics [{current}/{total}] no playlists to sync")
-        return None
+        sync_progress.format_message("Playlist analytics [{current}/{total}] nothing to sync")
+        return
     sync_progress.set_total(total_playlists)
     sync_progress.set_current(0)
     sync_progress.format_message("Playlist analytics [{current}/{total}] starting")
@@ -628,36 +546,23 @@ def sync_playlist_analytics(
         segment_playlists = segment_playlist_sets[segment_index - 1]
         segment_total = max(len(segment_playlists), 1)
         for playlist_index, playlist_id in enumerate(segment_playlists, start=1):
-            sync_progress.raise_if_stop_requested("Stop requested. Ending after current API call.")
+            sync_progress.raise_if_stop_requested("Stop requested.")
             sync_progress.format_message(
                 "Playlist analytics [{current}/{total}] {detail}",
-                detail=f"{segment.start} -> {segment.end} Playlist [{playlist_index}/{segment_total}]",
+                detail=f"{segment.start} → {segment.end} [{playlist_index}/{segment_total}]",
             )
             latest = latest_by_playlist.get(playlist_id)
             resume_start = next_day(latest) if latest else segment.start
             query_start = max(resume_start, segment.start)
             if query_start > segment.end:
                 continue
-            try:
-                rows = fetch_playlist_daily_metrics(
-                    playlist_id,
-                    query_start,
-                    segment.end,
-                    publish_date=publish_map.get(playlist_id),
-                )
-                upsert_playlist_daily_analytics(playlist_id, rows)
-                sync_progress.increment()
-            except Exception as exc:
-                _log_sync_error(
-                    "playlist_analytics",
-                    exc,
-                    playlist_id=playlist_id,
-                    segment_start=segment.start,
-                    segment_end=segment.end,
-                    query_start=query_start,
-                    publish_date=publish_map.get(playlist_id),
-                )
-                raise
+            rows = fetch_playlist_daily_metrics(
+                playlist_id, query_start, segment.end, publish_date=publish_map.get(playlist_id)
+            )
+            sync_progress.increment_api_calls()
+            upsert_playlist_daily_analytics(playlist_id, rows)
+            latest_by_playlist[playlist_id] = segment.end
+            sync_progress.increment()
 
 
 def sync_all(
@@ -666,142 +571,145 @@ def sync_all(
     deep_sync: bool = False,
     pulls: list[str] | None = None,
 ) -> dict:
-    """Sync videos and daily analytics, returning a summary payload."""
-    sync_progress.init(1)
-    selected = {item.lower() for item in pulls} if pulls else None
-    try:
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "videos"):
-            _run_sync_stage("videos", start_date, end_date, deep_sync, sync_videos)
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "comments"):
-            _run_sync_stage("comments", start_date, end_date, deep_sync, sync_comments)
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "audience"):
-            _run_sync_stage("audience", start_date, end_date, deep_sync, sync_audience)
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "playlists"):
-            _run_sync_stage("playlists", start_date, end_date, deep_sync, sync_playlists)
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "playlist_analytics"):
-            _run_sync_stage(
-                "playlist_analytics",
-                start_date,
-                end_date,
-                deep_sync,
-                lambda: sync_playlist_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
-            )
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "traffic"):
-            _run_sync_stage(
-                "traffic",
-                start_date,
-                end_date,
-                deep_sync,
-                lambda: sync_traffic_sources(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
-            )
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "channel_analytics"):
-            _run_sync_stage(
-                "channel_analytics",
-                start_date,
-                end_date,
-                deep_sync,
-                lambda: sync_channel_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
-            )
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "video_analytics"):
-            _run_sync_stage(
-                "video_analytics",
-                start_date,
-                end_date,
-                deep_sync,
-                lambda: sync_video_analytics(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
-            )
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "video_traffic_source"):
-            _run_sync_stage(
-                "video_traffic_source",
-                start_date,
-                end_date,
-                deep_sync,
-                lambda: sync_video_traffic_source(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
-            )
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        if _should_run(selected, "video_search_insights"):
-            _run_sync_stage(
-                "video_search_insights",
-                start_date,
-                end_date,
-                deep_sync,
-                lambda: sync_video_search_insights(start_date=start_date, end_date=end_date, deep_sync=deep_sync),
-            )
-        sync_progress.set_total(1)
-        sync_progress.set_current(1)
-        sync_progress.mark_done(message=sync_progress.format_message("Pulling sync complete... [{current}/{total}]"))
-    except SyncStopRequested as stop_exc:
-        sync_progress.mark_stopped(str(stop_exc))
-    except Exception:
-        sync_progress.mark_failed("Sync failed")
-        raise
-    return None
+    """[Removed] Use sync_data() or sync_analytics() instead."""
+    raise NotImplementedError("sync_all has been removed. Use sync_data() or sync_analytics().")
 
 
-def _run_sync_stage(
-    stage_key: str,
-    start_date: str | None,
-    end_date: str | None,
-    deep_sync: bool,
-    stage_fn,
-) -> None:
-    """Create a sync run row for one stage, execute it, and finalize its status."""
-    started_at = datetime.utcnow().isoformat() + "Z"
-    run_id = _create_sync_run(started_at, start_date, end_date, deep_sync, [stage_key])
-    try:
-        stage_fn()
-        _finish_sync_run(run_id, "success")
-    except SyncStopRequested as stop_exc:
-        _finish_sync_run(run_id, "manual_stop", str(stop_exc))
-        raise
-    except Exception as exc:
-        error_trace = traceback.format_exc()
-        _finish_sync_run(run_id, "failed", error_trace if error_trace else str(exc))
+# ── stage runner ────────────────────────────────────────────────────────────────
 
 
 def _should_run(selected: set[str] | None, key: str) -> bool:
-    """Return True when a sync step is enabled."""
+    """Return True when a sync step is enabled (no filter = all enabled)."""
     if not selected:
         return True
     return key in selected
 
 
 def _create_sync_run(
-    started_at: str,
+    table_name: str,
     start_date: str | None,
     end_date: str | None,
     deep_sync: bool,
-    pulls: list[str] | None,
 ) -> int:
-    """Insert a sync run row and return its ID."""
-    pulls_value = ",".join(pulls) if pulls else None
+    """Insert a sync_runs row and return its ID."""
     with get_connection() as conn:
         cursor = conn.execute(
-            (
-                "INSERT INTO sync_runs (started_at, status, start_date, end_date, deep_sync, pulls) "
-                "VALUES (?, ?, ?, ?, ?, ?)"
-            ),
-            (started_at, "running", start_date, end_date, 1 if deep_sync else 0, pulls_value),
+            "INSERT INTO sync_runs (started_at, start_date, end_date, table_name, deep_sync, status) "
+            "VALUES (?, ?, ?, ?, ?, 'running')",
+            (datetime.utcnow().isoformat() + "Z", start_date, end_date, table_name, 1 if deep_sync else 0),
         )
         conn.commit()
         return int(cursor.lastrowid)
 
 
-def _finish_sync_run(run_id: int, status: str, error_message: str | None = None) -> None:
-    """Mark a sync run as finished."""
+def _finish_sync_run(
+    run_id: int,
+    status: str,
+    total_api_calls: int,
+    error: str | None = None,
+) -> None:
+    """Mark a sync_runs row as finished."""
     with get_connection() as conn:
         conn.execute(
-            "UPDATE sync_runs SET finished_at = ?, status = ?, error = ?, error_message = ? WHERE id = ?",
-            (datetime.utcnow().isoformat() + "Z", status, error_message, error_message, run_id),
+            "UPDATE sync_runs SET finished_at = ?, status = ?, total_api_calls = ?, error = ? WHERE id = ?",
+            (datetime.utcnow().isoformat() + "Z", status, total_api_calls, error, run_id),
         )
         conn.commit()
+
+
+def _run_sync_stage(
+    stage_key: str,
+    stage_fn,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    deep_sync: bool = False,
+) -> None:
+    """Create a sync_runs row for one stage, execute it, and finalize its status.
+
+    SyncStopRequested propagates upward to halt the enclosing sync.
+    All other exceptions are caught, recorded in the DB row, and logged so
+    the remaining stages continue (failure isolation).
+    """
+    table_name = _STAGE_TABLE.get(stage_key, stage_key)
+    run_id = _create_sync_run(table_name, start_date, end_date, deep_sync)
+    api_calls_before = sync_progress.get_api_calls()
+    try:
+        stage_fn()
+        api_delta = sync_progress.get_api_calls() - api_calls_before
+        _finish_sync_run(run_id, "success", api_delta)
+    except SyncStopRequested as exc:
+        api_delta = sync_progress.get_api_calls() - api_calls_before
+        _finish_sync_run(run_id, "stopped", api_delta)
+        raise
+    except Exception as exc:
+        api_delta = sync_progress.get_api_calls() - api_calls_before
+        error_trace = traceback.format_exc() or str(exc)
+        _finish_sync_run(run_id, "failed", api_delta, error=error_trace)
+        _log_sync_error(stage_key, exc)
+
+
+# ── entry points ─────────────────────────────────────────────────────────────────
+
+
+def sync_data(items: list[SyncQueueItem]) -> None:
+    """Run queued YouTube Data API v3 stages, each with its own deep_sync option.
+
+    Called by the route handler as a BackgroundTask after try_start() succeeds.
+    Items are processed in order; each creates an individual sync_runs row.
+    """
+    _stage_fn = {
+        "videos": sync_videos,
+        "comments": sync_comments,
+        "audience": sync_audience,
+        "playlists": sync_playlists,
+    }
+    try:
+        for item in items:
+            sync_progress.raise_if_stop_requested("Stop requested.")
+            fn = _stage_fn.get(item.stage)
+            if fn is None:
+                continue
+            _run_sync_stage(item.stage, fn, deep_sync=item.deep_sync)
+        sync_progress.mark_done("Data sync complete")
+    except SyncStopRequested as exc:
+        sync_progress.mark_stopped(str(exc))
+    except Exception:
+        sync_progress.mark_failed("Data sync failed unexpectedly")
+        raise
+
+
+def sync_analytics(items: list[SyncQueueItem]) -> None:
+    """Run queued YouTube Analytics API v2 stages, each with its own options.
+
+    Called by the route handler as a BackgroundTask after try_start() succeeds.
+    Items are processed in order; each creates an individual sync_runs row.
+    """
+    try:
+        for item in items:
+            sync_progress.raise_if_stop_requested("Stop requested.")
+            sd, ed, ds = item.start_date, item.end_date, item.deep_sync
+            if item.stage == "playlist_analytics":
+                fn = lambda s=sd, e=ed, d=ds: sync_playlist_analytics(start_date=s, end_date=e, deep_sync=d)
+            elif item.stage == "traffic":
+                fn = lambda s=sd, e=ed, d=ds: sync_traffic_sources(start_date=s, end_date=e, deep_sync=d)
+            elif item.stage == "channel_analytics":
+                fn = lambda s=sd, e=ed, d=ds: sync_channel_analytics(start_date=s, end_date=e, deep_sync=d)
+            elif item.stage == "video_analytics":
+                fn = lambda s=sd, e=ed, d=ds: sync_video_analytics(start_date=s, end_date=e, deep_sync=d)
+            elif item.stage == "video_traffic_source":
+                fn = lambda s=sd, e=ed, d=ds: sync_video_traffic_source(start_date=s, end_date=e, deep_sync=d)
+            elif item.stage == "video_search_insights":
+                fn = lambda s=sd, e=ed, d=ds: sync_video_search_insights(start_date=s, end_date=e, deep_sync=d)
+            else:
+                continue
+            _run_sync_stage(
+                item.stage, fn,
+                start_date=item.start_date, end_date=item.end_date, deep_sync=item.deep_sync,
+            )
+        sync_progress.mark_done("Analytics sync complete")
+    except SyncStopRequested as exc:
+        sync_progress.mark_stopped(str(exc))
+    except Exception:
+        sync_progress.mark_failed("Analytics sync failed unexpectedly")
+        raise
 

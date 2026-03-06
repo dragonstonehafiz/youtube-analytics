@@ -179,13 +179,13 @@ CREATE TABLE IF NOT EXISTS sync_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,
     finished_at TEXT,
-    status TEXT NOT NULL,
-    error TEXT,
-    error_message TEXT,
     start_date TEXT,
     end_date TEXT,
-    deep_sync INTEGER DEFAULT 0,
-    pulls TEXT
+    table_name TEXT NOT NULL,
+    deep_sync INTEGER NOT NULL DEFAULT 0,
+    total_api_calls INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'running',
+    error TEXT
 );
 
 CREATE TABLE IF NOT EXISTS comments (
