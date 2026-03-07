@@ -113,15 +113,15 @@ def find_next_month_sync_date(latest_date: str | None, fallback_start: str) -> s
 
 def sync_videos() -> None:
     """Sync all video metadata into the database."""
-    sync_progress.set_total(3)
+    sync_progress.set_total(2)
     sync_progress.set_current(0)
-    sync_progress.format_message("Pulling videos [{current}/{total}] 1/3: loading uploads")
+    sync_progress.format_message("Pulling videos [{current}/{total}] 1/2: loading uploads")
     sync_progress.raise_if_stop_requested("Stop requested.")
     videos = safe_get_videos()
     sync_progress.increment_api_calls()
     sync_progress.increment()
 
-    sync_progress.format_message("Pulling videos [{current}/{total}] 2/3: loading shorts IDs")
+    sync_progress.format_message("Pulling videos [{current}/{total}] 2/2: loading shorts IDs")
     sync_progress.raise_if_stop_requested("Stop requested.")
     short_video_ids = get_short_video_ids()
     sync_progress.increment_api_calls()
