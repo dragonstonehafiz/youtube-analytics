@@ -10,6 +10,7 @@ import {
 import usePagination from '../../hooks/usePagination'
 import { ProgressBar, RatioBar } from '../../components/charts'
 import { formatDisplayDate } from '../../utils/date'
+import { formatWholeNumber } from '../../utils/number'
 import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './SyncSettings.css'
@@ -63,6 +64,14 @@ const PULL_COLORS: Record<string, string> = {
   video_analytics: '#f43f5e',
   video_traffic_source: '#14b8a6',
   video_search_insights: '#6366f1',
+}
+
+function getTableNameFromOption(optionValue: string): string {
+  const mapping: Record<string, string> = {
+    traffic: 'traffic_sources_daily',
+    playlist_analytics: 'playlist_daily_analytics',
+  }
+  return mapping[optionValue] || optionValue
 }
 
 type ApiCallRow = {
@@ -162,7 +171,6 @@ function SyncSettings() {
   const [dataPullApiCallsLoading, setDataPullApiCallsLoading] = useState(false)
   const [dataPullApiCallsError, setDataPullApiCallsError] = useState<string | null>(null)
   const [dataPullApiCallsByPull, setDataPullApiCallsByPull] = useState<Record<string, number>>({})
-  const [dataSyncError, setDataSyncError] = useState<string | null>(null)
 
   // Analytics sync state
   const [analyticsPullConfigs, setAnalyticsPullConfigs] = useState<
@@ -188,6 +196,9 @@ function SyncSettings() {
   const [analyticsPullApiCallsByPull, setAnalyticsPullApiCallsByPull] = useState<
     Record<string, number>
   >({})
+
+  // Table column counts
+  const [tableRowCounts, setTableRowCounts] = useState<Record<string, number>>({})
 
   // Shared sync/progress state
   const [isSyncing, setIsSyncing] = useState(false)
@@ -255,6 +266,29 @@ function SyncSettings() {
       setStopRequestedByUser(false)
     }
   }, [isSyncActive])
+
+  useEffect(() => {
+    const fetchTableRowCounts = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/stats/overview')
+        if (!res.ok) {
+          console.error(`API error: ${res.status} ${res.statusText}`)
+          return
+        }
+        const data = await res.json()
+        const rowCountsList = data.table_row_counts || []
+        const rowCountsMap: Record<string, number> = {}
+        rowCountsList.forEach((item: { table: string; rows: number }) => {
+          rowCountsMap[item.table] = item.rows
+        })
+        setTableRowCounts(rowCountsMap)
+      } catch (error) {
+        console.error('Failed to fetch table row counts:', error)
+      }
+    }
+
+    fetchTableRowCounts()
+  }, [])
 
   const analyticsSyncPeriodForEstimate = useMemo(() => {
     const included = ANALYTICS_STAGES.filter(
@@ -448,11 +482,7 @@ function SyncSettings() {
       stage: s,
       deep_sync: dataPullConfigs[s]?.deepSync ?? false,
     }))
-    if (items.length === 0) {
-      setDataSyncError('Select at least one pull to sync.')
-      return
-    }
-    setDataSyncError(null)
+    if (items.length === 0) return
     setStopRequestedByUser(false)
     setIsSyncing(true)
     setProgress({
@@ -468,7 +498,6 @@ function SyncSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
       })
-      if (response.status === 409) setDataSyncError('A sync is already running.')
     } catch (error) {
       console.error('Failed to start data sync', error)
     } finally {
@@ -616,8 +645,13 @@ function SyncSettings() {
                   const cfg = dataPullConfigs[opt.value]
                   return (
                     <div key={opt.value} className="sync-stage-row">
-                      <span className="sync-stage-label">{opt.label}</span>
-                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <span className="sync-stage-label">{opt.label}</span>
+                        <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                          {formatWholeNumber(tableRowCounts[opt.value] || 0)} rows
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginLeft: 'auto' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
                           <input
                             type="checkbox"
@@ -673,10 +707,16 @@ function SyncSettings() {
               <div className="sync-stage-table">
                 {ANALYTICS_PULL_OPTIONS.map((opt) => {
                   const cfg = analyticsPullConfigs[opt.value]
+                  const tableName = getTableNameFromOption(opt.value)
                   return (
                     <div key={opt.value} className="sync-stage-row">
-                      <div className="sync-stage-label-cell">
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <span className="sync-stage-label">{opt.label}</span>
+                        <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
+                          {formatWholeNumber(tableRowCounts[tableName] || 0)} rows
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginLeft: 'auto' }}>
                         {cfg.included ? (
                           <div className="sync-stage-date-controls">
                             <Dropdown
@@ -707,8 +747,6 @@ function SyncSettings() {
                             ) : null}
                           </div>
                         ) : null}
-                      </div>
-                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
                           <input
                             type="checkbox"

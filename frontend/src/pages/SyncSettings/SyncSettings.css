@@ -80,6 +80,12 @@
   height: auto;
 }
 
+.sync-card input[type='checkbox'] {
+  width: 18px;
+  height: 35px;
+  cursor: pointer;
+}
+
 /* Controls */
 .sync-controls {
   display: flex;
@@ -96,7 +102,6 @@
 .sync-stage-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
@@ -106,14 +111,6 @@
   font-size: 15px;
   font-weight: 700;
   color: #0f172a;
-}
-
-.sync-stage-label-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
 }
 
 .sync-stage-date-controls {

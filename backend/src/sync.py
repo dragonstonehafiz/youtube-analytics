@@ -584,18 +584,52 @@ def _should_run(selected: set[str] | None, key: str) -> bool:
     return key in selected
 
 
+def _get_earliest_for_table(table_name: str) -> str | None:
+    """Get the earliest date for a given table to resolve None date ranges.
+
+    Only analytics tables have meaningful date ranges. Data tables (videos, playlists,
+    comments, audience) pull all data from YouTube API regardless of dates, so they
+    don't need date resolution.
+    """
+    # Analytics tables that depend on videos' published dates
+    if table_name in ("video_analytics", "video_traffic_source", "video_search_insights", "traffic_sources_daily", "channel_analytics"):
+        return get_earliest_date("videos", "published_at", is_timestamp=True)
+
+    # Analytics tables that depend on playlists' published dates
+    if table_name == "playlist_daily_analytics":
+        return get_earliest_date("playlists", "published_at", is_timestamp=True)
+
+    # Data tables don't have meaningful date ranges
+    return None
+
+
 def _create_sync_run(
     table_name: str,
     start_date: str | None,
     end_date: str | None,
     deep_sync: bool,
 ) -> int:
-    """Insert a sync_runs row and return its ID."""
+    """Insert a sync_runs row and return its ID.
+
+    Resolves None start_date/end_date to actual dates from the database.
+    """
+    resolved_start = start_date
+    resolved_end = end_date
+
+    # Resolve None dates by querying the database for earliest/latest actual dates
+    if resolved_start is None or resolved_end is None:
+        earliest = _get_earliest_for_table(table_name)
+        if earliest:
+            date_range = build_sync_date_range(earliest, start_date=start_date, end_date=end_date)
+            if date_range:
+                resolved_start = date_range.start
+                resolved_end = date_range.end
+
     with get_connection() as conn:
         cursor = conn.execute(
             "INSERT INTO sync_runs (started_at, start_date, end_date, table_name, deep_sync, status) "
             "VALUES (?, ?, ?, ?, ?, 'running')",
-            (datetime.utcnow().isoformat() + "Z", start_date, end_date, table_name, 1 if deep_sync else 0),
+            (datetime.utcnow().isoformat() + "Z", resolved_start, resolved_end, table_name, 1 if deep_sync else 0),
         )
         conn.commit()
         return int(cursor.lastrowid)
