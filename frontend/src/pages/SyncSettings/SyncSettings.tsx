@@ -136,8 +136,9 @@ type SyncRun = {
 function SyncSettings() {
   const today = new Date().toISOString().slice(0, 10)
 
-  type PullConfig = { included: boolean; deepSync: boolean }
+  type PullConfig = { included: boolean }
   type AnalyticsPullConfig = PullConfig & {
+    deepSync: boolean
     rangeMode: string
     year: string
     startDate: string
@@ -146,7 +147,7 @@ function SyncSettings() {
 
   const storedData = getStored(
     'syncSettingsData',
-    null as { pullConfigs?: Record<string, { included?: boolean; deepSync?: boolean }> } | null,
+    null as { pullConfigs?: Record<string, { included?: boolean }> } | null,
   )
   const storedAnalytics = getStored(
     'syncSettingsAnalytics',
@@ -164,7 +165,7 @@ function SyncSettings() {
     return Object.fromEntries(
       DATA_STAGES.map((s) => [
         s,
-        { included: stored[s]?.included ?? true, deepSync: stored[s]?.deepSync ?? false },
+        { included: stored[s]?.included ?? true },
       ]),
     )
   })
@@ -330,9 +331,7 @@ function SyncSettings() {
       setDataPullApiCallsLoading(true)
       setDataPullApiCallsError(null)
       try {
-        const anyDeepSync = pulls.some((s) => dataPullConfigs[s]?.deepSync)
         const params = new URLSearchParams({ pull: pulls.join(',') })
-        if (anyDeepSync) params.set('deep_sync', 'true')
         const response = await fetch(`http://localhost:8000/sync/data/estimate?${params}`)
         if (!response.ok) throw new Error(`Request failed (${response.status})`)
         const data = await response.json()
@@ -452,7 +451,7 @@ function SyncSettings() {
     }
   }, [])
 
-  const toggleDataConfig = (stage: string, key: 'included' | 'deepSync') => {
+  const toggleDataConfig = (stage: string, key: 'included') => {
     setDataPullConfigs((prev) => ({
       ...prev,
       [stage]: { ...prev[stage], [key]: !prev[stage][key] },
@@ -480,7 +479,6 @@ function SyncSettings() {
   const handleDataSync = async () => {
     const items = DATA_STAGES.filter((s) => dataPullConfigs[s]?.included !== false).map((s) => ({
       stage: s,
-      deep_sync: dataPullConfigs[s]?.deepSync ?? false,
     }))
     if (items.length === 0) return
     setStopRequestedByUser(false)
@@ -659,15 +657,6 @@ function SyncSettings() {
                             onChange={() => toggleDataConfig(opt.value, 'included')}
                           />
                           Include
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: cfg.included ? '#1e293b' : 'var(--color-muted)' }}>
-                          <input
-                            type="checkbox"
-                            checked={cfg.deepSync}
-                            disabled={!cfg.included}
-                            onChange={() => toggleDataConfig(opt.value, 'deepSync')}
-                          />
-                          Deep Sync
                         </label>
                       </div>
                     </div>

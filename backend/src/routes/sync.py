@@ -47,7 +47,6 @@ def me() -> dict:
 
 class _DataSyncItem(BaseModel):
     stage: str
-    deep_sync: bool = False
 
 
 class _DataSyncBody(BaseModel):
@@ -85,7 +84,7 @@ def sync_data_route(body: _DataSyncBody, background_tasks: BackgroundTasks) -> J
         )
     if not sync_progress.try_start():
         return JSONResponse(status_code=409, content={"error": "A sync is already running."})
-    queue = [SyncQueueItem(stage=i.stage, deep_sync=i.deep_sync) for i in body.items]
+    queue = [SyncQueueItem(stage=i.stage) for i in body.items]
     background_tasks.add_task(sync_data, queue)
     return JSONResponse(content={"queued": True})
 
@@ -126,13 +125,11 @@ def sync_analytics_route(body: _AnalyticsSyncBody, background_tasks: BackgroundT
 @router.get("/sync/data/estimate")
 def get_data_estimate(
     pull: str | None = None,
-    deep_sync: bool = False,
 ) -> JSONResponse:
     """Estimate minimum YouTube Data API v3 calls for selected data pulls.
 
     Args:
         pull: Comma-separated pull keys. Defaults to all data pulls.
-        deep_sync: Whether to assume a full re-fetch.
     """
     if pull:
         pulls = [p.strip() for p in pull.split(",") if p.strip()]
@@ -145,7 +142,7 @@ def get_data_estimate(
     else:
         pulls = list(DATA_STAGES)
     with get_connection() as conn:
-        by_pull = estimate_data_pulls(conn, pulls, deep_sync)
+        by_pull = estimate_data_pulls(conn, pulls)
     return JSONResponse(content={"by_pull": by_pull, "total": sum(by_pull.values())})
 
 

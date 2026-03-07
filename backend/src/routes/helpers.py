@@ -241,7 +241,6 @@ _ANALYTICS_STAGE_TABLE: dict[str, str] = {
 def estimate_data_pulls(
     conn: sqlite3.Connection,
     pulls: list[str],
-    deep_sync: bool,
 ) -> dict[str, int]:
     """Estimate minimum API calls for each data-stage pull key."""
     result: dict[str, int] = {}
@@ -249,7 +248,7 @@ def estimate_data_pulls(
         table = _DATA_STAGE_TABLE.get(pull)
         if not table:
             continue
-        data = estimate_min_api_calls_for_table(conn, table, None, None, deep_sync)
+        data = estimate_min_api_calls_for_table(conn, table, None, None, False)
         result[pull] = data["minimum_api_calls"]
     return result
 
