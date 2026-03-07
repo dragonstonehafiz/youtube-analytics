@@ -1,5 +1,11 @@
 /* PlaylistDetail page styles */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .playlist-detail-items-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);

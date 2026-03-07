@@ -1,5 +1,11 @@
 /* VideoDetail page styles */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .video-detail-layout {
   display: flex;
   flex-direction: column;

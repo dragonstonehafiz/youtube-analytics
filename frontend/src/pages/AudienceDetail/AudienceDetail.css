@@ -1,5 +1,11 @@
 /* AudienceDetail page styles */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .audience-detail-layout {
   display: flex;
   flex-direction: column;

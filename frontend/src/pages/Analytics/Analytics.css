@@ -1,5 +1,11 @@
 /* Analytics page styles */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .analytics-range-controls {
   display: flex;
   align-items: center;

@@ -188,12 +188,10 @@ function SyncSettings() {
   const [analyticsPullApiCallsByPull, setAnalyticsPullApiCallsByPull] = useState<
     Record<string, number>
   >({})
-  const [analyticsSyncError, setAnalyticsSyncError] = useState<string | null>(null)
 
   // Shared sync/progress state
   const [isSyncing, setIsSyncing] = useState(false)
   const [progress, setProgress] = useState<ProgressState | null>(null)
-  const [syncNotice, setSyncNotice] = useState<string | null>(null)
   const [stopRequestedByUser, setStopRequestedByUser] = useState(false)
 
   // Runs state
@@ -254,9 +252,7 @@ function SyncSettings() {
 
   useEffect(() => {
     if (!isSyncActive) {
-      setSyncNotice(null)
       setStopRequestedByUser(false)
-      setPendingSyncType(null)
     }
   }, [isSyncActive])
 
@@ -457,7 +453,6 @@ function SyncSettings() {
       return
     }
     setDataSyncError(null)
-    setSyncNotice(null)
     setStopRequestedByUser(false)
     setIsSyncing(true)
     setProgress({
@@ -492,11 +487,8 @@ function SyncSettings() {
       return { stage: s, deep_sync: cfg.deepSync, start_date: start, end_date: end }
     })
     if (items.length === 0) {
-      setAnalyticsSyncError('Select at least one pull to sync.')
       return
     }
-    setAnalyticsSyncError(null)
-    setSyncNotice(null)
     setStopRequestedByUser(false)
     setIsSyncing(true)
     setProgress({
@@ -513,7 +505,9 @@ function SyncSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (response.status === 409) setAnalyticsSyncError('A sync is already running.')
+      if (response.status === 409) {
+        // A sync is already running
+      }
     } catch (error) {
       console.error('Failed to start analytics sync', error)
     } finally {
@@ -527,7 +521,6 @@ function SyncSettings() {
       const data = await response.json()
       if (data?.accepted) {
         setStopRequestedByUser(true)
-        setSyncNotice('Sync will stop at next API call.')
       }
     } catch (error) {
       console.error('Failed to request sync stop', error)
@@ -562,7 +555,6 @@ function SyncSettings() {
     row: ApiCallRow,
   ) => (
     <div className="sync-estimate-section">
-      <div className="sync-stat-label">Minimum API calls for selected pulls</div>
       {loading ? (
         <div className="sync-estimate-meta">Loading...</div>
       ) : error ? (
@@ -570,7 +562,7 @@ function SyncSettings() {
       ) : (
         <div className="sync-estimate-bar-row">
           <div className="sync-estimate-bar-header">
-            <span className="sync-estimate-api-label">{apiLabel}</span>
+            <span className="sync-estimate-api-label">Estimate {apiLabel} API Calls</span>
             <span>{`${row.total.toLocaleString()} / ${row.max.toLocaleString()}`}</span>
           </div>
           <RatioBar length="100%" ratio={100} color="#94a3b8" segments={row.segments} />
@@ -605,60 +597,48 @@ function SyncSettings() {
             <div className="sync-card-header-row">
               <div className="sync-card-header">Data Sync</div>
               <span className="sync-api-badge">YouTube Data API v3</span>
+              <ActionButton
+                label={
+                  isSyncActive
+                    ? isStopPending
+                      ? 'Stopping...'
+                      : 'Stop sync'
+                    : 'Start sync'
+                }
+                onClick={isSyncActive ? handleStopSync : handleDataSync}
+                disabled={isStopPending}
+                variant={isSyncActive ? 'danger' : 'primary'}
+              />
             </div>
             <div className="sync-controls">
               <div className="sync-stage-table">
-                <div className="sync-stage-header">
-                  <span>Pull</span>
-                  <span>Include</span>
-                  <span>Deep Sync</span>
-                </div>
                 {DATA_PULL_OPTIONS.map((opt) => {
                   const cfg = dataPullConfigs[opt.value]
                   return (
                     <div key={opt.value} className="sync-stage-row">
                       <span className="sync-stage-label">{opt.label}</span>
-                      <span className="sync-stage-check-cell">
-                        <input
-                          type="checkbox"
-                          checked={cfg.included}
-                          onChange={() => toggleDataConfig(opt.value, 'included')}
-                        />
-                      </span>
-                      <span className="sync-stage-check-cell">
-                        <input
-                          type="checkbox"
-                          checked={cfg.deepSync}
-                          disabled={!cfg.included}
-                          onChange={() => toggleDataConfig(opt.value, 'deepSync')}
-                        />
-                      </span>
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
+                          <input
+                            type="checkbox"
+                            checked={cfg.included}
+                            onChange={() => toggleDataConfig(opt.value, 'included')}
+                          />
+                          Include
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: cfg.included ? '#1e293b' : 'var(--color-muted)' }}>
+                          <input
+                            type="checkbox"
+                            checked={cfg.deepSync}
+                            disabled={!cfg.included}
+                            onChange={() => toggleDataConfig(opt.value, 'deepSync')}
+                          />
+                          Deep Sync
+                        </label>
+                      </div>
                     </div>
                   )
                 })}
-              </div>
-              <div className="sync-card-footer">
-                <div className="sync-action-wrap">
-                  <ActionButton
-                    label={
-                      isSyncActive
-                        ? isStopPending
-                          ? 'Stopping...'
-                          : 'Stop sync'
-                        : 'Start sync'
-                    }
-                    onClick={isSyncActive ? handleStopSync : handleDataSync}
-                    disabled={isStopPending}
-                    variant={isSyncActive ? 'danger' : 'primary'}
-                  />
-                  {isSyncActive && syncNotice ? (
-                    <span className="sync-stop-tooltip-wrap" aria-label={syncNotice}>
-                      <span className="sync-help sync-stop-tooltip-trigger">i</span>
-                      <span className="sync-stop-tooltip-bubble">{syncNotice}</span>
-                    </span>
-                  ) : null}
-                </div>
-                {dataSyncError ? <div className="sync-error-text">{dataSyncError}</div> : null}
               </div>
             </div>
             {renderEstimate(
@@ -676,19 +656,26 @@ function SyncSettings() {
             <div className="sync-card-header-row">
               <div className="sync-card-header">Analytics Sync</div>
               <span className="sync-api-badge">YouTube Analytics API v2</span>
+              <ActionButton
+                label={
+                  isSyncActive
+                    ? isStopPending
+                      ? 'Stopping...'
+                      : 'Stop sync'
+                    : 'Start sync'
+                }
+                onClick={isSyncActive ? handleStopSync : handleAnalyticsSync}
+                disabled={isStopPending}
+                variant={isSyncActive ? 'danger' : 'primary'}
+              />
             </div>
             <div className="sync-controls">
               <div className="sync-stage-table">
-                <div className="sync-stage-header">
-                  <span>Pull</span>
-                  <span>Include</span>
-                  <span>Deep Sync</span>
-                </div>
                 {ANALYTICS_PULL_OPTIONS.map((opt) => {
                   const cfg = analyticsPullConfigs[opt.value]
                   return (
                     <div key={opt.value} className="sync-stage-row">
-                      <span className="sync-stage-label-cell">
+                      <div className="sync-stage-label-cell">
                         <span className="sync-stage-label">{opt.label}</span>
                         {cfg.included ? (
                           <div className="sync-stage-date-controls">
@@ -720,50 +707,29 @@ function SyncSettings() {
                             ) : null}
                           </div>
                         ) : null}
-                      </span>
-                      <span className="sync-stage-check-cell">
-                        <input
-                          type="checkbox"
-                          checked={cfg.included}
-                          onChange={() => toggleAnalyticsConfig(opt.value, 'included')}
-                        />
-                      </span>
-                      <span className="sync-stage-check-cell">
-                        <input
-                          type="checkbox"
-                          checked={cfg.deepSync}
-                          disabled={!cfg.included}
-                          onChange={() => toggleAnalyticsConfig(opt.value, 'deepSync')}
-                        />
-                      </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
+                          <input
+                            type="checkbox"
+                            checked={cfg.included}
+                            onChange={() => toggleAnalyticsConfig(opt.value, 'included')}
+                          />
+                          Include
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: cfg.deepSync ? '#1e293b' : 'var(--color-muted)' }}>
+                          <input
+                            type="checkbox"
+                            checked={cfg.deepSync}
+                            disabled={!cfg.included}
+                            onChange={() => toggleAnalyticsConfig(opt.value, 'deepSync')}
+                          />
+                          Deep Sync
+                        </label>
+                      </div>
                     </div>
                   )
                 })}
-              </div>
-              <div className="sync-card-footer">
-                <div className="sync-action-wrap">
-                  <ActionButton
-                    label={
-                      isSyncActive
-                        ? isStopPending
-                          ? 'Stopping...'
-                          : 'Stop sync'
-                        : 'Start sync'
-                    }
-                    onClick={isSyncActive ? handleStopSync : handleAnalyticsSync}
-                    disabled={isStopPending}
-                    variant={isSyncActive ? 'danger' : 'primary'}
-                  />
-                  {isSyncActive && syncNotice ? (
-                    <span className="sync-stop-tooltip-wrap" aria-label={syncNotice}>
-                      <span className="sync-help sync-stop-tooltip-trigger">i</span>
-                      <span className="sync-stop-tooltip-bubble">{syncNotice}</span>
-                    </span>
-                  ) : null}
-                </div>
-                {analyticsSyncError ? (
-                  <div className="sync-error-text">{analyticsSyncError}</div>
-                ) : null}
               </div>
             </div>
             {renderEstimate(

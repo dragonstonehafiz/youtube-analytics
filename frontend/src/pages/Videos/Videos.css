@@ -1,5 +1,11 @@
 /* Videos page styles */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .videos-filter-grid {
   grid-template-columns: minmax(220px, 1.3fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(320px, 1.2fr) auto;
 }

@@ -1,11 +1,5 @@
 /* Shared page layout and common patterns */
 
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
 .page-header {
   position: relative;
   z-index: var(--z-sticky);
@@ -50,14 +44,9 @@
 }
 
 .page-body {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
 
-.page-row {
-  grid-column: 1 / -1;
-}
 
 /* Filter patterns (used by Videos, Comments, etc.) */
 

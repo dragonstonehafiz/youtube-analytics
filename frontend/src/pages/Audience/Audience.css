@@ -1,5 +1,11 @@
 /* Audience page styles */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .audience-table {
   display: flex;
   flex-direction: column;

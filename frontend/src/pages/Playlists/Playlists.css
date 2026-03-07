@@ -1,5 +1,11 @@
 /* Playlists page styles */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .playlist-table {
   display: flex;
   flex-direction: column;
