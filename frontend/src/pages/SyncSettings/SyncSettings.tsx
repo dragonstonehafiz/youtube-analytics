@@ -14,7 +14,7 @@ import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './SyncSettings.css'
 
-const DATA_STAGES = ['videos', 'comments', 'audience', 'playlists']
+const DATA_STAGES = ['videos', 'playlists', 'comments', 'audience']
 const ANALYTICS_STAGES = [
   'playlist_analytics',
   'traffic',
@@ -26,9 +26,9 @@ const ANALYTICS_STAGES = [
 
 const DATA_PULL_OPTIONS = [
   { label: 'Videos', value: 'videos' },
+  { label: 'Playlists', value: 'playlists' },
   { label: 'Comments', value: 'comments' },
   { label: 'Audience', value: 'audience' },
-  { label: 'Playlists', value: 'playlists' },
 ]
 
 const ANALYTICS_PULL_OPTIONS = [

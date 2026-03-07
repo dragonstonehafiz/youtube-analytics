@@ -44,7 +44,7 @@ from src.utils.logger import get_logger
 sync_progress = SyncProgress()
 sync_logger = get_logger("sync", filename="sync.log")
 
-DATA_STAGES = ["videos", "comments", "audience", "playlists"]
+DATA_STAGES = ["videos", "playlists", "comments", "audience"]
 ANALYTICS_STAGES = [
     "playlist_analytics",
     "traffic",
@@ -126,19 +126,7 @@ def sync_videos() -> None:
     short_video_ids = get_short_video_ids()
     sync_progress.increment_api_calls()
     upsert_videos(videos, short_video_ids=short_video_ids)
-    sync_progress.increment()
-
-    sync_progress.format_message("Pulling videos [{current}/{total}] 3/3: reconciling playlist items")
-    sync_progress.raise_if_stop_requested("Stop requested.")
-    missing_video_ids = list_playlist_video_ids_missing_video_rows()
-    recovered_videos: list[dict] = []
-    for index in range(0, len(missing_video_ids), 50):
-        sync_progress.raise_if_stop_requested("Stop requested.")
-        recovered_videos.extend(fetch_video_details(missing_video_ids[index : index + 50]))
-        sync_progress.increment_api_calls()
-    if recovered_videos:
-        upsert_videos(recovered_videos, short_video_ids=short_video_ids)
-    sync_progress.set_current(3)
+    sync_progress.set_current(2)
     sync_progress.format_message("Pulling videos [{current}/{total}] complete")
 
 
@@ -494,6 +482,17 @@ def sync_playlists() -> None:
         replace_playlist_items(playlist_id, rows)
         sync_progress.increment()
         sync_progress.format_message("Pulling playlists [{current}/{total}] {title}", title=playlist_title)
+
+    sync_progress.format_message("Pulling playlists: reconciling missing videos")
+    sync_progress.raise_if_stop_requested("Stop requested.")
+    missing_video_ids = list_playlist_video_ids_missing_video_rows()
+    recovered_videos: list[dict] = []
+    for index in range(0, len(missing_video_ids), 50):
+        sync_progress.raise_if_stop_requested("Stop requested.")
+        recovered_videos.extend(fetch_video_details(missing_video_ids[index : index + 50]))
+        sync_progress.increment_api_calls()
+    if recovered_videos:
+        upsert_videos(recovered_videos)
 
 
 # ── analytics API stage functions ───────────────────────────────────────────
