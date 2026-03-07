@@ -61,19 +61,46 @@ def iter_upload_video_ids(page_size: int = 50) -> Iterable[str]:
     yield from _iter_playlist_video_ids(playlist_id, page_size=page_size)
 
 
-def get_short_video_ids() -> set[str]:
-    """Return short-video IDs from the UUSH-derived shorts playlist."""
+def get_short_video_ids() -> tuple[set[str], int]:
+    """Return short-video IDs from the UUSH-derived shorts playlist and API call count.
+
+    Returns:
+        Tuple of (short video IDs set, api_calls made)
+    """
     uploads_playlist_id = get_uploads_playlist_id()
+    api_calls = 1  # For get_uploads_playlist_id
     if not uploads_playlist_id.startswith("UU"):
-        return set()
+        return set(), api_calls
     shorts_playlist_id = f"UUSH{uploads_playlist_id[2:]}"
-    return {video_id for video_id in _iter_playlist_video_ids(shorts_playlist_id) if video_id}
+    youtube = get_youtube_client()
+    page_token = None
+    video_ids: set[str] = set()
+    while True:
+        response = youtube.playlistItems().list(
+            part="contentDetails",
+            playlistId=shorts_playlist_id,
+            maxResults=50,
+            pageToken=page_token,
+        ).execute()
+        api_calls += 1
+        for item in response.get("items", []):
+            video_id = item["contentDetails"]["videoId"]
+            if video_id:
+                video_ids.add(video_id)
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+    return video_ids, api_calls
 
 
-def fetch_video_details(video_ids: list[str]) -> list[dict]:
-    """Fetch full video details for a list of video IDs."""
+def fetch_video_details(video_ids: list[str]) -> tuple[list[dict], int]:
+    """Fetch full video details for a list of video IDs and API call count.
+
+    Returns:
+        Tuple of (video details list, api_calls made)
+    """
     if not video_ids:
-        return []
+        return [], 0
     youtube = get_youtube_client()
     # The videos endpoint accepts up to 50 IDs per request.
     response = youtube.videos().list(
@@ -81,34 +108,66 @@ def fetch_video_details(video_ids: list[str]) -> list[dict]:
         id=",".join(video_ids),
         maxResults=50,
     ).execute()
-    return response.get("items", [])
+    return response.get("items", []), 1
 
 
-def get_all_videos() -> list[dict]:
-    """Return full metadata for every uploaded video."""
-    # 1) Gather all upload video IDs, 2) fetch details in 50-id batches.
-    video_ids = list(iter_upload_video_ids())
+def get_all_videos() -> tuple[list[dict], int]:
+    """Return full metadata for every uploaded video and API call count.
+
+    Returns:
+        Tuple of (videos list, total api_calls made)
+    """
+    # 1) Gather all upload video IDs (with pagination), 2) fetch details in 50-id batches.
+    api_calls = 1  # For get_uploads_playlist_id
+    youtube = get_youtube_client()
+    uploads_playlist_id = get_uploads_playlist_id()
+    page_token = None
+    video_ids: list[str] = []
+    while True:
+        response = youtube.playlistItems().list(
+            part="contentDetails",
+            playlistId=uploads_playlist_id,
+            maxResults=50,
+            pageToken=page_token,
+        ).execute()
+        api_calls += 1
+        for item in response.get("items", []):
+            video_ids.append(item["contentDetails"]["videoId"])
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+
     videos: list[dict] = []
     for i in range(0, len(video_ids), 50):
         batch = video_ids[i : i + 50]
-        videos.extend(fetch_video_details(batch))
-    return videos
+        batch_videos, batch_calls = fetch_video_details(batch)
+        videos.extend(batch_videos)
+        api_calls += batch_calls
+    return videos, api_calls
 
 
-def safe_get_videos() -> list[dict]:
-    """Return all videos or raise a RuntimeError on API failure."""
+def safe_get_videos() -> tuple[list[dict], int]:
+    """Return all videos with API call count or raise a RuntimeError on API failure.
+
+    Returns:
+        Tuple of (videos list, total api_calls made)
+    """
     try:
         return get_all_videos()
     except HttpError as exc:
         raise RuntimeError(f"YouTube API error: {exc}") from exc
 
 
-def safe_get_short_video_ids() -> set[str]:
-    """Return short-video IDs from UUSH playlist, or empty set on API failure."""
+def safe_get_short_video_ids() -> tuple[set[str], int]:
+    """Return short-video IDs from UUSH playlist with API call count, or empty set on API failure.
+
+    Returns:
+        Tuple of (short video IDs set, api_calls made)
+    """
     try:
         return get_short_video_ids()
     except HttpError:
-        return set()
+        return set(), 0
 
 
 def get_channel_info() -> dict:

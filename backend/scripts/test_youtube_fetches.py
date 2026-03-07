@@ -11,8 +11,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.append(str(BACKEND_DIR))
 
 from src.youtube.analytics import (
-    fetch_channel_daily,
-    fetch_daily_metrics,
+    fetch_channel_analytics,
+    fetch_video_daily_metrics,
     fetch_traffic_sources,
 )
 from src.youtube.comments import extract_comments
@@ -64,15 +64,15 @@ def main() -> int:
         video_ids = list(iter_upload_video_ids())
         if not video_ids:
             return 0
-        rows = fetch_daily_metrics(video_ids[0], start_date, end_date)
+        rows, _ = fetch_video_daily_metrics(video_ids[0], start_date, end_date)
         return len(rows)
 
     def test_channel_daily() -> int:
-        rows = fetch_channel_daily(start_date, end_date)
+        rows, _ = fetch_channel_analytics(start_date, end_date)
         return len(rows)
 
     def test_traffic_sources() -> int:
-        rows = fetch_traffic_sources(start_date, end_date)
+        rows, _ = fetch_traffic_sources(start_date, end_date)
         return len(rows)
 
     def test_comments() -> int:
@@ -82,7 +82,7 @@ def main() -> int:
             if not video_ids:
                 return 0
             video_id = video_ids[0]
-        rows = extract_comments(video_id)
+        rows, _ = extract_comments(video_id)
         return len(rows)
 
     run_step("Video metadata (videos.list)", test_video_metadata)

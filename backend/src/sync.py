@@ -117,14 +117,14 @@ def sync_videos() -> None:
     sync_progress.set_current(0)
     sync_progress.format_message("Pulling videos [{current}/{total}] 1/2: loading uploads")
     sync_progress.raise_if_stop_requested("Stop requested.")
-    videos = safe_get_videos()
-    sync_progress.increment_api_calls()
+    videos, videos_api_calls = safe_get_videos()
+    sync_progress.increment_api_calls(videos_api_calls)
     sync_progress.increment()
 
     sync_progress.format_message("Pulling videos [{current}/{total}] 2/2: loading shorts IDs")
     sync_progress.raise_if_stop_requested("Stop requested.")
-    short_video_ids = get_short_video_ids()
-    sync_progress.increment_api_calls()
+    short_video_ids, shorts_api_calls = safe_get_short_video_ids()
+    sync_progress.increment_api_calls(shorts_api_calls)
     upsert_videos(videos, short_video_ids=short_video_ids)
     sync_progress.set_current(2)
     sync_progress.format_message("Pulling videos [{current}/{total}] complete")
@@ -224,8 +224,8 @@ def sync_video_analytics(
             query_start = max(next_start, segment.start)
             if query_start > segment.end:
                 continue
-            rows = fetch_video_daily_metrics(video_id, query_start, segment.end, publish_date=publish_date)
-            sync_progress.increment_api_calls()
+            rows, video_api_calls = fetch_video_daily_metrics(video_id, query_start, segment.end, publish_date=publish_date)
+            sync_progress.increment_api_calls(video_api_calls)
             upsert_daily_analytics(video_id, rows)
             latest_by_video[video_id] = segment.end
             sync_progress.increment()
@@ -286,8 +286,8 @@ def sync_video_traffic_source(
             query_start = max(next_start, segment.start)
             if query_start > segment.end:
                 continue
-            rows = fetch_video_traffic_source_metrics(video_id, query_start, segment.end, publish_date=publish_date)
-            sync_progress.increment_api_calls()
+            rows, traffic_api_calls = fetch_video_traffic_source_metrics(video_id, query_start, segment.end, publish_date=publish_date)
+            sync_progress.increment_api_calls(traffic_api_calls)
             upsert_video_traffic_source(video_id, rows)
             latest_by_video[video_id] = segment.end
             sync_progress.increment()
@@ -351,8 +351,8 @@ def sync_video_search_insights(
             query_start = max(search_start, segment_start)
             if query_start > segment.end:
                 continue
-            rows = fetch_video_search_insight_metrics(video_id, query_start, segment.end, publish_date=publish_date)
-            sync_progress.increment_api_calls()
+            rows, search_api_calls = fetch_video_search_insight_metrics(video_id, query_start, segment.end, publish_date=publish_date)
+            sync_progress.increment_api_calls(search_api_calls)
             upsert_video_search_insights(video_id, rows)
             latest_by_video[video_id] = month_start(segment.end)
             sync_progress.increment()
@@ -386,8 +386,8 @@ def sync_channel_analytics(
             "Channel analytics [{current}/{total}] {detail}",
             detail=f"{segment.start} → {segment.end} [{index}/{len(segments)}]",
         )
-        rows = fetch_channel_analytics(segment.start, segment.end)
-        sync_progress.increment_api_calls()
+        rows, channel_api_calls = fetch_channel_analytics(segment.start, segment.end)
+        sync_progress.increment_api_calls(channel_api_calls)
         upsert_channel_daily(rows)
         sync_progress.increment()
 
@@ -420,8 +420,8 @@ def sync_traffic_sources(
             "Traffic sources [{current}/{total}] {detail}",
             detail=f"{segment.start} → {segment.end} [{index}/{len(segments)}]",
         )
-        rows = fetch_traffic_sources(segment.start, segment.end)
-        sync_progress.increment_api_calls()
+        rows, traffic_api_calls = fetch_traffic_sources(segment.start, segment.end)
+        sync_progress.increment_api_calls(traffic_api_calls)
         upsert_traffic_sources(rows)
         sync_progress.increment()
 
@@ -438,8 +438,8 @@ def sync_comments() -> None:
     sync_progress.format_message("Pulling comments [{current}/{total}]")
     for video_id in video_ids:
         sync_progress.raise_if_stop_requested("Stop requested.")
-        rows = extract_comments(video_id)
-        sync_progress.increment_api_calls()
+        rows, comments_api_calls = extract_comments(video_id)
+        sync_progress.increment_api_calls(comments_api_calls)
         upsert_comments(rows)
         sync_progress.increment()
         sync_progress.format_message("Pulling comments [{current}/{total}]")
@@ -451,8 +451,8 @@ def sync_audience() -> None:
     sync_progress.set_current(0)
     sync_progress.format_message("Pulling audience [{current}/{total}]")
     sync_progress.raise_if_stop_requested("Stop requested.")
-    subscriber_rows = extract_public_subscribers()
-    sync_progress.increment_api_calls()
+    subscriber_rows, audience_api_calls = extract_public_subscribers()
+    sync_progress.increment_api_calls(audience_api_calls)
     upsert_audience(subscriber_rows)
     upsert_commenters_from_comments()
     sync_progress.set_current(1)
@@ -465,8 +465,9 @@ def sync_playlists() -> None:
     sync_progress.set_current(0)
     sync_progress.format_message("Pulling playlists [{current}/{total}] loading playlists")
     sync_progress.raise_if_stop_requested("Stop requested.")
-    playlists = [p for p in get_all_playlists() if p.get("id")]
-    sync_progress.increment_api_calls()
+    playlists, playlists_api_calls = get_all_playlists()
+    playlists = [p for p in playlists if p.get("id")]
+    sync_progress.increment_api_calls(playlists_api_calls)
     upsert_playlists(playlists)
     delete_playlists_not_in([str(p["id"]) for p in playlists])
     total_playlists = max(len(playlists), 1)
@@ -477,8 +478,8 @@ def sync_playlists() -> None:
         sync_progress.raise_if_stop_requested("Stop requested.")
         playlist_id = str(playlist["id"])
         playlist_title = str(playlist.get("snippet", {}).get("title") or playlist_id)
-        rows = get_all_playlist_items(playlist_id=playlist_id)
-        sync_progress.increment_api_calls()
+        rows, items_api_calls = get_all_playlist_items(playlist_id=playlist_id)
+        sync_progress.increment_api_calls(items_api_calls)
         replace_playlist_items(playlist_id, rows)
         sync_progress.increment()
         sync_progress.format_message("Pulling playlists [{current}/{total}] {title}", title=playlist_title)
@@ -489,8 +490,9 @@ def sync_playlists() -> None:
     recovered_videos: list[dict] = []
     for index in range(0, len(missing_video_ids), 50):
         sync_progress.raise_if_stop_requested("Stop requested.")
-        recovered_videos.extend(fetch_video_details(missing_video_ids[index : index + 50]))
-        sync_progress.increment_api_calls()
+        batch_videos, batch_api_calls = fetch_video_details(missing_video_ids[index : index + 50])
+        recovered_videos.extend(batch_videos)
+        sync_progress.increment_api_calls(batch_api_calls)
     if recovered_videos:
         upsert_videos(recovered_videos)
 
@@ -555,10 +557,10 @@ def sync_playlist_analytics(
             query_start = max(resume_start, segment.start)
             if query_start > segment.end:
                 continue
-            rows = fetch_playlist_daily_metrics(
+            rows, playlist_api_calls = fetch_playlist_daily_metrics(
                 playlist_id, query_start, segment.end, publish_date=publish_map.get(playlist_id)
             )
-            sync_progress.increment_api_calls()
+            sync_progress.increment_api_calls(playlist_api_calls)
             upsert_playlist_daily_analytics(playlist_id, rows)
             latest_by_playlist[playlist_id] = segment.end
             sync_progress.increment()

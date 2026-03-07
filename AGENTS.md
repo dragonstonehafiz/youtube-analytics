@@ -243,7 +243,10 @@ GET  /audience/{channel_id}           single member detail
 GET  /comments                        paginated (q, video_id, playlist_id, author_channel_id, dates)
 GET  /comments/word-cloud/image       PNG word cloud (q, word_types CSV)
 
-POST /sync                            trigger sync (pulls, date range, deep_sync)
+POST /sync/data                       trigger data sync (videos, playlists, comments, audience)
+POST /sync/analytics                  trigger analytics sync (analytics pulls, date range, deep_sync)
+GET  /sync/data/estimate              estimate data API calls
+GET  /sync/analytics/estimate         estimate analytics API calls
 POST /sync/stop                       graceful stop
 GET  /sync/progress                   current sync status
 GET  /sync/runs                       per-stage execution history
@@ -263,7 +266,9 @@ POST /llm/summarize-comments          LLM summary (q, dates, video_id, playlist_
 
 ### Key invariants
 
-- **Sync stage order** (never reorder): `videos` → `comments` → `audience` → `playlists` → `playlist_analytics` → `traffic` → `channel_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
+- **Sync stage order** (never reorder):
+  - **Data stages:** `videos` → `playlists` → `comments` → `audience`
+  - **Analytics stages:** `playlist_analytics` → `traffic` → `channel_analytics` → `video_analytics` → `video_traffic_source` → `video_search_insights`
 - **Shorts detection**: UUSH playlist only — fail-fast if unavailable
 - **Stage failure isolation**: failed stages are recorded; sync continues with remaining stages
 - **LLM config**: stored at `backend/data/<provider>.json`; `set_defaults()` called from `initialize()`; OpenAI probe call required for `loaded` status

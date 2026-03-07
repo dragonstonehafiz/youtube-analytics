@@ -78,14 +78,18 @@ def fetch_video_daily_metrics(
     end_date: str,
     publish_date: str | None = None,
     max_results: int = 200,
-) -> list[dict[str, Any]]:
-    """Fetch daily analytics rows for one video across a date range."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Fetch daily analytics rows for one video across a date range.
+
+    Returns:
+        Tuple of (rows list, api_calls made)
+    """
     yt_analytics = get_analytics_client()
     # Avoid requesting analytics before the video was published.
     effective_start = start_date
     if publish_date:
         if publish_date > end_date:
-            return []
+            return [], 0
         if publish_date > start_date:
             effective_start = publish_date
 
@@ -99,7 +103,8 @@ def fetch_video_daily_metrics(
         "maxResults": max_results,
         "startIndex": 1,
     }
-    return _fetch_report_rows(yt_analytics, base_request_params, max_results)
+    rows, page_count = _fetch_report_rows(yt_analytics, base_request_params, max_results)
+    return rows, page_count
 
 
 def fetch_video_traffic_source_metrics(
@@ -108,13 +113,17 @@ def fetch_video_traffic_source_metrics(
     end_date: str,
     publish_date: str | None = None,
     max_results: int = 200,
-) -> list[dict[str, Any]]:
-    """Fetch daily per-source traffic rows for one video across a date range."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Fetch daily per-source traffic rows for one video across a date range.
+
+    Returns:
+        Tuple of (rows list, api_calls made)
+    """
     yt_analytics = get_analytics_client()
     effective_start = start_date
     if publish_date:
         if publish_date > end_date:
-            return []
+            return [], 0
         if publish_date > start_date:
             effective_start = publish_date
     base_request_params = {
@@ -127,7 +136,8 @@ def fetch_video_traffic_source_metrics(
         "maxResults": max_results,
         "startIndex": 1,
     }
-    return _fetch_report_rows(yt_analytics, base_request_params, max_results)
+    rows, page_count = _fetch_report_rows(yt_analytics, base_request_params, max_results)
+    return rows, page_count
 
 
 def fetch_video_search_insight_metrics(
@@ -136,13 +146,17 @@ def fetch_video_search_insight_metrics(
     end_date: str,
     publish_date: str | None = None,
     max_results: int = 25,
-) -> list[dict[str, Any]]:
-    """Fetch monthly YouTube-search term insight rows for one video across a date range."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Fetch monthly YouTube-search term insight rows for one video across a date range.
+
+    Returns:
+        Tuple of (rows list, total api_calls made)
+    """
     yt_analytics = get_analytics_client()
     effective_start = start_date
     if publish_date:
         if publish_date > end_date:
-            return []
+            return [], 0
         if publish_date > start_date:
             effective_start = publish_date
     effective_start_date = date.fromisoformat(effective_start)
@@ -151,6 +165,7 @@ def fetch_video_search_insight_metrics(
     # Query one month at a time for search-term details.
     # Keep only one page (top 25 terms by views) per video-month.
     rows: list[dict[str, Any]] = []
+    total_api_calls = 0
     current_month = effective_start_date.replace(day=1)
     while current_month <= end:
         month_last_day = calendar.monthrange(current_month.year, current_month.month)[1]
@@ -168,17 +183,22 @@ def fetch_video_search_insight_metrics(
             "maxResults": max_results,
             "startIndex": 1,
         }
-        month_rows = _fetch_report_rows(yt_analytics, request_params, max_results, max_pages=1)
+        month_rows, month_api_calls = _fetch_report_rows(yt_analytics, request_params, max_results, max_pages=1)
+        total_api_calls += month_api_calls
         month_bucket = current_month.isoformat()
         for row in month_rows:
             row["day"] = month_bucket
         rows.extend(month_rows)
         current_month = add_months(current_month, 1)
-    return rows
+    return rows, total_api_calls
 
 
-def fetch_channel_analytics(start_date: str, end_date: str) -> list[dict[str, Any]]:
-    """Fetch channel-level daily analytics for a date range."""
+def fetch_channel_analytics(start_date: str, end_date: str) -> tuple[list[dict[str, Any]], int]:
+    """Fetch channel-level daily analytics for a date range.
+
+    Returns:
+        Tuple of (rows list, api_calls made)
+    """
     yt_analytics = get_analytics_client()
     request_params = {
         "ids": "channel==MINE",
@@ -194,11 +214,16 @@ def fetch_channel_analytics(start_date: str, end_date: str) -> list[dict[str, An
         "maxResults": 200,
         "startIndex": 1,
     }
-    return _fetch_report_rows(yt_analytics, request_params, 200)
+    rows, page_count = _fetch_report_rows(yt_analytics, request_params, 200)
+    return rows, page_count
 
 
-def fetch_traffic_sources(start_date: str, end_date: str) -> list[dict[str, Any]]:
-    """Fetch traffic sources by day for a date range."""
+def fetch_traffic_sources(start_date: str, end_date: str) -> tuple[list[dict[str, Any]], int]:
+    """Fetch traffic sources by day for a date range.
+
+    Returns:
+        Tuple of (rows list, api_calls made)
+    """
     yt_analytics = get_analytics_client()
     request_params = {
         "ids": "channel==MINE",
@@ -209,23 +234,8 @@ def fetch_traffic_sources(start_date: str, end_date: str) -> list[dict[str, Any]
         "maxResults": 200,
         "startIndex": 1,
     }
-    return _fetch_report_rows(yt_analytics, request_params, 200)
-
-
-def fetch_daily_metrics(
-    video_id: str,
-    start_date: str,
-    end_date: str,
-    publish_date: str | None = None,
-    max_results: int = 200,
-) -> list[dict[str, Any]]:
-    """Backward-compatible alias for video daily analytics fetch."""
-    return fetch_video_daily_metrics(video_id, start_date, end_date, publish_date=publish_date, max_results=max_results)
-
-
-def fetch_channel_daily(start_date: str, end_date: str) -> list[dict[str, Any]]:
-    """Backward-compatible alias for channel analytics fetch."""
-    return fetch_channel_analytics(start_date, end_date)
+    rows, page_count = _fetch_report_rows(yt_analytics, request_params, 200)
+    return rows, page_count
 
 
 def fetch_playlist_daily_metrics(
@@ -234,13 +244,17 @@ def fetch_playlist_daily_metrics(
     end_date: str,
     publish_date: str | None = None,
     max_results: int = 200,
-) -> list[dict[str, Any]]:
-    """Fetch daily playlist analytics rows for one playlist across a date range."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Fetch daily playlist analytics rows for one playlist across a date range.
+
+    Returns:
+        Tuple of (rows list, api_calls made)
+    """
     yt_analytics = get_analytics_client()
     effective_start = start_date
     if publish_date:
         if publish_date > end_date:
-            return []
+            return [], 0
         if publish_date > start_date:
             effective_start = publish_date
 
@@ -257,7 +271,8 @@ def fetch_playlist_daily_metrics(
         "maxResults": max_results,
         "startIndex": 1,
     }
-    return _fetch_report_rows(yt_analytics, request_params, max_results)
+    rows, page_count = _fetch_report_rows(yt_analytics, request_params, max_results)
+    return rows, page_count
 
 
 def _execute_with_retry(service, params: dict, max_attempts: int = 5):
@@ -301,8 +316,12 @@ def _fetch_report_rows(
     request_params: dict,
     max_results: int,
     max_pages: int | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch all rows for a report, handling pagination."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Fetch all rows for a report, handling pagination.
+
+    Returns:
+        Tuple of (results list, page_count)
+    """
     results: list[dict[str, Any]] = []
     headers: list[str] | None = None
     page_count = 0
@@ -322,7 +341,7 @@ def _fetch_report_rows(
             break
         request_params["startIndex"] += max_results
         time.sleep(0.2)
-    return results
+    return results, page_count
 
 
 
