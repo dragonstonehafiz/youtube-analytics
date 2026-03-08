@@ -4,6 +4,15 @@ import { PageCard } from '../../components/cards'
 import { formatWholeNumber } from '../../utils/number'
 import type { VideoDailyRow } from './VideoDetail'
 
+function formatDuration(seconds: number | null): string {
+  if (!seconds || seconds < 0) return '-'
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remSeconds = Math.round(seconds % 60)
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(remSeconds).padStart(2, '0')}`
+  return `${minutes}:${String(remSeconds).padStart(2, '0')}`
+}
+
 type DateRange = { start: string; end: string }
 
 type Props = {
@@ -46,6 +55,15 @@ export default function EngagementTab({ loading, error, granularity, dailyRows, 
           series: [{ key: 'subscribers_net', label: '', color: '#0ea5e9', points: [] }],
           previousSeries: [{ key: 'subscribers_net', label: '', color: '#0ea5e9', points: [] }],
         },
+        {
+          key: 'avg_duration',
+          label: 'Avg view duration',
+          value: formatDuration(0),
+          series: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: [] }],
+          previousSeries: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: [] }],
+          seriesAggregation: 'avg',
+          isDuration: true,
+        },
       ]
     }
 
@@ -60,6 +78,7 @@ export default function EngagementTab({ loading, error, granularity, dailyRows, 
       (sum, item) => sum + ((item.subscribers_gained ?? 0) - (item.subscribers_lost ?? 0)),
       0
     )
+    const currentAvgDuration = sorted.reduce((sum, item) => sum + (item.average_view_duration_seconds ?? 0), 0) / sorted.length
 
     return [
       {
@@ -109,6 +128,30 @@ export default function EngagementTab({ loading, error, granularity, dailyRows, 
             }),
           },
         ],
+      },
+      {
+        key: 'avg_duration',
+        label: 'Avg view duration',
+        value: formatDuration(Math.round(currentAvgDuration)),
+        series: [
+          {
+            key: 'avg_duration',
+            label: '',
+            color: '#0ea5e9',
+            points: days.map((day) => ({ date: day, value: byDay.get(day)?.average_view_duration_seconds ?? 0 })),
+          },
+        ],
+        previousSeries: [
+          {
+            key: 'avg_duration',
+            label: '',
+            color: '#0ea5e9',
+            points: previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.average_view_duration_seconds ?? 0 })),
+          },
+        ],
+        seriesAggregation: 'avg',
+        comparisonAggregation: 'avg',
+        isDuration: true,
       },
     ]
   }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end])

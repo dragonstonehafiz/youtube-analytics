@@ -39,9 +39,9 @@ function buildDays(sorted: VideoDailyRow[]): string[] {
 export default function AnalyticsTab({ loading, error, granularity, dailyRows, range, previousRange }: Props) {
   const { series, previousSeries, totals } = useMemo(() => {
     const empty = {
-      series: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], avg_duration: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
-      previousSeries: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], avg_duration: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
-      totals: { views: 0, watch_time_minutes: 0, average_view_duration_seconds: 0, estimated_revenue: 0 },
+      series: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], subscribers: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
+      previousSeries: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], subscribers: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
+      totals: { views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0 },
     }
     const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
     if (sorted.length === 0) return empty
@@ -54,19 +54,19 @@ export default function AnalyticsTab({ loading, error, granularity, dailyRows, r
       series: {
         views: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })),
         watch_time: days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-        avg_duration: days.map((day) => ({ date: day, value: byDay.get(day)?.average_view_duration_seconds ?? 0 })),
+        subscribers: days.map((day) => ({ date: day, value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0) })),
         revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
       },
       previousSeries: {
         views: previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.views ?? 0 })),
         watch_time: previousDays.map((day) => ({ date: day, value: Math.round((previousByDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-        avg_duration: previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.average_view_duration_seconds ?? 0 })),
+        subscribers: previousDays.map((day) => ({ date: day, value: (previousByDay.get(day)?.subscribers_gained ?? 0) - (previousByDay.get(day)?.subscribers_lost ?? 0) })),
         revenue: previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.estimated_revenue ?? 0 })),
       },
       totals: {
         views: sorted.reduce((sum, item) => sum + (item.views ?? 0), 0),
         watch_time_minutes: sorted.reduce((sum, item) => sum + (item.watch_time_minutes ?? 0), 0),
-        average_view_duration_seconds: sorted.reduce((sum, item) => sum + (item.average_view_duration_seconds ?? 0), 0) / Math.max(sorted.length, 1),
+        subscribers_net: sorted.reduce((sum, item) => sum + ((item.subscribers_gained ?? 0) - (item.subscribers_lost ?? 0)), 0),
         estimated_revenue: sorted.reduce((sum, item) => sum + (item.estimated_revenue ?? 0), 0),
       },
     }
@@ -89,13 +89,11 @@ export default function AnalyticsTab({ loading, error, granularity, dailyRows, r
         previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
       },
       {
-        key: 'avg_duration',
-        label: 'Avg view duration',
-        value: formatDuration(Math.round(totals.average_view_duration_seconds)),
-        series: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: series.avg_duration }],
-        previousSeries: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: previousSeries.avg_duration }],
-        comparisonAggregation: 'avg',
-        isDuration: true,
+        key: 'subscribers',
+        label: 'Subscribers',
+        value: formatWholeNumber(totals.subscribers_net),
+        series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers }],
+        previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers }],
       },
       {
         key: 'revenue',

@@ -1,12 +1,23 @@
 import { useState, useEffect, useMemo } from 'react'
 import { MetricChartCard, type PublishedItem, type MetricItem, type Granularity } from '../../components/charts'
+import { PageCard } from '../../components/cards'
 import { formatWholeNumber } from '../../utils/number'
+
+function formatDurationSeconds(seconds: number | null | undefined): string {
+  const value = Number(seconds ?? 0)
+  if (!Number.isFinite(value) || value <= 0) return '-'
+  const rounded = Math.round(value)
+  const mins = Math.floor(rounded / 60)
+  const secs = rounded % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
 
 type ChannelDailyData = {
   day: string
   engaged_views: number | null
   subscribers_gained: number | null
   subscribers_lost: number | null
+  average_view_duration_seconds?: number | null
 }
 
 type Props = {
@@ -146,15 +157,47 @@ export default function EngagementTab({ range, previousRange, granularity, conte
       comparisonAggregation: 'sum',
       seriesAggregation: 'sum',
     },
+    {
+      key: 'avg_duration',
+      label: 'Avg view duration',
+      value: formatDurationSeconds(dailyData.length > 0 ? dailyData.reduce((sum, item) => sum + (item.average_view_duration_seconds ?? 0), 0) / dailyData.length : 0),
+      series: [
+        {
+          key: 'avg_duration',
+          label: 'Avg view duration',
+          color: '#0ea5e9',
+          points: dailyData.map((item) => ({
+            date: item.day,
+            value: item.average_view_duration_seconds ?? 0,
+          })),
+        },
+      ],
+      previousSeries: [
+        {
+          key: 'avg_duration',
+          label: 'Avg view duration',
+          color: '#0ea5e9',
+          points: previousDailyData.map((item) => ({
+            date: item.day,
+            value: item.average_view_duration_seconds ?? 0,
+          })),
+        },
+      ],
+      seriesAggregation: 'avg',
+      comparisonAggregation: 'avg',
+      isDuration: true,
+    },
   ], [dailyData, previousDailyData])
 
   return (
     <div className="page-row">
-      <MetricChartCard
-        data={metricsData}
-        granularity={granularity}
-        publishedDates={publishedDates}
-      />
+      <PageCard>
+        <MetricChartCard
+          data={metricsData}
+          granularity={granularity}
+          publishedDates={publishedDates}
+        />
+      </PageCard>
     </div>
   )
 }

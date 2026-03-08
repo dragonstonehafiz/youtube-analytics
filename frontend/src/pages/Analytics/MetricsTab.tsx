@@ -10,6 +10,7 @@ type TotalsState = {
   watch_time_minutes: number
   avg_view_duration_seconds: number
   estimated_revenue: number
+  subscribers_net?: number
 }
 
 type LatestContentItem = {
@@ -65,13 +66,6 @@ function buildDays(items: any[]): [string[], Map<string, any>] {
   return [days, byDay]
 }
 
-function formatDurationSeconds(seconds: number): string {
-  if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return '-'
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
 export default function MetricsTab({ range, previousRange, granularity, contentType, onOpenVideo, publishedDates }: Props) {
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({ views: [], watch_time: [], subscribers: [], revenue: [] })
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({ views: [], watch_time: [], subscribers: [], revenue: [] })
@@ -97,11 +91,15 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
           items.length > 0
             ? items.reduce((sum: number, item: any) => sum + (item.average_view_duration_seconds ?? 0), 0) / items.length
             : 0
+        const subscribersNet = items.length > 0
+          ? items.reduce((sum: number, item: any) => sum + ((item.subscribers_gained ?? 0) - (item.subscribers_lost ?? 0)), 0)
+          : 0
         setTotals({
           views: data.totals?.views ?? 0,
           watch_time_minutes: data.totals?.watch_time_minutes ?? 0,
           avg_view_duration_seconds: avgDuration,
           estimated_revenue: data.totals?.estimated_revenue ?? 0,
+          subscribers_net: subscribersNet,
         })
         const previousItems = Array.isArray(previousData.items) ? previousData.items : []
         const [days, byDay] = buildDays(items)
@@ -113,14 +111,14 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
         setSeries({
           views: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })),
           watch_time: days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-          subscribers: days.map((day) => ({ date: day, value: byDay.get(day)?.average_view_duration_seconds ?? 0 })),
+          subscribers: days.map((day) => ({ date: day, value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0) })),
           revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
         })
         const [prevDays, prevByDay] = buildDays(previousItems)
         setPreviousSeries({
           views: prevDays.map((day) => ({ date: day, value: prevByDay.get(day)?.views ?? 0 })),
           watch_time: prevDays.map((day) => ({ date: day, value: Math.round((prevByDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-          subscribers: prevDays.map((day) => ({ date: day, value: prevByDay.get(day)?.average_view_duration_seconds ?? 0 })),
+          subscribers: prevDays.map((day) => ({ date: day, value: (prevByDay.get(day)?.subscribers_gained ?? 0) - (prevByDay.get(day)?.subscribers_lost ?? 0) })),
           revenue: prevDays.map((day) => ({ date: day, value: prevByDay.get(day)?.estimated_revenue ?? 0 })),
         })
       } catch (error) {
@@ -222,12 +220,10 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
       },
       {
         key: 'subscribers',
-        label: 'Avg view duration',
-        value: formatDurationSeconds(totals.avg_view_duration_seconds),
+        label: 'Subscribers',
+        value: formatWholeNumber(totals.subscribers_net ?? 0),
         series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers ?? [] }],
         previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
-        comparisonAggregation: 'avg',
-        isDuration: true,
       },
       {
         key: 'revenue',

@@ -238,9 +238,7 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
       while (prevCursor <= prevEnd) { previousDays.push(prevCursor.toISOString().slice(0, 10)); prevCursor.setUTCDate(prevCursor.getUTCDate() + 1) }
     }
     const subsSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
-      d.map((day) => viewMode === 'playlist_views'
-        ? { date: day, value: map.get(day)?.average_view_duration_seconds ?? 0 }
-        : { date: day, value: (map.get(day)?.subscribers_gained ?? 0) - (map.get(day)?.subscribers_lost ?? 0) })
+      d.map((day) => ({ date: day, value: (map.get(day)?.subscribers_gained ?? 0) - (map.get(day)?.subscribers_lost ?? 0) }))
     const revSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
       d.map((day) => ({
         date: day,
@@ -264,7 +262,7 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
         watch_time_minutes: sorted.reduce((sum, r) => sum + (r.watch_time_minutes ?? 0), 0),
         subscribers_net: sorted.reduce((sum, r) => sum + (r.subscribers_gained ?? 0) - (r.subscribers_lost ?? 0), 0),
         estimated_revenue: sorted.reduce((sum, r) => sum + (r.estimated_revenue ?? 0), 0),
-        average_view_duration_seconds: sorted.reduce((sum, r) => sum + (r.average_view_duration_seconds ?? 0), 0) / sorted.length,
+        average_view_duration_seconds: viewMode === 'playlist_views' ? sorted.reduce((sum, r) => sum + (r.average_view_duration_seconds ?? 0), 0) / sorted.length : 0,
         average_time_in_playlist_seconds: sorted.reduce((sum, r) => sum + (r.average_time_in_playlist_seconds ?? 0), 0) / sorted.length,
       },
     }
@@ -289,12 +287,10 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
       },
       {
         key: 'subscribers',
-        label: viewMode === 'video_views' ? 'Subscribers' : 'Avg view duration',
-        value: viewMode === 'video_views' ? formatWholeNumber(totals.subscribers_net) : formatDurationSeconds(totals.average_view_duration_seconds),
+        label: 'Subscribers',
+        value: formatWholeNumber(totals.subscribers_net),
         series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers }],
         previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers }],
-        comparisonAggregation: viewMode === 'playlist_views' ? 'avg' : undefined,
-        isDuration: isDuration('subscribers'),
       },
       {
         key: 'revenue',
