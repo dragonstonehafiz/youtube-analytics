@@ -45,52 +45,45 @@ def test_channel_thumbnail_impressions(start_date: str, end_date: str) -> None:
 
     yt_analytics = get_analytics_client()
 
-    # Test 1: videoThumbnailImpressions only
-    print("\n[1/3] Testing videoThumbnailImpressions (channel-level)...")
-    params = {
-        "ids": "channel==MINE",
-        "startDate": start_date,
-        "endDate": end_date,
-        "metrics": "videoThumbnailImpressions",
-        "dimensions": "day",
-        "maxResults": 200,
-        "startIndex": 1,
-    }
-    rows, success = fetch_with_retry(yt_analytics, params, "videoThumbnailImpressions")
-    if success:
-        print(f"  ✅ Success! Got {len(rows)} rows")
-        if rows:
-            print(f"     Sample: {rows[0]}")
-
-    # Test 2: videoThumbnailImpressionsClickRate only
-    print("\n[2/3] Testing videoThumbnailImpressionsClickRate (channel-level)...")
-    params = {
-        "ids": "channel==MINE",
-        "startDate": start_date,
-        "endDate": end_date,
-        "metrics": "videoThumbnailImpressionsClickRate",
-        "dimensions": "day",
-        "maxResults": 200,
-        "startIndex": 1,
-    }
-    rows, success = fetch_with_retry(yt_analytics, params, "videoThumbnailImpressionsClickRate")
-    if success:
-        print(f"  ✅ Success! Got {len(rows)} rows")
-        if rows:
-            print(f"     Sample: {rows[0]}")
-
-    # Test 3: Both together
-    print("\n[3/3] Testing both metrics together (channel-level)...")
+    # Test 1: No dimensions (channel aggregate)
+    print("\n[1/3] Testing videoThumbnailImpressions (no dimensions - channel aggregate)...")
     params = {
         "ids": "channel==MINE",
         "startDate": start_date,
         "endDate": end_date,
         "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
-        "dimensions": "day",
-        "maxResults": 200,
-        "startIndex": 1,
     }
-    rows, success = fetch_with_retry(yt_analytics, params, "Both metrics together")
+    rows, success = fetch_with_retry(yt_analytics, params, "No dimensions query")
+    if success:
+        print(f"  ✅ Success! Got {len(rows)} rows")
+        if rows:
+            print(f"     Sample: {rows[0]}")
+
+    # Test 2: Video dimension (all videos)
+    print("\n[2/3] Testing with video dimension (all videos)...")
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date,
+        "endDate": end_date,
+        "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
+        "dimensions": "video",
+    }
+    rows, success = fetch_with_retry(yt_analytics, params, "Video dimension query")
+    if success:
+        print(f"  ✅ Success! Got {len(rows)} rows")
+        if rows:
+            print(f"     Sample: {rows[0]}")
+
+    # Test 3: Video dimension with day
+    print("\n[3/3] Testing with video,day dimensions...")
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date,
+        "endDate": end_date,
+        "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
+        "dimensions": "video,day",
+    }
+    rows, success = fetch_with_retry(yt_analytics, params, "Video,day dimensions query")
     if success:
         print(f"  ✅ Success! Got {len(rows)} rows")
         if rows:
@@ -98,62 +91,55 @@ def test_channel_thumbnail_impressions(start_date: str, end_date: str) -> None:
 
 
 def test_video_thumbnail_impressions(video_id: str, start_date: str, end_date: str) -> None:
-    """Test thumbnail impressions metrics at video level."""
+    """Test thumbnail impressions metrics for a specific video."""
     print(f"\n🎥 Testing Video-Level Thumbnail Impressions (Video: {video_id})")
     print(f"   Date Range: {start_date} to {end_date}")
     print("=" * 70)
 
     yt_analytics = get_analytics_client()
 
-    # Test 1: videoThumbnailImpressions only (with video filter)
-    print("\n[1/3] Testing videoThumbnailImpressions (with video filter)...")
-    params = {
-        "ids": "channel==MINE",
-        "startDate": start_date,
-        "endDate": end_date,
-        "metrics": "videoThumbnailImpressions",
-        "dimensions": "day",
-        "filters": f"video=={video_id}",
-        "maxResults": 200,
-        "startIndex": 1,
-    }
-    rows, success = fetch_with_retry(yt_analytics, params, "videoThumbnailImpressions with filter")
-    if success:
-        print(f"  ✅ Success! Got {len(rows)} rows")
-        if rows:
-            print(f"     Sample: {rows[0]}")
-
-    # Test 2: videoThumbnailImpressionsClickRate only (with video filter)
-    print("\n[2/3] Testing videoThumbnailImpressionsClickRate (with video filter)...")
-    params = {
-        "ids": "channel==MINE",
-        "startDate": start_date,
-        "endDate": end_date,
-        "metrics": "videoThumbnailImpressionsClickRate",
-        "dimensions": "day",
-        "filters": f"video=={video_id}",
-        "maxResults": 200,
-        "startIndex": 1,
-    }
-    rows, success = fetch_with_retry(yt_analytics, params, "videoThumbnailImpressionsClickRate with filter")
-    if success:
-        print(f"  ✅ Success! Got {len(rows)} rows")
-        if rows:
-            print(f"     Sample: {rows[0]}")
-
-    # Test 3: Both together with video dimension
-    print("\n[3/3] Testing both metrics with video dimension...")
+    # Test 1: Video filter, no dimensions
+    print("\n[1/3] Testing with video filter (no dimensions)...")
     params = {
         "ids": "channel==MINE",
         "startDate": start_date,
         "endDate": end_date,
         "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
-        "dimensions": "day,video",
         "filters": f"video=={video_id}",
-        "maxResults": 200,
-        "startIndex": 1,
     }
-    rows, success = fetch_with_retry(yt_analytics, params, "Both metrics with video dimension")
+    rows, success = fetch_with_retry(yt_analytics, params, "Video filter, no dimensions")
+    if success:
+        print(f"  ✅ Success! Got {len(rows)} rows")
+        if rows:
+            print(f"     Sample: {rows[0]}")
+
+    # Test 2: Video filter with video dimension
+    print("\n[2/3] Testing with video filter + video dimension...")
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date,
+        "endDate": end_date,
+        "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
+        "dimensions": "video",
+        "filters": f"video=={video_id}",
+    }
+    rows, success = fetch_with_retry(yt_analytics, params, "Video filter + video dimension")
+    if success:
+        print(f"  ✅ Success! Got {len(rows)} rows")
+        if rows:
+            print(f"     Sample: {rows[0]}")
+
+    # Test 3: Video filter with day dimension
+    print("\n[3/3] Testing with video filter + day dimension...")
+    params = {
+        "ids": "channel==MINE",
+        "startDate": start_date,
+        "endDate": end_date,
+        "metrics": "videoThumbnailImpressions,videoThumbnailImpressionsClickRate",
+        "dimensions": "day",
+        "filters": f"video=={video_id}",
+    }
+    rows, success = fetch_with_retry(yt_analytics, params, "Video filter + day dimension")
     if success:
         print(f"  ✅ Success! Got {len(rows)} rows")
         if rows:
@@ -162,7 +148,7 @@ def test_video_thumbnail_impressions(video_id: str, start_date: str, end_date: s
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Test videoThumbnailImpressions and videoThumbnailImpressionsClickRate metrics"
+        description="Test videoThumbnailImpressions and videoThumbnailImpressionsClickRate metrics with different dimension combinations"
     )
     parser.add_argument(
         "--days",
@@ -198,8 +184,8 @@ def main() -> int:
     print("\n" + "=" * 70)
     print("✨ Test complete!\n")
     print("Summary:")
-    print("  ✅ = Metric is available at that level")
-    print("  ❌ = Metric is NOT available at that level (or API error)")
+    print("  ✅ = Metric is available with that dimension combination")
+    print("  ❌ = Metric is NOT available (or API error)")
 
     return 0
 

@@ -91,8 +91,6 @@ def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
         ("playback_based_cpm", "REAL"),
         ("ad_impressions", "INTEGER"),
         ("cpm", "REAL"),
-        ("impressions", "INTEGER"),
-        ("impressions_ctr", "REAL"),
         ("subscribers_gained", "INTEGER"),
         ("subscribers_lost", "INTEGER"),
     ]

@@ -159,8 +159,6 @@ CREATE TABLE IF NOT EXISTS channel_analytics (
     playback_based_cpm REAL,
     ad_impressions INTEGER,
     cpm REAL,
-    impressions INTEGER,
-    impressions_ctr REAL,
     subscribers_gained INTEGER,
     subscribers_lost INTEGER
 );

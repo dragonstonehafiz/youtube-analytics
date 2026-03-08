@@ -411,8 +411,6 @@ def list_channel_daily(
                 playback_based_cpm,
                 ad_impressions,
                 cpm,
-                impressions,
-                impressions_ctr,
                 subscribers_gained,
                 subscribers_lost
             FROM channel_analytics
@@ -441,8 +439,6 @@ def list_channel_daily(
         "playback_based_cpm": sum(item.get("playback_based_cpm") or 0 for item in items),
         "ad_impressions": sum(item.get("ad_impressions") or 0 for item in items),
         "cpm": sum(item.get("cpm") or 0 for item in items),
-        "impressions": sum(item.get("impressions") or 0 for item in items),
-        "impressions_ctr": sum(item.get("impressions_ctr") or 0 for item in items),
         "subscribers_gained": sum(item.get("subscribers_gained") or 0 for item in items),
         "subscribers_lost": sum(item.get("subscribers_lost") or 0 for item in items),
     }

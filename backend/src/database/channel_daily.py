@@ -29,8 +29,6 @@ def upsert_channel_daily(rows: list[dict]) -> int:
                 row.get("playbackBasedCpm"),
                 row.get("adImpressions"),
                 row.get("cpm"),
-                row.get("impressions"),
-                row.get("impressionsClickThroughRate"),
                 row.get("subscribersGained"),
                 row.get("subscribersLost"),
             )
@@ -42,9 +40,9 @@ def upsert_channel_daily(rows: list[dict]) -> int:
             average_view_duration_seconds, average_view_percentage,
             likes, dislikes, comments, shares, monetized_playbacks,
             playback_based_cpm, ad_impressions, cpm,
-            impressions, impressions_ctr, subscribers_gained, subscribers_lost
+            subscribers_gained, subscribers_lost
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         ON CONFLICT(date) DO UPDATE SET
             engaged_views=excluded.engaged_views,
@@ -64,8 +62,6 @@ def upsert_channel_daily(rows: list[dict]) -> int:
             playback_based_cpm=excluded.playback_based_cpm,
             ad_impressions=excluded.ad_impressions,
             cpm=excluded.cpm,
-            impressions=excluded.impressions,
-            impressions_ctr=excluded.impressions_ctr,
             subscribers_gained=excluded.subscribers_gained,
             subscribers_lost=excluded.subscribers_lost
     """
