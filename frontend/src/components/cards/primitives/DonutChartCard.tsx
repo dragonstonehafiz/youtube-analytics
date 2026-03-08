@@ -36,23 +36,22 @@ function DonutChartCard({ segments, centerLabel, centerValue, ariaLabel, size = 
     return () => observer.disconnect()
   }, [])
 
+  const hoveredSegmentData = hoveredSegment ? segments.find((s) => s.key === hoveredSegment.key) : null
+  const displayLabel = hoveredSegment ? hoveredSegment.label : centerLabel
+  const displayValue = hoveredSegmentData ? hoveredSegmentData.displayValue : centerValue
+
   return (
     <div className={isCompact ? 'donut-chart-card compact' : 'donut-chart-card'} ref={cardRef}>
         <div className="donut-chart-card-chart-column">
           <div className="donut-chart-card-chart-wrap">
             <DonutChart
               segments={segments}
-              centerLabel={centerLabel}
-              centerValue={centerValue}
+              centerLabel={displayLabel}
+              centerValue={displayValue}
               ariaLabel={ariaLabel}
               size={size}
               onHoverChange={setHoveredSegment}
             />
-          </div>
-          <div className="donut-chart-card-hover">
-            {hoveredSegment
-              ? `${hoveredSegment.label}: ${hoveredSegment.value.toLocaleString()} (${hoveredSegment.percent.toFixed(1)}%)`
-              : 'Hover over a slice to see views'}
           </div>
         </div>
         {!isCompact ? (
