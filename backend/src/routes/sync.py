@@ -203,3 +203,42 @@ def list_sync_runs(limit: int = 10, offset: int = 0) -> dict:
             (safe_limit, safe_offset),
         ).fetchall()
     return {"items": [row_to_dict(row) for row in rows], "total": total}
+
+
+@router.post("/sync/reset-table")
+def reset_table(body: dict) -> dict:
+    """Reset (drop and recreate) a table."""
+    from src.database.db import init_db
+
+    table_name = body.get("table_name", "").strip()
+
+    # Allowed tables that can be reset
+    allowed_tables = {
+        "videos",
+        "playlists",
+        "playlist_items",
+        "comments",
+        "audience",
+        "video_analytics",
+        "video_traffic_source",
+        "video_search_insights",
+        "playlist_daily_analytics",
+        "channel_analytics",
+        "traffic_sources_daily",
+    }
+
+    if table_name not in allowed_tables:
+        return {"error": f"Table '{table_name}' is not allowed to be reset"}, 400
+
+    try:
+        with get_connection() as conn:
+            # Drop the table
+            conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            conn.commit()
+
+        # Reinitialize the database to recreate the table
+        init_db()
+
+        return {"success": True, "message": f"Table '{table_name}' has been reset"}
+    except Exception as e:
+        return {"error": str(e)}, 500

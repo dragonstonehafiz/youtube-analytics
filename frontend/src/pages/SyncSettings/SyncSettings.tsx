@@ -220,6 +220,7 @@ function SyncSettings() {
     runId: number
     text: string
   } | null>(null)
+  const [resettingTableName, setResettingTableName] = useState<string | null>(null)
 
   // Derived sync state
   const progressState: ProgressState | null =
@@ -554,6 +555,29 @@ function SyncSettings() {
     }
   }
 
+  const handleResetTable = async (tableName: string) => {
+    if (!confirm(`Are you sure you want to reset the ${tableName} table? This will delete all data and recreate the table.`)) {
+      return
+    }
+    setResettingTableName(tableName)
+    try {
+      const response = await fetch('http://localhost:8000/sync/reset-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table_name: tableName }),
+      })
+      if (!response.ok) {
+        throw new Error(`Reset failed: ${response.status}`)
+      }
+      await loadRuns()
+    } catch (error) {
+      console.error('Failed to reset table', error)
+      alert(`Failed to reset table: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setResettingTableName(null)
+    }
+  }
+
   const formatDuration = (started: string, finished: string | null) => {
     if (!finished) return '—'
     const totalSeconds = Math.max(
@@ -658,6 +682,12 @@ function SyncSettings() {
                           />
                           Include
                         </label>
+                        <ActionButton
+                          label={resettingTableName === opt.value ? 'Resetting...' : 'Reset'}
+                          onClick={() => handleResetTable(opt.value)}
+                          disabled={resettingTableName === opt.value}
+                          variant="danger"
+                        />
                       </div>
                     </div>
                   )
@@ -753,6 +783,12 @@ function SyncSettings() {
                           />
                           Deep Sync
                         </label>
+                        <ActionButton
+                          label={resettingTableName === tableName ? 'Resetting...' : 'Reset'}
+                          onClick={() => handleResetTable(tableName)}
+                          disabled={resettingTableName === tableName}
+                          variant="danger"
+                        />
                       </div>
                     </div>
                   )
@@ -792,66 +828,66 @@ function SyncSettings() {
                 <div className="sync-status-text">{progressState.message}</div>
               </div>
             ) : null}
-            <div className="sync-table-header">
-              <span>Date</span>
-              <span>Date Range</span>
-              <span>Table</span>
-              <span>Deep Sync</span>
-              <span className="right">API Calls</span>
-              <span className="right">Duration</span>
-              <span className="right">Status</span>
-              <span>Error</span>
-            </div>
-            {runs.length === 0 ? (
-              <div className="sync-empty">No sync runs yet.</div>
-            ) : (
-              <>
-                {runs.map((run) => (
-                  <div key={run.id} className="sync-table-row">
-                    <span>{formatDisplayDate(run.started_at)}</span>
-                    <span>{formatRange(run)}</span>
-                    <span>{run.table_name}</span>
-                    <span>{run.deep_sync ? 'Yes' : 'No'}</span>
-                    <span className="right">{run.total_api_calls.toLocaleString()}</span>
-                    <span className="right">{formatDuration(run.started_at, run.finished_at)}</span>
-                    <span className="right">
-                      <span className="sync-run-status">
-                        {run.status === 'manual_stop' ? (
-                          <span className="sync-run-status-stop" aria-hidden="true" />
-                        ) : (
-                          <span
-                            className={[
-                              'sync-run-status-dot',
-                              run.status === 'success'
-                                ? 'success'
-                                : run.status === 'failed'
-                                  ? 'failed'
-                                  : 'neutral',
-                            ].join(' ')}
-                          />
-                        )}
-                        <span>{run.status}</span>
+            <div className="sync-table-container">
+              <div className="sync-table-header">
+                <span>Date</span>
+                <span>Date Range</span>
+                <span>Table</span>
+                <span>Deep Sync</span>
+                <span className="right">API Calls</span>
+                <span className="right">Duration</span>
+                <span className="right">Status</span>
+                <span>Error</span>
+              </div>
+              {runs.length === 0 ? (
+                <div className="sync-empty">No sync runs yet.</div>
+              ) : (
+                <>
+                  {runs.map((run) => (
+                    <div key={run.id} className="sync-table-row">
+                      <span>{formatDisplayDate(run.started_at)}</span>
+                      <span>{formatRange(run)}</span>
+                      <span>{run.table_name}</span>
+                      <span>{run.deep_sync ? 'Yes' : 'No'}</span>
+                      <span className="right">{run.total_api_calls.toLocaleString()}</span>
+                      <span className="right">{formatDuration(run.started_at, run.finished_at)}</span>
+                      <span className="right">
+                        <span className="sync-run-status">
+                          {run.status === 'manual_stop' ? (
+                            <span className="sync-run-status-stop" aria-hidden="true" />
+                          ) : (
+                            <span
+                              className={[
+                                'sync-run-status-dot',
+                                run.status === 'success'
+                                  ? 'success'
+                                  : run.status === 'failed'
+                                    ? 'failed'
+                                    : 'neutral',
+                              ].join(' ')}
+                            />
+                          )}
+                          <span>{run.status}</span>
+                        </span>
                       </span>
-                    </span>
-                    <span>
-                      {run.error ? (
-                        <button
-                          type="button"
-                          className="sync-error-link"
-                          onClick={() =>
-                            setSelectedRunError({ runId: run.id, text: run.error as string })
-                          }
-                        >
-                          View
-                        </button>
-                      ) : (
-                        '—'
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </>
-            )}
+                      <span>
+                        {run.error ? (
+                          <ActionButton
+                            label="View"
+                            onClick={() =>
+                              setSelectedRunError({ runId: run.id, text: run.error as string })
+                            }
+                            variant="soft"
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
             {runs.length > 0 ? (
               <div className="pagination-footer">
                 <div className="pagination-main">
