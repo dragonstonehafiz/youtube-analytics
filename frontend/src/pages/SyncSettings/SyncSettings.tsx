@@ -9,6 +9,7 @@ import {
 } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { ProgressBar, RatioBar } from '../../components/charts'
+import { DonutChartCard, PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import { formatWholeNumber } from '../../utils/number'
 import { getStored, setStored } from '../../utils/storage'
@@ -201,6 +202,10 @@ function SyncSettings() {
   // Table column counts
   const [tableRowCounts, setTableRowCounts] = useState<Record<string, number>>({})
 
+  // Table storage
+  const [tableStorage, setTableStorage] = useState<Array<{ table: string; bytes: number; percent: number }>>([])
+  const [totalStorageBytes, setTotalStorageBytes] = useState(0)
+
   // Shared sync/progress state
   const [isSyncing, setIsSyncing] = useState(false)
   const [progress, setProgress] = useState<ProgressState | null>(null)
@@ -270,7 +275,7 @@ function SyncSettings() {
   }, [isSyncActive])
 
   useEffect(() => {
-    const fetchTableRowCounts = async () => {
+    const fetchTableData = async () => {
       try {
         const res = await fetch('http://localhost:8000/stats/overview')
         if (!res.ok) {
@@ -278,18 +283,26 @@ function SyncSettings() {
           return
         }
         const data = await res.json()
+
+        // Table row counts
         const rowCountsList = data.table_row_counts || []
         const rowCountsMap: Record<string, number> = {}
         rowCountsList.forEach((item: { table: string; rows: number }) => {
           rowCountsMap[item.table] = item.rows
         })
         setTableRowCounts(rowCountsMap)
+
+        // Table storage
+        const storageList = data.table_storage || []
+        const total = storageList.reduce((sum: number, item: { bytes: number }) => sum + (item.bytes || 0), 0)
+        setTableStorage(storageList)
+        setTotalStorageBytes(total)
       } catch (error) {
-        console.error('Failed to fetch table row counts:', error)
+        console.error('Failed to fetch table data:', error)
       }
     }
 
-    fetchTableRowCounts()
+    fetchTableData()
   }, [])
 
   const analyticsSyncPeriodForEstimate = useMemo(() => {
@@ -642,6 +655,27 @@ function SyncSettings() {
         </div>
       </header>
       <div className="page-body">
+        {/* Table Storage Card */}
+        {tableStorage.length > 0 && (
+          <PageCard title="Storage Usage">
+            <DonutChartCard
+              segments={tableStorage.map((item, index) => {
+                const colors = ['#0ea5e9', '#14b8a6', '#f59e0b', '#f97316', '#84cc16', '#22c55e', '#6366f1', '#e11d48']
+                return {
+                  key: item.table,
+                  label: item.table.replace(/_/g, ' '),
+                  value: item.bytes,
+                  color: colors[index % colors.length],
+                  displayValue: `${(item.bytes / 1024 / 1024).toFixed(2)} MB`,
+                }
+              })}
+              centerLabel="Total Storage"
+              centerValue={`${(totalStorageBytes / 1024 / 1024).toFixed(1)} MB`}
+              ariaLabel="Storage usage by table"
+            />
+          </PageCard>
+        )}
+
         {/* Data Sync Card */}
         <div className="page-row">
           <div className="sync-card">

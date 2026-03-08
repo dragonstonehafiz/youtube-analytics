@@ -2,6 +2,7 @@
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 16px;
+  align-items: center;
 }
 
 .donut-chart-card-title-row {

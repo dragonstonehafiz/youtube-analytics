@@ -19,28 +19,43 @@ from src.helper.estimates import (
 
 
 def get_table_storage(conn: sqlite3.Connection) -> list[dict]:
-    """Return per-table storage usage in bytes with percent normalized to tracked tables only."""
+    """Return per-table storage usage in bytes based on row counts."""
+    import os
+
     table_rows = conn.execute(
         "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
     ).fetchall()
     table_names = [row["name"] for row in table_rows]
     if not table_names:
         return []
-    try:
-        object_rows = conn.execute("SELECT name, SUM(pgsize) AS bytes FROM dbstat GROUP BY name").fetchall()
-    except sqlite3.OperationalError:
+
+    # Get total database file size
+    db_path = conn.execute("PRAGMA database_list").fetchone()[2]
+    total_db_bytes = os.path.getsize(db_path) if db_path and os.path.exists(db_path) else 0
+
+    if total_db_bytes == 0:
         return []
 
-    object_bytes = {row["name"]: int(row["bytes"] or 0) for row in object_rows}
-    index_rows = conn.execute(
-        "SELECT name, tbl_name FROM sqlite_schema WHERE type = 'index' AND tbl_name NOT LIKE 'sqlite_%'"
-    ).fetchall()
-    index_to_table = {row["name"]: row["tbl_name"] for row in index_rows if row["name"] and row["tbl_name"]}
+    # Get row counts for all tables
+    row_counts: dict[str, int] = {}
+    for table_name in table_names:
+        try:
+            row = conn.execute(f'SELECT COUNT(*) AS count FROM "{table_name}"').fetchone()
+            row_counts[table_name] = int(row["count"] or 0) if row else 0
+        except (sqlite3.OperationalError, TypeError):
+            row_counts[table_name] = 0
 
-    totals = {name: object_bytes.get(name, 0) for name in table_names}
-    for index_name, table_name in index_to_table.items():
-        if table_name in totals:
-            totals[table_name] += object_bytes.get(index_name, 0)
+    # Allocate database space proportionally based on row counts
+    total_rows = sum(row_counts.values())
+    totals: dict[str, int] = {}
+
+    if total_rows > 0:
+        for table_name, row_count in row_counts.items():
+            proportion = row_count / total_rows
+            totals[table_name] = int(total_db_bytes * proportion)
+    else:
+        for table_name in table_names:
+            totals[table_name] = 0
 
     sorted_totals = sorted(totals.items(), key=lambda item: item[1], reverse=True)
     tracked_total_bytes = sum(table_bytes for _, table_bytes in sorted_totals)
