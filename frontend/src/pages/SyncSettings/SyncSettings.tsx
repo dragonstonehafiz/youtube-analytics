@@ -256,6 +256,33 @@ function SyncSettings() {
     }
   }, [runsPage, runsPageSize])
 
+  const refreshTableData = useCallback(async () => {
+    try {
+      const res = await fetch('http://localhost:8000/stats/overview')
+      if (!res.ok) {
+        console.error(`API error: ${res.status} ${res.statusText}`)
+        return
+      }
+      const data = await res.json()
+
+      // Table row counts
+      const rowCountsList = data.table_row_counts || []
+      const rowCountsMap: Record<string, number> = {}
+      rowCountsList.forEach((item: { table: string; rows: number }) => {
+        rowCountsMap[item.table] = item.rows
+      })
+      setTableRowCounts(rowCountsMap)
+
+      // Table storage
+      const storageList = data.table_storage || []
+      const total = storageList.reduce((sum: number, item: { bytes: number }) => sum + (item.bytes || 0), 0)
+      setTableStorage(storageList)
+      setTotalStorageBytes(total)
+    } catch (error) {
+      console.error('Failed to refresh table data:', error)
+    }
+  }, [])
+
   useEffect(() => {
     loadRuns()
   }, [loadRuns])
@@ -683,6 +710,11 @@ function SyncSettings() {
               <div className="sync-card-header">Data Sync</div>
               <span className="sync-api-badge">YouTube Data API v3</span>
               <ActionButton
+                label="Refresh"
+                onClick={refreshTableData}
+                variant="soft"
+              />
+              <ActionButton
                 label={
                   isSyncActive
                     ? isStopPending
@@ -743,6 +775,11 @@ function SyncSettings() {
             <div className="sync-card-header-row">
               <div className="sync-card-header">Analytics Sync</div>
               <span className="sync-api-badge">YouTube Analytics API v2</span>
+              <ActionButton
+                label="Refresh"
+                onClick={refreshTableData}
+                variant="soft"
+              />
               <ActionButton
                 label={
                   isSyncActive
