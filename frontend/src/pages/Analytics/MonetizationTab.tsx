@@ -1,10 +1,7 @@
-import { useState, useEffect } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { useState, useEffect, useMemo } from 'react'
+import { MetricChartCard, type MetricItem, type SeriesPoint, type Granularity } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type SeriesPoint = { date: string; value: number }
 type MonetizationContentType = 'video' | 'short'
 type MonetizationMonthly = { monthKey: string; label: string; amount: number }
 type MonetizationTopItem = { video_id: string; title: string; thumbnail_url: string; revenue: number }
@@ -24,6 +21,7 @@ type Props = {
   granularity: Granularity
   contentType: string
   onOpenVideo: (videoId: string) => void
+  publishedDates: Record<string, PublishedItem[]>
 }
 
 function buildDays(items: any[]): [string[], Map<string, any>] {
@@ -54,76 +52,61 @@ const EMPTY_PERFORMANCE: Record<MonetizationContentType, MonetizationPerformance
   short: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
 }
 
-export default function MonetizationTab({ range, previousRange, granularity, contentType, onOpenVideo }: Props) {
+export default function MonetizationTab({ range, previousRange, granularity, contentType, onOpenVideo, publishedDates }: Props) {
   const [monetizationContentType, setMonetizationContentType] = useState<MonetizationContentType>('video')
   const [monetizationTotals, setMonetizationTotals] = useState(EMPTY_TOTALS)
   const [monetizationSeries, setMonetizationSeries] = useState<Record<string, SeriesPoint[]>>(EMPTY_SERIES)
   const [previousMonetizationSeries, setPreviousMonetizationSeries] = useState<Record<string, SeriesPoint[]>>(EMPTY_SERIES)
-  const [publishedDatesDaily, setPublishedDatesDaily] = useState<Record<string, PublishedItem[]>>({})
   const [monthlyEarnings, setMonthlyEarnings] = useState<MonetizationMonthly[]>([])
   const [contentPerformance, setContentPerformance] = useState<Record<MonetizationContentType, MonetizationPerformance>>(EMPTY_PERFORMANCE)
-
-  useEffect(() => {
-    async function loadPublished() {
-      try {
-        const contentParam = contentType === 'all' ? '' : `&content_type=${contentType}`
-        const response = await fetch(
-          `http://localhost:8000/videos/published?start_date=${range.start}&end_date=${range.end}${contentParam}`
-        )
-        const data = await response.json()
-        const items = Array.isArray(data.items) ? data.items : []
-        const map: Record<string, PublishedItem[]> = {}
-        items.forEach((item: any) => {
-          if (item.day) map[item.day] = Array.isArray(item.items) ? item.items : []
-        })
-        setPublishedDatesDaily(map)
-      } catch (error) {
-        console.error('Failed to load published dates', error)
-      }
-    }
-    loadPublished()
-  }, [range.start, range.end, contentType])
 
   useEffect(() => {
     async function loadMonetizationData() {
       try {
         const summaryUrl =
           contentType === 'all'
-            ? `http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}`
+            ? `http://localhost:8000/analytics/channel-daily?start_date=${range.start}&end_date=${range.end}`
             : `http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=${contentType}`
         const previousUrl =
           contentType === 'all'
-            ? `http://localhost:8000/analytics/daily/summary?start_date=${previousRange.start}&end_date=${previousRange.end}`
+            ? `http://localhost:8000/analytics/channel-daily?start_date=${previousRange.start}&end_date=${previousRange.end}`
             : `http://localhost:8000/analytics/daily/summary?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentType}`
 
-        const [
-          summaryRes,
-          previousSummaryRes,
-          videoSummaryRes,
-          shortSummaryRes,
-          videoTopRes,
-          shortTopRes,
-        ] = await Promise.all([
+        const requests = [
           fetch(summaryUrl),
           fetch(previousUrl),
+          fetch(
+            `http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10${contentType === 'all' ? '' : `&content_type=${contentType}`}&sort_by=estimated_revenue&direction=desc&privacy_status=public`
+          ),
+        ]
+
+        const topRequests = contentType === 'all' ? [
           fetch(`http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=video`),
           fetch(`http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=short`),
-          fetch(
-            `http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`
-          ),
-          fetch(
-            `http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`
-          ),
-        ])
+          fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+          fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+        ] : []
 
-        const [payload, previousPayload, videoSummary, shortSummary, videoTop, shortTop] = await Promise.all([
+        const responses = await Promise.all([...requests, ...topRequests])
+        const [summaryRes, previousSummaryRes, topRes, ...topData] = responses
+        const [payload, previousPayload, topContent] = await Promise.all([
           summaryRes.json(),
           previousSummaryRes.json(),
-          videoSummaryRes.json(),
-          shortSummaryRes.json(),
-          videoTopRes.json(),
-          shortTopRes.json(),
+          topRes.json(),
         ])
+
+        let videoSummary = payload
+        let shortSummary = payload
+        let videoTop = topContent
+        let shortTop = topContent
+
+        if (contentType === 'all' && topData.length === 4) {
+          const [videoSummaryRes, shortSummaryRes, videoTopRes, shortTopRes] = topData
+          videoSummary = await videoSummaryRes.json()
+          shortSummary = await shortSummaryRes.json()
+          videoTop = await videoTopRes.json()
+          shortTop = await shortTopRes.json()
+        }
 
         const items = Array.isArray(payload?.items) ? payload.items : []
         const [days, byDay] = buildDays(items)
@@ -195,10 +178,17 @@ export default function MonetizationTab({ range, previousRange, granularity, con
             })),
           }
         }
-        setContentPerformance({
-          video: mapPerformance(videoSummary, videoTop),
-          short: mapPerformance(shortSummary, shortTop),
-        })
+
+        const performance: Record<MonetizationContentType, MonetizationPerformance> = { ...EMPTY_PERFORMANCE }
+        if (contentType === 'all') {
+          performance.video = mapPerformance(videoSummary, videoTop)
+          performance.short = mapPerformance(shortSummary, shortTop)
+        } else if (contentType === 'video') {
+          performance.video = mapPerformance(payload, topContent)
+        } else {
+          performance.short = mapPerformance(payload, topContent)
+        }
+        setContentPerformance(performance)
       } catch (error) {
         console.error('Failed to load monetization data', error)
         setMonetizationSeries(EMPTY_SERIES)
@@ -211,31 +201,48 @@ export default function MonetizationTab({ range, previousRange, granularity, con
     loadMonetizationData()
   }, [range.start, range.end, previousRange.start, previousRange.end, previousRange.daySpan, contentType])
 
+  const metricsData = useMemo<MetricItem[]>(
+    () => [
+      {
+        key: 'estimated_revenue',
+        label: 'Estimated revenue',
+        value: formatCurrency(monetizationTotals.estimated_revenue),
+        series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue ?? [] }],
+        previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue ?? [] }],
+      },
+      {
+        key: 'ad_impressions',
+        label: 'Ad impressions',
+        value: formatWholeNumber(monetizationTotals.ad_impressions),
+        series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions ?? [] }],
+        previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions ?? [] }],
+      },
+      {
+        key: 'monetized_playbacks',
+        label: 'Monetized playbacks',
+        value: formatWholeNumber(monetizationTotals.monetized_playbacks),
+        series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks ?? [] }],
+        previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks ?? [] }],
+      },
+      {
+        key: 'cpm',
+        label: 'CPM',
+        value: formatCurrency(monetizationTotals.cpm),
+        series: [{ key: 'cpm', label: '', color: '#0ea5e9', points: monetizationSeries.cpm ?? [] }],
+        previousSeries: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousMonetizationSeries.cpm ?? [] }],
+        comparisonAggregation: 'avg',
+      },
+    ],
+    [monetizationTotals, monetizationSeries, previousMonetizationSeries]
+  )
+
   return (
     <div className="analytics-monetization-layout">
       <PageCard>
         <MetricChartCard
+          data={metricsData}
           granularity={granularity}
-          metrics={[
-            { key: 'estimated_revenue', label: 'Estimated revenue', value: formatCurrency(monetizationTotals.estimated_revenue) },
-            { key: 'ad_impressions', label: 'Ad impressions', value: formatWholeNumber(monetizationTotals.ad_impressions) },
-            { key: 'monetized_playbacks', label: 'Monetized playbacks', value: formatWholeNumber(monetizationTotals.monetized_playbacks) },
-            { key: 'cpm', label: 'CPM', value: formatCurrency(monetizationTotals.cpm) },
-          ]}
-          seriesByMetric={{
-            estimated_revenue: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue ?? [] }],
-            ad_impressions: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions ?? [] }],
-            monetized_playbacks: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks ?? [] }],
-            cpm: [{ key: 'cpm', label: '', color: '#0ea5e9', points: monetizationSeries.cpm ?? [] }],
-          }}
-          previousSeriesByMetric={{
-            estimated_revenue: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue ?? [] }],
-            ad_impressions: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions ?? [] }],
-            monetized_playbacks: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks ?? [] }],
-            cpm: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousMonetizationSeries.cpm ?? [] }],
-          }}
-          comparisonAggregation={{ cpm: 'avg' }}
-          publishedDates={publishedDatesDaily}
+          publishedDates={publishedDates}
         />
       </PageCard>
       <div className="analytics-monetization-cards-row">

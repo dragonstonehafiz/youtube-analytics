@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity } from '../../components/charts'
 import {
   PageCard,
   SearchInsightsTopTermsCard,
@@ -13,10 +13,7 @@ import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey 
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { formatWholeNumber } from '../../utils/number'
-import { buildTrafficSeries } from '../../utils/trafficSeries'
-
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type TrafficSourceRow = { day: string; traffic_source: string; views: number; watch_time_minutes: number }
+import { buildTrafficSeries, type TrafficSourceRow } from '../../utils/trafficSeries'
 type PublishedDates = Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>
 type TopVideosBySourceResponseItem = { video_id: string; title: string; thumbnail_url: string; published_at: string; views: number; watch_time_minutes: number }
 type TopSearchResponseItem = { search_term: string; views: number; watch_time_minutes: number; video_count: number }
@@ -158,34 +155,32 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
     loadPlaylistVideoIds()
   }, [playlistId])
 
-  const discoverySeriesByMetric = useMemo(
-    () => ({
-      views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end),
-      watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end),
-    }),
-    [discoveryTrafficRows, range.start, range.end]
-  )
+  const discoveryMetricsData = useMemo<MetricItem[]>(() => {
+    const viewsSeries = buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end)
+    const watchTimeSeries = buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end)
+    const previousViewsSeries = buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end)
+    const previousWatchTimeSeries = buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end)
 
-  const previousDiscoverySeriesByMetric = useMemo(
-    () => ({
-      views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end),
-      watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end),
-    }),
-    [discoveryPreviousTrafficRows, previousRange.start, previousRange.end]
-  )
+    const totalViews = viewsSeries.reduce((sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0)
+    const totalWatch = watchTimeSeries.reduce((sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0)
 
-  const discoveryMetrics = useMemo(() => {
-    const totalViews = discoverySeriesByMetric.views.reduce(
-      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0
-    )
-    const totalWatch = discoverySeriesByMetric.watch_time.reduce(
-      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0
-    )
     return [
-      { key: 'views', label: 'Views', value: formatWholeNumber(Math.round(totalViews)) },
-      { key: 'watch_time', label: 'Watch time', value: formatWholeNumber(Math.round(totalWatch)) },
+      {
+        key: 'views',
+        label: 'Views',
+        value: formatWholeNumber(Math.round(totalViews)),
+        series: viewsSeries,
+        previousSeries: previousViewsSeries,
+      },
+      {
+        key: 'watch_time',
+        label: 'Watch time',
+        value: formatWholeNumber(Math.round(totalWatch)),
+        series: watchTimeSeries,
+        previousSeries: previousWatchTimeSeries,
+      },
     ]
-  }, [discoverySeriesByMetric])
+  }, [discoveryTrafficRows, discoveryPreviousTrafficRows, range.start, range.end, previousRange.start, previousRange.end])
 
   const trafficShareItems = useMemo<TrafficSourceShareItem[]>(() => {
     const totals = new Map<string, number>()
@@ -284,15 +279,14 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
     loadTopSearchTerms()
   }, [playlistId, range.start, range.end, playlistVideoIds])
 
+
   return (
     <>
       <div className="page-row">
         <PageCard>
           <MetricChartCard
+            data={discoveryMetricsData}
             granularity={granularity}
-            metrics={discoveryMetrics}
-            seriesByMetric={discoverySeriesByMetric}
-            previousSeriesByMetric={previousDiscoverySeriesByMetric}
             publishedDates={publishedDates}
           />
         </PageCard>

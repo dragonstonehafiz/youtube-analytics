@@ -196,54 +196,107 @@ def list_video_daily_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
     video_id: str | None = None,
+    video_ids: str | None = None,
     limit: int = Query(default=1000, ge=1, le=10000),
 ) -> dict:
-    """Return daily analytics with optional filters."""
-    where_clauses = []
-    params: list[object] = []
+    """Return daily analytics with optional filters. Accepts single video_id or multiple video_ids (CSV)."""
+    # Handle multiple video IDs
+    if video_ids:
+        ids_list = [vid.strip() for vid in video_ids.split(',') if vid.strip()]
+        if not ids_list:
+            return {"items": []}
 
-    if start_date:
-        where_clauses.append("date >= ?")
-        params.append(start_date)
-    if end_date:
-        where_clauses.append("date <= ?")
-        params.append(end_date)
-    if video_id:
-        where_clauses.append("video_id = ?")
-        params.append(video_id)
+        placeholders = ','.join(['?' for _ in ids_list])
+        where_clauses = [f"video_id IN ({placeholders})"]
+        params: list[object] = ids_list
 
-    where_sql = ""
-    if where_clauses:
+        if start_date:
+            where_clauses.append("date >= ?")
+            params.append(start_date)
+        if end_date:
+            where_clauses.append("date <= ?")
+            params.append(end_date)
+
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
-    query = f"""
-        SELECT
-            video_id,
-            date,
-            engaged_views,
-            views,
-            watch_time_minutes,
-            estimated_revenue,
-            estimated_ad_revenue,
-            gross_revenue,
-            estimated_red_partner_revenue,
-            average_view_duration_seconds,
-            average_view_percentage,
-            likes,
-            comments,
-            shares,
-            monetized_playbacks,
-            playback_based_cpm,
-            ad_impressions,
-            cpm,
-            subscribers_gained,
-            subscribers_lost
-        FROM video_analytics
-        {where_sql}
-        ORDER BY date DESC
-        LIMIT ?
-    """
-    params.append(limit)
+        query = f"""
+            SELECT
+                date,
+                SUM(COALESCE(engaged_views, 0)) AS engaged_views,
+                SUM(COALESCE(views, 0)) AS views,
+                SUM(COALESCE(watch_time_minutes, 0)) AS watch_time_minutes,
+                SUM(COALESCE(estimated_revenue, 0)) AS estimated_revenue,
+                SUM(COALESCE(estimated_ad_revenue, 0)) AS estimated_ad_revenue,
+                SUM(COALESCE(gross_revenue, 0)) AS gross_revenue,
+                SUM(COALESCE(estimated_red_partner_revenue, 0)) AS estimated_red_partner_revenue,
+                AVG(COALESCE(average_view_duration_seconds, 0)) AS average_view_duration_seconds,
+                AVG(COALESCE(average_view_percentage, 0)) AS average_view_percentage,
+                SUM(COALESCE(likes, 0)) AS likes,
+                SUM(COALESCE(comments, 0)) AS comments,
+                SUM(COALESCE(shares, 0)) AS shares,
+                SUM(COALESCE(monetized_playbacks, 0)) AS monetized_playbacks,
+                CASE
+                    WHEN SUM(COALESCE(ad_impressions, 0)) > 0
+                    THEN SUM(COALESCE(cpm, 0) * COALESCE(ad_impressions, 0)) / SUM(COALESCE(ad_impressions, 0))
+                    ELSE AVG(cpm)
+                END AS cpm,
+                SUM(COALESCE(ad_impressions, 0)) AS ad_impressions,
+                SUM(COALESCE(subscribers_gained, 0)) AS subscribers_gained,
+                SUM(COALESCE(subscribers_lost, 0)) AS subscribers_lost
+            FROM video_analytics
+            {where_sql}
+            GROUP BY date
+            ORDER BY date ASC
+            LIMIT ?
+        """
+        params.append(limit)
+    else:
+        # Original single video_id logic
+        where_clauses = []
+        params = []
+
+        if start_date:
+            where_clauses.append("date >= ?")
+            params.append(start_date)
+        if end_date:
+            where_clauses.append("date <= ?")
+            params.append(end_date)
+        if video_id:
+            where_clauses.append("video_id = ?")
+            params.append(video_id)
+
+        where_sql = ""
+        if where_clauses:
+            where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        query = f"""
+            SELECT
+                video_id,
+                date,
+                engaged_views,
+                views,
+                watch_time_minutes,
+                estimated_revenue,
+                estimated_ad_revenue,
+                gross_revenue,
+                estimated_red_partner_revenue,
+                average_view_duration_seconds,
+                average_view_percentage,
+                likes,
+                comments,
+                shares,
+                monetized_playbacks,
+                playback_based_cpm,
+                ad_impressions,
+                cpm,
+                subscribers_gained,
+                subscribers_lost
+            FROM video_analytics
+            {where_sql}
+            ORDER BY date DESC
+            LIMIT ?
+        """
+        params.append(limit)
 
     with get_connection() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -742,7 +795,8 @@ def get_content_insights(
                 v.content_type AS content_type,
                 v.duration_seconds AS duration_seconds,
                 SUM(a.views) AS views,
-                AVG(a.average_view_duration_seconds) AS average_view_duration_seconds
+                AVG(a.average_view_duration_seconds) AS average_view_duration_seconds,
+                AVG(a.average_view_percentage) AS average_view_percentage
             FROM video_analytics a
             JOIN videos v ON v.id = a.video_id
             {playlist_join}
@@ -813,7 +867,7 @@ def get_content_insights(
             "title": row["title"] or "(untitled)",
             "thumbnail_url": row["thumbnail_url"] or "",
             "avg_view_duration_seconds": row["average_view_duration_seconds"] or 0,
-            "view_percentage": round(((row["average_view_duration_seconds"] or 0) / (row["duration_seconds"] or 1)) * 100, 1),
+            "view_percentage": row["average_view_percentage"] or 0,
             "content_type": row["content_type"] or "",
         }
         for row in rows

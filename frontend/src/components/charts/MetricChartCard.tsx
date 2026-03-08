@@ -5,15 +5,9 @@ import UploadPublishMarkers, { type ClusteredPublishMarker } from './UploadPubli
 import UploadPublishTooltip, { type UploadHoverState } from './UploadPublishTooltip'
 import './MetricChartCard.css'
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
+export type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
 
-type MetricSummary = {
-  key: string
-  label: string
-  value: string
-}
-
-type SeriesPoint = {
+export type SeriesPoint = {
   date: string
   value: number
 }
@@ -25,7 +19,19 @@ export type LineSeries = {
   points: SeriesPoint[]
 }
 
-type PublishedItem = { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }
+export type MetricItem = {
+  key: string
+  label: string
+  value: string
+  series?: LineSeries[]
+  previousSeries?: LineSeries[]
+  comparisonAggregation?: 'sum' | 'avg'
+  seriesAggregation?: 'sum' | 'avg' | 'last'
+  isDuration?: boolean
+}
+
+export type PublishedItem = { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }
+
 type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 
 type AggregatedSeries = {
@@ -43,13 +49,8 @@ type AggregatedMultiSeries = {
 }
 
 type MetricChartCardProps = {
-  metrics: MetricSummary[]
+  data: MetricItem[]
   granularity: Granularity
-  seriesByMetric?: Record<string, LineSeries[]>
-  previousSeriesByMetric?: Record<string, LineSeries[]>
-  comparisonAggregation?: Record<string, 'sum' | 'avg'>
-  seriesAggregation?: Record<string, 'sum' | 'avg' | 'last'>
-  durationMetrics?: string[]
   publishedDates?: Record<string, PublishedItem[]>
   showYearMarkers?: boolean
 }
@@ -219,16 +220,26 @@ function aggregateFilledMultiSeries(
 }
 
 function MetricChartCard({
-  metrics,
+  data,
   granularity,
-  seriesByMetric = {},
-  previousSeriesByMetric = {},
-  comparisonAggregation = {},
-  seriesAggregation = {},
-  durationMetrics = [],
   publishedDates = {},
   showYearMarkers = true,
 }: MetricChartCardProps) {
+  const metrics = data.map(m => ({ key: m.key, label: m.label, value: m.value }))
+  const seriesByMetric: Record<string, LineSeries[]> = {}
+  const previousSeriesByMetric: Record<string, LineSeries[]> = {}
+  const comparisonAggregation: Record<string, 'sum' | 'avg'> = {}
+  const seriesAggregation: Record<string, 'sum' | 'avg' | 'last'> = {}
+  const durationMetrics: string[] = []
+
+  data.forEach(metric => {
+    if (metric.series) seriesByMetric[metric.key] = metric.series
+    if (metric.previousSeries) previousSeriesByMetric[metric.key] = metric.previousSeries
+    if (metric.comparisonAggregation) comparisonAggregation[metric.key] = metric.comparisonAggregation
+    if (metric.seriesAggregation) seriesAggregation[metric.key] = metric.seriesAggregation
+    if (metric.isDuration) durationMetrics.push(metric.key)
+  })
+
   const hideMonetaryValues = useHideMonetaryValues()
   const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -355,10 +366,17 @@ function MetricChartCard({
     const min = values.length ? Math.min(...values) : 0
     const max = values.length ? Math.max(...values) : 1
     const paddedMax = max + (max - min) * 0.1 || 1
-    const paddedMin = Math.max(0, min - (max - min) * 0.1)
+    const paddedMin = min - (max - min) * 0.1
     const tickCount = 4
     const step = (paddedMax - paddedMin) / tickCount
     const tickValues = Array.from({ length: tickCount + 1 }, (_, idx) => paddedMin + step * idx)
+
+    // Always include 0 if data spans negative and positive values
+    if (paddedMin < 0 && paddedMax > 0 && !tickValues.some(t => Math.abs(t) < 0.01)) {
+      tickValues.push(0)
+      tickValues.sort((a, b) => a - b)
+    }
+
     return { minValue: paddedMin, maxValue: paddedMax, ticks: tickValues }
   }, [isMulti, activeLines, points])
 

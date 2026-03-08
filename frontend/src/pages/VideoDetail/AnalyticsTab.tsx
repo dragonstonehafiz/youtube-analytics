@@ -1,11 +1,9 @@
 import { useMemo } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import type { VideoDailyRow } from './VideoDetail'
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type SeriesPoint = { date: string; value: number }
 type DateRange = { start: string; end: string }
 
 type Props = {
@@ -74,6 +72,42 @@ export default function AnalyticsTab({ loading, error, granularity, dailyRows, r
     }
   }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end])
 
+  const metricsData = useMemo<MetricItem[]>(
+    () => [
+      {
+        key: 'views',
+        label: 'Views',
+        value: formatWholeNumber(totals.views),
+        series: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views }],
+        previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views }],
+      },
+      {
+        key: 'watch_time',
+        label: 'Watch time (hours)',
+        value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
+        series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time }],
+        previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
+      },
+      {
+        key: 'avg_duration',
+        label: 'Avg view duration',
+        value: formatDuration(Math.round(totals.average_view_duration_seconds)),
+        series: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: series.avg_duration }],
+        previousSeries: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: previousSeries.avg_duration }],
+        comparisonAggregation: 'avg',
+        isDuration: true,
+      },
+      {
+        key: 'revenue',
+        label: 'Estimated revenue',
+        value: formatCurrency(totals.estimated_revenue),
+        series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue }],
+        previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
+      },
+    ],
+    [totals, series, previousSeries]
+  )
+
   return (
     <div className="page-row">
       <PageCard>
@@ -83,26 +117,8 @@ export default function AnalyticsTab({ loading, error, granularity, dailyRows, r
           <div className="video-detail-state">{error}</div>
         ) : (
           <MetricChartCard
+            data={metricsData}
             granularity={granularity}
-            metrics={[
-              { key: 'views', label: 'Views', value: formatWholeNumber(totals.views) },
-              { key: 'watch_time', label: 'Watch time (hours)', value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)) },
-              { key: 'avg_duration', label: 'Avg view duration', value: formatDuration(Math.round(totals.average_view_duration_seconds)) },
-              { key: 'revenue', label: 'Estimated revenue', value: formatCurrency(totals.estimated_revenue) },
-            ]}
-            seriesByMetric={{
-              views: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views }],
-              watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time }],
-              avg_duration: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: series.avg_duration }],
-              revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue }],
-            }}
-            previousSeriesByMetric={{
-              views: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views }],
-              watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
-              avg_duration: [{ key: 'avg_duration', label: '', color: '#0ea5e9', points: previousSeries.avg_duration }],
-              revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
-            }}
-            comparisonAggregation={{ avg_duration: 'avg' }}
             publishedDates={{}}
           />
         )}

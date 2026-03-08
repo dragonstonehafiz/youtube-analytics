@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '../../components/cards'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type SeriesPoint = { date: string; value: number }
 type PlaylistDailyRow = {
   day: string
   views: number | null
@@ -272,6 +269,45 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
       },
     }
   }, [dailyRows, previousDailyRows, range.start, range.end, previousRange.start, previousRange.end, viewMode])
+
+  const metricsData = useMemo<MetricItem[]>(() => {
+    const isDuration = (key: string) => viewMode === 'playlist_views' && (key === 'subscribers' || key === 'revenue')
+    return [
+      {
+        key: 'views',
+        label: viewMode === 'playlist_views' ? 'Playlist Views' : 'Video Views',
+        value: formatWholeNumber(totals.views),
+        series: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views }],
+        previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views }],
+      },
+      {
+        key: 'watch_time',
+        label: 'Watch time (hours)',
+        value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
+        series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time }],
+        previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
+      },
+      {
+        key: 'subscribers',
+        label: viewMode === 'video_views' ? 'Subscribers' : 'Avg view duration',
+        value: viewMode === 'video_views' ? formatWholeNumber(totals.subscribers_net) : formatDurationSeconds(totals.average_view_duration_seconds),
+        series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers }],
+        previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers }],
+        comparisonAggregation: viewMode === 'playlist_views' ? 'avg' : undefined,
+        isDuration: isDuration('subscribers'),
+      },
+      {
+        key: 'revenue',
+        label: viewMode === 'video_views' ? 'Estimated revenue' : 'Avg time in playlist',
+        value: viewMode === 'video_views' ? formatCurrency(totals.estimated_revenue) : formatDurationSeconds(totals.average_time_in_playlist_seconds),
+        series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue }],
+        previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
+        comparisonAggregation: viewMode === 'playlist_views' ? 'avg' : undefined,
+        isDuration: isDuration('revenue'),
+      },
+    ]
+  }, [totals, series, previousSeries, viewMode])
+
   return (
     <>
       <div className="page-row">
@@ -282,35 +318,8 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
             <div className="video-detail-state">{error}</div>
           ) : (
             <MetricChartCard
+              data={metricsData}
               granularity={granularity}
-              metrics={[
-                { key: 'views', label: viewMode === 'playlist_views' ? 'Playlist Views' : 'Video Views', value: formatWholeNumber(totals.views) },
-                { key: 'watch_time', label: 'Watch time (hours)', value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)) },
-                {
-                  key: 'subscribers',
-                  label: viewMode === 'video_views' ? 'Subscribers' : 'Avg view duration',
-                  value: viewMode === 'video_views' ? formatWholeNumber(totals.subscribers_net) : formatDurationSeconds(totals.average_view_duration_seconds),
-                },
-                {
-                  key: 'revenue',
-                  label: viewMode === 'video_views' ? 'Estimated revenue' : 'Avg time in playlist',
-                  value: viewMode === 'video_views' ? formatCurrency(totals.estimated_revenue) : formatDurationSeconds(totals.average_time_in_playlist_seconds),
-                },
-              ]}
-              seriesByMetric={{
-                views: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views }],
-                watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time }],
-                subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers }],
-                revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue }],
-              }}
-              previousSeriesByMetric={{
-                views: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views }],
-                watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
-                subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers }],
-                revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
-              }}
-              comparisonAggregation={viewMode === 'playlist_views' ? { subscribers: 'avg', revenue: 'avg' } : {}}
-              durationMetrics={viewMode === 'playlist_views' ? ['subscribers', 'revenue'] : []}
               publishedDates={publishedDates}
             />
           )}

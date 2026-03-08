@@ -7,6 +7,7 @@ import { PageCard } from '../../components/cards'
 import MetricsTab from './MetricsTab'
 import MonetizationTab from './MonetizationTab'
 import DiscoveryTab from './DiscoveryTab'
+import EngagementTab from './EngagementTab'
 import CommentsTab from './CommentsTab'
 import InsightsTab from './InsightsTab'
 import { formatDisplayDate } from '../../utils/date'
@@ -25,7 +26,7 @@ type PlaylistMeta = {
 }
 
 type PlaylistViewMode = 'playlist_views' | 'video_views'
-type PlaylistAnalyticsTab = 'metrics' | 'monetization' | 'discovery' | 'comments' | 'insights'
+type PlaylistAnalyticsTab = 'metrics' | 'engagement' | 'monetization' | 'discovery' | 'comments' | 'insights'
 
 const VIEW_MODE_OPTIONS = [
   { label: 'Playlist Views', value: 'playlist_views' },
@@ -156,6 +157,13 @@ function PlaylistDetail() {
           </button>
           <button
             type="button"
+            className={analyticsTab === 'engagement' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setAnalyticsTab('engagement')}
+          >
+            Engagement
+          </button>
+          <button
+            type="button"
             className={analyticsTab === 'monetization' ? 'analytics-tab active' : 'analytics-tab'}
             onClick={() => setAnalyticsTab('monetization')}
           >
@@ -198,6 +206,13 @@ function PlaylistDetail() {
             granularity={rangeValue.granularity}
             viewMode={viewMode}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+          />
+        ) : analyticsTab === 'engagement' && rangeValue ? (
+          <EngagementTab
+            playlistId={playlistId}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+            granularity={rangeValue.granularity}
           />
         ) : analyticsTab === 'monetization' && rangeValue ? (
           <MonetizationTab

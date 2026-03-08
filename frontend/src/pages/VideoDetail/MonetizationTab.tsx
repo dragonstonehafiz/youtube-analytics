@@ -1,11 +1,9 @@
 import { useMemo } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import type { VideoDailyRow } from './VideoDetail'
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type SeriesPoint = { date: string; value: number }
 type DateRange = { start: string; end: string }
 
 type Props = {
@@ -70,6 +68,41 @@ export default function MonetizationTab({ loading, error, granularity, dailyRows
     }
   }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end])
 
+  const metricsData = useMemo<MetricItem[]>(
+    () => [
+      {
+        key: 'estimated_revenue',
+        label: 'Estimated revenue',
+        value: formatCurrency(monetizationTotals.estimated_revenue),
+        series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue }],
+        previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue }],
+      },
+      {
+        key: 'ad_impressions',
+        label: 'Ad impressions',
+        value: formatWholeNumber(monetizationTotals.ad_impressions),
+        series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions }],
+        previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions }],
+      },
+      {
+        key: 'monetized_playbacks',
+        label: 'Monetized playbacks',
+        value: formatWholeNumber(monetizationTotals.monetized_playbacks),
+        series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks }],
+        previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks }],
+      },
+      {
+        key: 'cpm',
+        label: 'CPM',
+        value: formatCurrency(monetizationTotals.cpm),
+        series: [{ key: 'cpm', label: '', color: '#0ea5e9', points: monetizationSeries.cpm }],
+        previousSeries: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousMonetizationSeries.cpm }],
+        comparisonAggregation: 'avg',
+      },
+    ],
+    [monetizationTotals, monetizationSeries, previousMonetizationSeries]
+  )
+
   return (
     <div className="page-row">
       <PageCard>
@@ -79,26 +112,8 @@ export default function MonetizationTab({ loading, error, granularity, dailyRows
           <div className="video-detail-state">{error}</div>
         ) : (
           <MetricChartCard
+            data={metricsData}
             granularity={granularity}
-            metrics={[
-              { key: 'estimated_revenue', label: 'Estimated revenue', value: formatCurrency(monetizationTotals.estimated_revenue) },
-              { key: 'ad_impressions', label: 'Ad impressions', value: formatWholeNumber(monetizationTotals.ad_impressions) },
-              { key: 'monetized_playbacks', label: 'Monetized playbacks', value: formatWholeNumber(monetizationTotals.monetized_playbacks) },
-              { key: 'cpm', label: 'CPM', value: formatCurrency(monetizationTotals.cpm) },
-            ]}
-            seriesByMetric={{
-              estimated_revenue: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue }],
-              ad_impressions: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions }],
-              monetized_playbacks: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks }],
-              cpm: [{ key: 'cpm', label: '', color: '#0ea5e9', points: monetizationSeries.cpm }],
-            }}
-            previousSeriesByMetric={{
-              estimated_revenue: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue }],
-              ad_impressions: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions }],
-              monetized_playbacks: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks }],
-              cpm: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousMonetizationSeries.cpm }],
-            }}
-            comparisonAggregation={{ cpm: 'avg' }}
           />
         )}
       </PageCard>

@@ -5,6 +5,7 @@ import { DataRangeControl, type DateRangeValue } from '../../components/features
 import { fetchVideoYears } from '../../utils/years'
 import { PageCard } from '../../components/cards'
 import AnalyticsTab from './AnalyticsTab'
+import EngagementTab from './EngagementTab'
 import MonetizationTab from './MonetizationTab'
 import DiscoveryTab from './DiscoveryTab'
 import CommentsTab from './CommentsTab'
@@ -40,7 +41,7 @@ export type VideoDailyRow = {
   subscribers_lost: number | null
 }
 
-type VideoDetailTab = 'analytics' | 'monetization' | 'discovery' | 'comments'
+type VideoDetailTab = 'analytics' | 'engagement' | 'monetization' | 'discovery' | 'comments'
 function formatDuration(seconds: number | null): string {
   if (!seconds || seconds < 0) {
     return '-'
@@ -203,6 +204,12 @@ function VideoDetail() {
                 active={activeTab === 'analytics'}
               />
               <ActionButton
+                label="Engagement"
+                onClick={() => setActiveTab('engagement')}
+                variant="soft"
+                active={activeTab === 'engagement'}
+              />
+              <ActionButton
                 label="Monetization"
                 onClick={() => setActiveTab('monetization')}
                 variant="soft"
@@ -221,7 +228,7 @@ function VideoDetail() {
                 active={activeTab === 'comments'}
               />
             </div>
-            {activeTab === 'analytics' || activeTab === 'monetization' || activeTab === 'discovery' ? (
+            {activeTab === 'analytics' || activeTab === 'engagement' || activeTab === 'monetization' || activeTab === 'discovery' ? (
               <div className="analytics-range-controls">
                 <DataRangeControl
                   storageKey="videoDetailRange"
@@ -235,6 +242,16 @@ function VideoDetail() {
         </div>
         {rangeValue && activeTab === 'analytics' && (
           <AnalyticsTab
+            loading={analyticsLoading}
+            error={analyticsError}
+            granularity={rangeValue.granularity}
+            dailyRows={dailyRows}
+            range={rangeValue.range}
+            previousRange={rangeValue.previousRange}
+          />
+        )}
+        {rangeValue && activeTab === 'engagement' && (
+          <EngagementTab
             loading={analyticsLoading}
             error={analyticsError}
             granularity={rangeValue.granularity}

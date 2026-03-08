@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import {
   PageCard,
   SearchInsightsTopTermsCard,
@@ -10,8 +10,6 @@ import {
 import { buildTrafficSeries, type TrafficSourceRow } from '../../utils/trafficSeries'
 import { formatWholeNumber } from '../../utils/number'
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type SeriesPoint = { date: string; value: number }
 type DiscoveryMultiSeries = { key: string; label: string; color: string; points: SeriesPoint[] }
 type DateRange = { start: string; end: string }
 
@@ -104,24 +102,32 @@ export default function DiscoveryTab({ videoId, range, previousRange, granularit
     loadTopSearchTerms()
   }, [videoId, range.start, range.end])
 
-  const seriesByMetric = useMemo<Record<string, DiscoveryMultiSeries[]>>(() => ({
-    views: buildTrafficSeries(trafficRows, 'views', range.start, range.end),
-    watch_time: buildTrafficSeries(trafficRows, 'watch_time', range.start, range.end),
-  }), [trafficRows, range.start, range.end])
+  const metricsData = useMemo<MetricItem[]>(() => {
+    const viewsSeries = buildTrafficSeries(trafficRows, 'views', range.start, range.end)
+    const watchTimeSeries = buildTrafficSeries(trafficRows, 'watch_time', range.start, range.end)
+    const previousViewsSeries = buildTrafficSeries(previousTrafficRows, 'views', previousRange.start, previousRange.end)
+    const previousWatchTimeSeries = buildTrafficSeries(previousTrafficRows, 'watch_time', previousRange.start, previousRange.end)
 
-  const previousSeriesByMetric = useMemo<Record<string, DiscoveryMultiSeries[]>>(() => ({
-    views: buildTrafficSeries(previousTrafficRows, 'views', previousRange.start, previousRange.end),
-    watch_time: buildTrafficSeries(previousTrafficRows, 'watch_time', previousRange.start, previousRange.end),
-  }), [previousTrafficRows, previousRange.start, previousRange.end])
+    const totalViews = viewsSeries.reduce((sum, line) => sum + line.points.reduce((acc, pt) => acc + pt.value, 0), 0)
+    const totalWatch = watchTimeSeries.reduce((sum, line) => sum + line.points.reduce((acc, pt) => acc + pt.value, 0), 0)
 
-  const metrics = useMemo(() => {
-    const totalViews = seriesByMetric.views.reduce((sum, line) => sum + line.points.reduce((acc, pt) => acc + pt.value, 0), 0)
-    const totalWatch = seriesByMetric.watch_time.reduce((sum, line) => sum + line.points.reduce((acc, pt) => acc + pt.value, 0), 0)
     return [
-      { key: 'views', label: 'Views', value: formatWholeNumber(Math.round(totalViews)) },
-      { key: 'watch_time', label: 'Watch time', value: formatWholeNumber(Math.round(totalWatch)) },
+      {
+        key: 'views',
+        label: 'Views',
+        value: formatWholeNumber(Math.round(totalViews)),
+        series: viewsSeries,
+        previousSeries: previousViewsSeries,
+      },
+      {
+        key: 'watch_time',
+        label: 'Watch time',
+        value: formatWholeNumber(Math.round(totalWatch)),
+        series: watchTimeSeries,
+        previousSeries: previousWatchTimeSeries,
+      },
     ]
-  }, [seriesByMetric])
+  }, [trafficRows, previousTrafficRows, range.start, range.end, previousRange.start, previousRange.end])
 
   const shareItems = useMemo<TrafficSourceShareItem[]>(() => {
     const totals = new Map<string, number>()
@@ -135,6 +141,7 @@ export default function DiscoveryTab({ videoId, range, previousRange, granularit
       .map(([source, views]) => ({ key: source, label: source.replace(/_/g, ' '), views }))
   }, [trafficRows])
 
+
   return (
     <>
       <div className="page-row">
@@ -145,10 +152,8 @@ export default function DiscoveryTab({ videoId, range, previousRange, granularit
             <div className="video-detail-state">{trafficError}</div>
           ) : (
             <MetricChartCard
+              data={metricsData}
               granularity={granularity}
-              metrics={metrics}
-              seriesByMetric={seriesByMetric}
-              previousSeriesByMetric={previousSeriesByMetric}
               publishedDates={{}}
             />
           )}

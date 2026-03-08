@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint, type PublishedItem } from '../../components/charts'
 import {
   PageCard,
   SearchInsightsTopTermsCard,
@@ -13,17 +13,7 @@ import {
 import { buildTrafficSeries, type TrafficSourceRow } from '../../utils/trafficSeries'
 import { formatWholeNumber } from '../../utils/number'
 
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type SeriesPoint = { date: string; value: number }
 type DiscoveryMultiSeries = { key: string; label: string; color: string; points: SeriesPoint[] }
-
-type PublishedItem = {
-  video_id?: string
-  title: string
-  published_at: string
-  thumbnail_url: string
-  content_type: string
-}
 
 type TopVideosBySourceResponseItem = {
   video_id: string
@@ -47,12 +37,12 @@ type Props = {
   granularity: Granularity
   contentType: string
   onOpenVideo: (videoId: string) => void
+  publishedDates: Record<string, PublishedItem[]>
 }
 
-export default function DiscoveryTab({ range, previousRange, granularity, contentType, onOpenVideo }: Props) {
+export default function DiscoveryTab({ range, previousRange, granularity, contentType, onOpenVideo, publishedDates }: Props) {
   const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
   const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
-  const [publishedDatesDaily, setPublishedDatesDaily] = useState<Record<string, PublishedItem[]>>({})
   const [trafficTopSource, setTrafficTopSource] = useState('')
   const [trafficTopVideos, setTrafficTopVideos] = useState<TopTrafficVideo[]>([])
   const [trafficTopLoading, setTrafficTopLoading] = useState(false)
@@ -60,27 +50,6 @@ export default function DiscoveryTab({ range, previousRange, granularity, conten
   const [searchTopTerms, setSearchTopTerms] = useState<SearchInsightsTopTerm[]>([])
   const [searchTopTermsLoading, setSearchTopTermsLoading] = useState(false)
   const [searchTopTermsError, setSearchTopTermsError] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function loadPublished() {
-      try {
-        const contentParam = contentType === 'all' ? '' : `&content_type=${contentType}`
-        const response = await fetch(
-          `http://localhost:8000/videos/published?start_date=${range.start}&end_date=${range.end}${contentParam}`
-        )
-        const data = await response.json()
-        const items = Array.isArray(data.items) ? data.items : []
-        const map: Record<string, PublishedItem[]> = {}
-        items.forEach((item: any) => {
-          if (item.day) map[item.day] = Array.isArray(item.items) ? item.items : []
-        })
-        setPublishedDatesDaily(map)
-      } catch (error) {
-        console.error('Failed to load published dates', error)
-      }
-    }
-    loadPublished()
-  }, [range.start, range.end, contentType])
 
   useEffect(() => {
     async function loadDiscoveryData() {
@@ -182,36 +151,32 @@ export default function DiscoveryTab({ range, previousRange, granularity, conten
     loadTopSearchTerms()
   }, [range.start, range.end, contentType])
 
-  const discoverySeriesByMetric = useMemo<Record<string, DiscoveryMultiSeries[]>>(
-    () => ({
-      views: buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end),
-      watch_time: buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end),
-    }),
-    [discoveryTrafficRows, range.start, range.end]
-  )
+  const discoveryMetricsData = useMemo<MetricItem[]>(() => {
+    const viewsSeries = buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end)
+    const watchTimeSeries = buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end)
+    const previousViewsSeries = buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end)
+    const previousWatchTimeSeries = buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end)
 
-  const previousDiscoverySeriesByMetric = useMemo<Record<string, DiscoveryMultiSeries[]>>(
-    () => ({
-      views: buildTrafficSeries(discoveryPreviousTrafficRows, 'views', previousRange.start, previousRange.end),
-      watch_time: buildTrafficSeries(discoveryPreviousTrafficRows, 'watch_time', previousRange.start, previousRange.end),
-    }),
-    [discoveryPreviousTrafficRows, previousRange.start, previousRange.end]
-  )
+    const totalViews = viewsSeries.reduce((sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0)
+    const totalWatch = watchTimeSeries.reduce((sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0), 0)
 
-  const discoveryMetrics = useMemo(() => {
-    const totalViews = discoverySeriesByMetric.views.reduce(
-      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0),
-      0
-    )
-    const totalWatch = discoverySeriesByMetric.watch_time.reduce(
-      (sum, line) => sum + line.points.reduce((acc, point) => acc + point.value, 0),
-      0
-    )
     return [
-      { key: 'views', label: 'Views', value: formatWholeNumber(Math.round(totalViews)) },
-      { key: 'watch_time', label: 'Watch time', value: formatWholeNumber(Math.round(totalWatch)) },
+      {
+        key: 'views',
+        label: 'Views',
+        value: formatWholeNumber(Math.round(totalViews)),
+        series: viewsSeries,
+        previousSeries: previousViewsSeries,
+      },
+      {
+        key: 'watch_time',
+        label: 'Watch time',
+        value: formatWholeNumber(Math.round(totalWatch)),
+        series: watchTimeSeries,
+        previousSeries: previousWatchTimeSeries,
+      },
     ]
-  }, [discoverySeriesByMetric])
+  }, [discoveryTrafficRows, discoveryPreviousTrafficRows, range.start, range.end, previousRange.start, previousRange.end])
 
   const trafficShareItems = useMemo<TrafficSourceShareItem[]>(() => {
     const totals = new Map<string, number>()
@@ -241,15 +206,14 @@ export default function DiscoveryTab({ range, previousRange, granularity, conten
     }
   }, [trafficTopSource, trafficSourceOptions])
 
+
   return (
     <div className="analytics-monetization-layout">
       <PageCard>
         <MetricChartCard
+          data={discoveryMetricsData}
           granularity={granularity}
-          metrics={discoveryMetrics}
-          seriesByMetric={discoverySeriesByMetric}
-          previousSeriesByMetric={previousDiscoverySeriesByMetric}
-          publishedDates={publishedDatesDaily}
+          publishedDates={publishedDates}
         />
       </PageCard>
       <div className="analytics-traffic-row">

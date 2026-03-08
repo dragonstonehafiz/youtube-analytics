@@ -1,20 +1,9 @@
-import { useState, useEffect } from 'react'
-import { MetricChartCard } from '../../components/charts'
+import { useState, useEffect, useMemo } from 'react'
+import { MetricChartCard, type Granularity, type SeriesPoint, type MetricItem, type PublishedItem } from '../../components/charts'
 import { PageCard, VideoDetailListCard } from '../../components/cards'
 import { TopContentTable } from '../../components/tables'
 import { formatDisplayDate } from '../../utils/date'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-
-type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
-type SeriesPoint = { date: string; value: number }
-
-type PublishedItem = {
-  video_id?: string
-  title: string
-  published_at: string
-  thumbnail_url: string
-  content_type: string
-}
 
 type TotalsState = {
   views: number
@@ -52,6 +41,7 @@ type Props = {
   granularity: Granularity
   contentType: string
   onOpenVideo: (videoId: string) => void
+  publishedDates: Record<string, PublishedItem[]>
 }
 
 function buildDays(items: any[]): [string[], Map<string, any>] {
@@ -82,11 +72,10 @@ function formatDurationSeconds(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-export default function MetricsTab({ range, previousRange, granularity, contentType, onOpenVideo }: Props) {
+export default function MetricsTab({ range, previousRange, granularity, contentType, onOpenVideo, publishedDates }: Props) {
   const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({ views: [], watch_time: [], subscribers: [], revenue: [] })
   const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({ views: [], watch_time: [], subscribers: [], revenue: [] })
   const [totals, setTotals] = useState<TotalsState>({ views: 0, watch_time_minutes: 0, avg_view_duration_seconds: 0, estimated_revenue: 0 })
-  const [publishedDatesDaily, setPublishedDatesDaily] = useState<Record<string, PublishedItem[]>>({})
   const [topContent, setTopContent] = useState<TopContentRow[]>([])
   const [latestLongform, setLatestLongform] = useState<LatestContentItem[]>([])
   const [latestShorts, setLatestShorts] = useState<LatestContentItem[]>([])
@@ -141,26 +130,6 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
     loadSummary()
   }, [range.start, range.end, contentType, previousRange.start, previousRange.end, previousRange.daySpan])
 
-  useEffect(() => {
-    async function loadPublished() {
-      try {
-        const contentParam = contentType === 'all' ? '' : `&content_type=${contentType}`
-        const response = await fetch(
-          `http://localhost:8000/videos/published?start_date=${range.start}&end_date=${range.end}${contentParam}`
-        )
-        const data = await response.json()
-        const items = Array.isArray(data.items) ? data.items : []
-        const map: Record<string, PublishedItem[]> = {}
-        items.forEach((item: any) => {
-          if (item.day) map[item.day] = Array.isArray(item.items) ? item.items : []
-        })
-        setPublishedDatesDaily(map)
-      } catch (error) {
-        console.error('Failed to load published dates', error)
-      }
-    }
-    loadPublished()
-  }, [range.start, range.end, contentType])
 
   useEffect(() => {
     async function loadTopContent() {
@@ -235,33 +204,50 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
     loadLatestContent()
   }, [])
 
+  const metricsData = useMemo<MetricItem[]>(
+    () => [
+      {
+        key: 'views',
+        label: 'Views',
+        value: formatWholeNumber(totals.views),
+        series: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views ?? [] }],
+        previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views ?? [] }],
+      },
+      {
+        key: 'watch_time',
+        label: 'Watch time (hours)',
+        value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
+        series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time ?? [] }],
+        previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time ?? [] }],
+      },
+      {
+        key: 'subscribers',
+        label: 'Avg view duration',
+        value: formatDurationSeconds(totals.avg_view_duration_seconds),
+        series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers ?? [] }],
+        previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
+        comparisonAggregation: 'avg',
+        isDuration: true,
+      },
+      {
+        key: 'revenue',
+        label: 'Estimated revenue',
+        value: formatCurrency(totals.estimated_revenue),
+        series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue ?? [] }],
+        previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue ?? [] }],
+      },
+    ],
+    [totals, series, previousSeries]
+  )
+
   return (
     <div className="analytics-main-layout">
       <div className="analytics-main-column">
         <PageCard>
           <MetricChartCard
+            data={metricsData}
             granularity={granularity}
-            metrics={[
-              { key: 'views', label: 'Views', value: formatWholeNumber(totals.views) },
-              { key: 'watch_time', label: 'Watch time (hours)', value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)) },
-              { key: 'subscribers', label: 'Avg view duration', value: formatDurationSeconds(totals.avg_view_duration_seconds) },
-              { key: 'revenue', label: 'Estimated revenue', value: formatCurrency(totals.estimated_revenue) },
-            ]}
-            seriesByMetric={{
-              views: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views ?? [] }],
-              watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time ?? [] }],
-              subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers ?? [] }],
-              revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue ?? [] }],
-            }}
-            previousSeriesByMetric={{
-              views: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views ?? [] }],
-              watch_time: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time ?? [] }],
-              subscribers: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
-              revenue: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue ?? [] }],
-            }}
-            comparisonAggregation={{ subscribers: 'avg' }}
-            durationMetrics={['subscribers']}
-            publishedDates={publishedDatesDaily}
+            publishedDates={publishedDates}
           />
         </PageCard>
         <PageCard>
