@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton } from '../../components/ui'
+import { ActionButton, StatCard, Textbox } from '../../components/ui'
 import { DataRangeControl, type DateRangeValue } from '../../components/features'
 import { fetchChannelYears } from '../../utils/years'
 import { PageCard } from '../../components/cards'
@@ -106,22 +106,16 @@ function PlaylistDetail() {
                   )}
                   <div className="video-detail-meta-content">
                     <div className="video-detail-title">{meta.title || '(untitled)'}</div>
-                    <div className="video-detail-description">{meta.description || '-'}</div>
+                    <Textbox value={meta.description || ''} placeholder="This playlist does not have a description" />
                   </div>
                 </div>
                 <div className="video-detail-grid">
-                  <div className="video-detail-item">
-                    <span>Visibility</span>
-                    <strong>{meta.privacy_status || '-'}</strong>
-                  </div>
-                  <div className="video-detail-item">
-                    <span>Published</span>
-                    <strong>{formatDisplayDate(meta.published_at)}</strong>
-                  </div>
-                  <div className="video-detail-item">
-                    <span>Total items</span>
-                    <strong>{(meta.item_count ?? 0).toLocaleString()}</strong>
-                  </div>
+                  <StatCard label="Visibility" value={meta.privacy_status || '-'} size="smaller" />
+                  <StatCard label="Published" value={formatDisplayDate(meta.published_at)} size="smaller" />
+                  <StatCard label="Total Items" value={(meta.item_count ?? 0).toLocaleString()} size="smaller" />
+                </div>
+                <div className="video-detail-grid">
+                  <StatCard label="Playlist ID" value={meta.id} size="smaller" />
                 </div>
               </div>
             ) : (
