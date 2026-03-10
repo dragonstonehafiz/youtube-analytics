@@ -169,95 +169,79 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
     [viewMode, previousPlaylistRows, previousVideoRows]
   )
 
-  const { series, previousSeries, totals } = useMemo(() => {
+  const totals = useMemo(() => {
     const sorted = [...dailyRows]
       .filter((r) => typeof r.day === 'string' && r.day >= range.start && r.day <= range.end)
       .sort((a, b) => a.day.localeCompare(b.day))
-    const empty = {
-      series: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], subscribers: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
-      previousSeries: { views: [] as SeriesPoint[], watch_time: [] as SeriesPoint[], subscribers: [] as SeriesPoint[], revenue: [] as SeriesPoint[] },
-      totals: { views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0, average_view_duration_seconds: 0, average_time_in_playlist_seconds: 0 },
+    if (sorted.length === 0) {
+      return { views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0, average_view_duration_seconds: 0, average_time_in_playlist_seconds: 0 }
     }
-    if (sorted.length === 0) return empty
-    const byDay = new Map<string, PlaylistDailyRow>()
-    sorted.forEach((r) => byDay.set(r.day, r))
+    return {
+      views: sorted.reduce((sum, r) => sum + (r.views ?? 0), 0),
+      watch_time_minutes: sorted.reduce((sum, r) => sum + (r.watch_time_minutes ?? 0), 0),
+      subscribers_net: sorted.reduce((sum, r) => sum + (r.subscribers_gained ?? 0) - (r.subscribers_lost ?? 0), 0),
+      estimated_revenue: sorted.reduce((sum, r) => sum + (r.estimated_revenue ?? 0), 0),
+      average_view_duration_seconds: viewMode === 'playlist_views' ? sorted.reduce((sum, r) => sum + (r.average_view_duration_seconds ?? 0), 0) / sorted.length : 0,
+      average_time_in_playlist_seconds: sorted.reduce((sum, r) => sum + (r.average_time_in_playlist_seconds ?? 0), 0) / sorted.length,
+    }
+  }, [dailyRows, range.start, range.end, viewMode])
+
+  const metricsData = useMemo<MetricItem[]>(() => {
+    const sorted = [...dailyRows]
+      .filter((r) => typeof r.day === 'string' && r.day >= range.start && r.day <= range.end)
+      .sort((a, b) => a.day.localeCompare(b.day))
+
     const prevFiltered = previousDailyRows
       .filter((r) => typeof r.day === 'string' && r.day >= previousRange.start && r.day <= previousRange.end)
       .sort((a, b) => a.day.localeCompare(b.day))
+
+    const byDay = new Map<string, PlaylistDailyRow>()
+    sorted.forEach((r) => byDay.set(r.day, r))
     const previousByDay = new Map<string, PlaylistDailyRow>()
     prevFiltered.forEach((r) => previousByDay.set(r.day, r))
-    const days = fillDayGaps(sorted.map((r) => r.day))
-    const previousDays = fillDayGaps(prevFiltered.map((r) => r.day))
-    const subsSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
-      d.map((day) => ({ date: day, value: (map.get(day)?.subscribers_gained ?? 0) - (map.get(day)?.subscribers_lost ?? 0) }))
-    const revSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
-      d.map((day) => ({
-        date: day,
-        value: viewMode === 'playlist_views' ? map.get(day)?.average_time_in_playlist_seconds ?? 0 : map.get(day)?.estimated_revenue ?? 0,
-      }))
-    return {
-      series: {
-        views: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })),
-        watch_time: days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-        subscribers: subsSeries(days, byDay),
-        revenue: revSeries(days, byDay),
-      },
-      previousSeries: {
-        views: previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.views ?? 0 })),
-        watch_time: previousDays.map((day) => ({ date: day, value: Math.round((previousByDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-        subscribers: subsSeries(previousDays, previousByDay),
-        revenue: revSeries(previousDays, previousByDay),
-      },
-      totals: {
-        views: sorted.reduce((sum, r) => sum + (r.views ?? 0), 0),
-        watch_time_minutes: sorted.reduce((sum, r) => sum + (r.watch_time_minutes ?? 0), 0),
-        subscribers_net: sorted.reduce((sum, r) => sum + (r.subscribers_gained ?? 0) - (r.subscribers_lost ?? 0), 0),
-        estimated_revenue: sorted.reduce((sum, r) => sum + (r.estimated_revenue ?? 0), 0),
-        average_view_duration_seconds: viewMode === 'playlist_views' ? sorted.reduce((sum, r) => sum + (r.average_view_duration_seconds ?? 0), 0) / sorted.length : 0,
-        average_time_in_playlist_seconds: sorted.reduce((sum, r) => sum + (r.average_time_in_playlist_seconds ?? 0), 0) / sorted.length,
-      },
-    }
-  }, [dailyRows, previousDailyRows, range.start, range.end, previousRange.start, previousRange.end, viewMode])
 
-  const metricsData = useMemo<MetricItem[]>(() => {
+    const days = sorted.length > 0 ? fillDayGaps(sorted.map((r) => r.day)) : []
+    const previousDays = prevFiltered.length > 0 ? fillDayGaps(prevFiltered.map((r) => r.day)) : []
+
     const isDuration = (key: string) => viewMode === 'playlist_views' && (key === 'subscribers' || key === 'revenue')
+
     return [
       {
         key: 'views',
         label: viewMode === 'playlist_views' ? 'Playlist Views' : 'Video Views',
         value: formatWholeNumber(totals.views),
-        series: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views }],
-        previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views }],
+        series: [{ key: 'views', label: '', color: '#0ea5e9', points: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })) }],
+        previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousDays.map((day) => ({ date: day, value: previousByDay.get(day)?.views ?? 0 })) }],
         spikeRegions: viewsSpikes,
       },
       {
         key: 'watch_time',
         label: 'Watch time (hours)',
         value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
-        series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time }],
-        previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
+        series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) })) }],
+        previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousDays.map((day) => ({ date: day, value: Math.round((previousByDay.get(day)?.watch_time_minutes ?? 0) / 60) })) }],
         spikeRegions: watchTimeSpikes,
       },
       {
         key: 'subscribers',
         label: 'Subscribers',
         value: formatWholeNumber(totals.subscribers_net),
-        series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers }],
-        previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers }],
+        series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: days.map((day) => ({ date: day, value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0) })) }],
+        previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousDays.map((day) => ({ date: day, value: (previousByDay.get(day)?.subscribers_gained ?? 0) - (previousByDay.get(day)?.subscribers_lost ?? 0) })) }],
         spikeRegions: subscribersSpikes,
       },
       {
         key: 'revenue',
         label: viewMode === 'video_views' ? 'Estimated revenue' : 'Avg time in playlist',
         value: viewMode === 'video_views' ? formatCurrency(totals.estimated_revenue) : formatDuration(totals.average_time_in_playlist_seconds),
-        series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue }],
-        previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
+        series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: days.map((day) => ({ date: day, value: viewMode === 'playlist_views' ? byDay.get(day)?.average_time_in_playlist_seconds ?? 0 : byDay.get(day)?.estimated_revenue ?? 0 })) }],
+        previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousDays.map((day) => ({ date: day, value: viewMode === 'playlist_views' ? previousByDay.get(day)?.average_time_in_playlist_seconds ?? 0 : previousByDay.get(day)?.estimated_revenue ?? 0 })) }],
         comparisonAggregation: viewMode === 'playlist_views' ? 'avg' : undefined,
         isDuration: isDuration('revenue'),
         spikeRegions: revenueSpikes,
       },
     ]
-  }, [totals, series, previousSeries, viewMode, viewsSpikes, watchTimeSpikes, subscribersSpikes, revenueSpikes])
+  }, [dailyRows, previousDailyRows, range.start, range.end, previousRange.start, previousRange.end, viewMode, totals, viewsSpikes, watchTimeSpikes, subscribersSpikes, revenueSpikes])
 
   return (
     <>

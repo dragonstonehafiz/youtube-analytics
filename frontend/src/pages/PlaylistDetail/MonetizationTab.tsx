@@ -141,31 +141,6 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
     loadRecentPerformingItems()
   }, [playlistId])
 
-  const buildSeries = (rows: VideoDailyRow[], start: string, end: string): Record<string, SeriesPoint[]> => {
-    const sorted = [...rows]
-      .filter((r) => typeof r.day === 'string' && r.day >= start && r.day <= end)
-      .sort((a, b) => a.day.localeCompare(b.day))
-    if (sorted.length === 0) return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] }
-    const byDay = new Map<string, VideoDailyRow>()
-    sorted.forEach((r) => byDay.set(r.day, r))
-    const days = fillDayGaps(sorted.map((r) => r.day))
-    return {
-      estimated_revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
-      ad_impressions: days.map((day) => ({ date: day, value: byDay.get(day)?.ad_impressions ?? 0 })),
-      monetized_playbacks: days.map((day) => ({ date: day, value: byDay.get(day)?.monetized_playbacks ?? 0 })),
-      cpm: days.map((day) => ({ date: day, value: byDay.get(day)?.cpm ?? 0 })),
-    }
-  }
-
-  const monetizationSeries = useMemo(
-    () => buildSeries(videoDailyRows, range.start, range.end),
-    [videoDailyRows, range.start, range.end]
-  )
-  const previousMonetizationSeries = useMemo(
-    () => buildSeries(previousVideoDailyRows, previousRange.start, previousRange.end),
-    [previousVideoDailyRows, previousRange.start, previousRange.end]
-  )
-
   const monetizationTotals = useMemo(() => {
     const rows = videoDailyRows.filter((r) => typeof r.day === 'string' && r.day >= range.start && r.day <= range.end)
     const adImpressions = rows.reduce((sum, r) => sum + Number(r.ad_impressions ?? 0), 0)
@@ -214,43 +189,80 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
     return { video: buildPerformance(topPerformingItems), short: buildPerformance(recentPerformingItems) }
   }, [topPerformingItems, recentPerformingItems, monetizationTotals.estimated_revenue])
 
-  const metricsData = useMemo<MetricItem[]>(
-    () => [
-      {
+  const metricsData = useMemo<MetricItem[]>(() => [
+    {
+      key: 'estimated_revenue',
+      label: 'Estimated revenue',
+      value: formatCurrency(monetizationTotals.estimated_revenue),
+      series: [{
         key: 'estimated_revenue',
-        label: 'Estimated revenue',
-        value: formatCurrency(monetizationTotals.estimated_revenue),
-        series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue ?? [] }],
-        previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue ?? [] }],
-        spikeRegions: revenueSpikes,
-      },
-      {
+        label: '',
+        color: '#0ea5e9',
+        points: videoDailyRows.map((item) => ({ date: item.day, value: item.estimated_revenue ?? 0 })),
+      }],
+      previousSeries: [{
+        key: 'estimated_revenue',
+        label: '',
+        color: '#0ea5e9',
+        points: previousVideoDailyRows.map((item) => ({ date: item.day, value: item.estimated_revenue ?? 0 })),
+      }],
+      spikeRegions: revenueSpikes,
+    },
+    {
+      key: 'ad_impressions',
+      label: 'Ad impressions',
+      value: formatWholeNumber(monetizationTotals.ad_impressions),
+      series: [{
         key: 'ad_impressions',
-        label: 'Ad impressions',
-        value: formatWholeNumber(monetizationTotals.ad_impressions),
-        series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions ?? [] }],
-        previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions ?? [] }],
-        spikeRegions: adImpressionsSpikes,
-      },
-      {
+        label: '',
+        color: '#0ea5e9',
+        points: videoDailyRows.map((item) => ({ date: item.day, value: item.ad_impressions ?? 0 })),
+      }],
+      previousSeries: [{
+        key: 'ad_impressions',
+        label: '',
+        color: '#0ea5e9',
+        points: previousVideoDailyRows.map((item) => ({ date: item.day, value: item.ad_impressions ?? 0 })),
+      }],
+      spikeRegions: adImpressionsSpikes,
+    },
+    {
+      key: 'monetized_playbacks',
+      label: 'Monetized playbacks',
+      value: formatWholeNumber(monetizationTotals.monetized_playbacks),
+      series: [{
         key: 'monetized_playbacks',
-        label: 'Monetized playbacks',
-        value: formatWholeNumber(monetizationTotals.monetized_playbacks),
-        series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks ?? [] }],
-        previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks ?? [] }],
-        spikeRegions: monetizedPlaybacksSpikes,
-      },
-      {
+        label: '',
+        color: '#0ea5e9',
+        points: videoDailyRows.map((item) => ({ date: item.day, value: item.monetized_playbacks ?? 0 })),
+      }],
+      previousSeries: [{
+        key: 'monetized_playbacks',
+        label: '',
+        color: '#0ea5e9',
+        points: previousVideoDailyRows.map((item) => ({ date: item.day, value: item.monetized_playbacks ?? 0 })),
+      }],
+      spikeRegions: monetizedPlaybacksSpikes,
+    },
+    {
+      key: 'cpm',
+      label: 'CPM',
+      value: formatCurrency(monetizationTotals.cpm),
+      series: [{
         key: 'cpm',
-        label: 'CPM',
-        value: formatCurrency(monetizationTotals.cpm),
-        series: [{ key: 'cpm', label: '', color: '#0ea5e9', points: monetizationSeries.cpm ?? [] }],
-        previousSeries: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousMonetizationSeries.cpm ?? [] }],
-        comparisonAggregation: 'avg',
-      },
-    ],
-    [monetizationTotals, monetizationSeries, previousMonetizationSeries, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes]
-  )
+        label: '',
+        color: '#0ea5e9',
+        points: videoDailyRows.map((item) => ({ date: item.day, value: item.cpm ?? 0 })),
+      }],
+      previousSeries: [{
+        key: 'cpm',
+        label: '',
+        color: '#0ea5e9',
+        points: previousVideoDailyRows.map((item) => ({ date: item.day, value: item.cpm ?? 0 })),
+      }],
+      comparisonAggregation: 'avg',
+    },
+  ], [videoDailyRows, previousVideoDailyRows, monetizationTotals, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes])
 
   return (
     <>

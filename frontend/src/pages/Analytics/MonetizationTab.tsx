@@ -42,29 +42,6 @@ export default function MonetizationTab({ range, previousRange, granularity, con
     cpm: Number(channelTotals.cpm ?? 0),
   }), [channelTotals])
 
-  const monetizationSeries = useMemo<Record<string, SeriesPoint[]>>(() => {
-    if (rows.length === 0) return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] }
-    const byDay = new Map(rows.map((r) => [r.day, r]))
-    const days = fillDayGaps(rows.map((r) => r.day).filter(Boolean))
-    return {
-      estimated_revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
-      ad_impressions: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.ad_impressions ?? 0) })),
-      monetized_playbacks: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.monetized_playbacks ?? 0) })),
-      cpm: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.cpm ?? 0) })),
-    }
-  }, [rows])
-
-  const previousMonetizationSeries = useMemo<Record<string, SeriesPoint[]>>(() => {
-    if (previousRows.length === 0) return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] }
-    const byDay = new Map(previousRows.map((r) => [r.day, r]))
-    const days = fillDayGaps(previousRows.map((r) => r.day).filter(Boolean))
-    return {
-      estimated_revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
-      ad_impressions: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.ad_impressions ?? 0) })),
-      monetized_playbacks: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.monetized_playbacks ?? 0) })),
-      cpm: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.cpm ?? 0) })),
-    }
-  }, [previousRows])
 
   const monthlyEarnings = useMemo<MonetizationMonthly[]>(() => {
     const monthTotals = new Map<string, number>()
@@ -141,43 +118,59 @@ export default function MonetizationTab({ range, previousRange, granularity, con
     loadContentPerformance()
   }, [range.start, range.end, contentType])
 
-  const metricsData = useMemo<MetricItem[]>(
-    () => [
+  const metricsData = useMemo<MetricItem[]>(() => {
+    const getMonetizationSeries = (data: typeof rows, dataLabel: keyof typeof rows[0]) => {
+      if (data.length === 0) return []
+      const byDay = new Map(data.map((r) => [r.day, r]))
+      const days = fillDayGaps(data.map((r) => r.day).filter(Boolean))
+      return days.map((day) => ({ date: day, value: Number(byDay.get(day)?.[dataLabel] ?? 0) }))
+    }
+
+    const estimatedRevenueSeries = getMonetizationSeries(rows, 'estimated_revenue')
+    const adImpressionsSeries = getMonetizationSeries(rows, 'ad_impressions')
+    const monetizedPlaybacksSeries = getMonetizationSeries(rows, 'monetized_playbacks')
+    const cpmSeries = getMonetizationSeries(rows, 'cpm')
+
+    const previousEstimatedRevenueSeries = getMonetizationSeries(previousRows, 'estimated_revenue')
+    const previousAdImpressionsSeries = getMonetizationSeries(previousRows, 'ad_impressions')
+    const previousMonetizedPlaybacksSeries = getMonetizationSeries(previousRows, 'monetized_playbacks')
+    const previousCpmSeries = getMonetizationSeries(previousRows, 'cpm')
+
+    return [
       {
         key: 'estimated_revenue',
         label: 'Estimated revenue',
         value: formatCurrency(monetizationTotals.estimated_revenue),
-        series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue ?? [] }],
-        previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue ?? [] }],
+        series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: estimatedRevenueSeries }],
+        previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousEstimatedRevenueSeries }],
         spikeRegions: revenueSpikes,
       },
       {
         key: 'ad_impressions',
         label: 'Ad impressions',
         value: formatWholeNumber(monetizationTotals.ad_impressions),
-        series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions ?? [] }],
-        previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions ?? [] }],
+        series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: adImpressionsSeries }],
+        previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousAdImpressionsSeries }],
         spikeRegions: adImpressionsSpikes,
       },
       {
         key: 'monetized_playbacks',
         label: 'Monetized playbacks',
         value: formatWholeNumber(monetizationTotals.monetized_playbacks),
-        series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks ?? [] }],
-        previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks ?? [] }],
+        series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizedPlaybacksSeries }],
+        previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizedPlaybacksSeries }],
         spikeRegions: monetizedPlaybacksSpikes,
       },
       {
         key: 'cpm',
         label: 'CPM',
         value: formatCurrency(monetizationTotals.cpm),
-        series: [{ key: 'cpm', label: '', color: '#0ea5e9', points: monetizationSeries.cpm ?? [] }],
-        previousSeries: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousMonetizationSeries.cpm ?? [] }],
+        series: [{ key: 'cpm', label: '', color: '#0ea5e9', points: cpmSeries }],
+        previousSeries: [{ key: 'cpm', label: '', color: '#0ea5e9', points: previousCpmSeries }],
         comparisonAggregation: 'avg',
       },
-    ],
-    [monetizationTotals, monetizationSeries, previousMonetizationSeries, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes]
-  )
+    ]
+  }, [monetizationTotals, rows, previousRows, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes])
 
   return (
     <div className="analytics-monetization-layout">

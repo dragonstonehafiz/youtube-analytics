@@ -79,29 +79,6 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
     }
   }, [channelRows, channelTotals])
 
-  const series = useMemo<Record<string, SeriesPoint[]>>(() => {
-    if (channelRows.length === 0) return { views: [], watch_time: [], subscribers: [], revenue: [] }
-    const byDay = new Map(channelRows.map((r) => [r.day, r]))
-    const days = fillDayGaps(channelRows.map((r) => r.day).filter(Boolean))
-    return {
-      views: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.views ?? 0) })),
-      watch_time: days.map((day) => ({ date: day, value: Math.round(Number(byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-      subscribers: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.subscribers_gained ?? 0) - Number(byDay.get(day)?.subscribers_lost ?? 0) })),
-      revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
-    }
-  }, [channelRows])
-
-  const previousSeries = useMemo<Record<string, SeriesPoint[]>>(() => {
-    if (channelPreviousRows.length === 0) return { views: [], watch_time: [], subscribers: [], revenue: [] }
-    const byDay = new Map(channelPreviousRows.map((r) => [r.day, r]))
-    const days = fillDayGaps(channelPreviousRows.map((r) => r.day).filter(Boolean))
-    return {
-      views: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.views ?? 0) })),
-      watch_time: days.map((day) => ({ date: day, value: Math.round(Number(byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-      subscribers: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.subscribers_gained ?? 0) - Number(byDay.get(day)?.subscribers_lost ?? 0) })),
-      revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
-    }
-  }, [channelPreviousRows])
 
 
   useEffect(() => {
@@ -172,43 +149,104 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
     loadLatestContent()
   }, [])
 
-  const metricsData = useMemo<MetricItem[]>(
-    () => [
-      {
+  const metricsData = useMemo<MetricItem[]>(() => [
+    {
+      key: 'views',
+      label: 'Views',
+      value: formatWholeNumber(totals.views),
+      series: [{
         key: 'views',
-        label: 'Views',
-        value: formatWholeNumber(totals.views),
-        series: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views ?? [] }],
-        previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views ?? [] }],
-        spikeRegions: viewsSpikes,
-      },
-      {
+        label: '',
+        color: '#0ea5e9',
+        points: channelRows.length > 0 ? fillDayGaps(channelRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelRows.map((r) => [r.day, r]))
+          return { date: day, value: Number(byDay.get(day)?.views ?? 0) }
+        }) : [],
+      }],
+      previousSeries: [{
+        key: 'views',
+        label: '',
+        color: '#0ea5e9',
+        points: channelPreviousRows.length > 0 ? fillDayGaps(channelPreviousRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelPreviousRows.map((r) => [r.day, r]))
+          return { date: day, value: Number(byDay.get(day)?.views ?? 0) }
+        }) : [],
+      }],
+      spikeRegions: viewsSpikes,
+    },
+    {
+      key: 'watch_time',
+      label: 'Watch time (hours)',
+      value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
+      series: [{
         key: 'watch_time',
-        label: 'Watch time (hours)',
-        value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
-        series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time ?? [] }],
-        previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time ?? [] }],
-        spikeRegions: watchTimeSpikes,
-      },
-      {
+        label: '',
+        color: '#0ea5e9',
+        points: channelRows.length > 0 ? fillDayGaps(channelRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelRows.map((r) => [r.day, r]))
+          return { date: day, value: Math.round(Number(byDay.get(day)?.watch_time_minutes ?? 0) / 60) }
+        }) : [],
+      }],
+      previousSeries: [{
+        key: 'watch_time',
+        label: '',
+        color: '#0ea5e9',
+        points: channelPreviousRows.length > 0 ? fillDayGaps(channelPreviousRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelPreviousRows.map((r) => [r.day, r]))
+          return { date: day, value: Math.round(Number(byDay.get(day)?.watch_time_minutes ?? 0) / 60) }
+        }) : [],
+      }],
+      spikeRegions: watchTimeSpikes,
+    },
+    {
+      key: 'subscribers',
+      label: 'Subscribers',
+      value: formatWholeNumber(totals.subscribers_net ?? 0),
+      series: [{
         key: 'subscribers',
-        label: 'Subscribers',
-        value: formatWholeNumber(totals.subscribers_net ?? 0),
-        series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers ?? [] }],
-        previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
-        spikeRegions: subscribersSpikes,
-      },
-      {
+        label: '',
+        color: '#0ea5e9',
+        points: channelRows.length > 0 ? fillDayGaps(channelRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelRows.map((r) => [r.day, r]))
+          return { date: day, value: Number(byDay.get(day)?.subscribers_gained ?? 0) - Number(byDay.get(day)?.subscribers_lost ?? 0) }
+        }) : [],
+      }],
+      previousSeries: [{
+        key: 'subscribers',
+        label: '',
+        color: '#0ea5e9',
+        points: channelPreviousRows.length > 0 ? fillDayGaps(channelPreviousRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelPreviousRows.map((r) => [r.day, r]))
+          return { date: day, value: Number(byDay.get(day)?.subscribers_gained ?? 0) - Number(byDay.get(day)?.subscribers_lost ?? 0) }
+        }) : [],
+      }],
+      spikeRegions: subscribersSpikes,
+    },
+    {
+      key: 'revenue',
+      label: 'Estimated revenue',
+      value: formatCurrency(totals.estimated_revenue),
+      series: [{
         key: 'revenue',
-        label: 'Estimated revenue',
-        value: formatCurrency(totals.estimated_revenue),
-        series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue ?? [] }],
-        previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue ?? [] }],
-        spikeRegions: revenueSpikes,
-      },
-    ],
-    [totals, series, previousSeries, viewsSpikes, watchTimeSpikes, subscribersSpikes, revenueSpikes]
-  )
+        label: '',
+        color: '#0ea5e9',
+        points: channelRows.length > 0 ? fillDayGaps(channelRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelRows.map((r) => [r.day, r]))
+          return { date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) }
+        }) : [],
+      }],
+      previousSeries: [{
+        key: 'revenue',
+        label: '',
+        color: '#0ea5e9',
+        points: channelPreviousRows.length > 0 ? fillDayGaps(channelPreviousRows.map((r) => r.day).filter(Boolean)).map((day) => {
+          const byDay = new Map(channelPreviousRows.map((r) => [r.day, r]))
+          return { date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) }
+        }) : [],
+      }],
+      spikeRegions: revenueSpikes,
+    },
+  ], [totals, channelRows, channelPreviousRows, viewsSpikes, watchTimeSpikes, subscribersSpikes, revenueSpikes])
 
   return (
     <div className="analytics-main-layout">
