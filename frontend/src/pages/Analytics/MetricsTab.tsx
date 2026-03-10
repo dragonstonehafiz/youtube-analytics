@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { MetricChartCard, type Granularity, type SeriesPoint, type MetricItem, type PublishedItem } from '../../components/charts'
 import { PageCard, VideoDetailListCard } from '../../components/cards'
 import { TopContentTable } from '../../components/tables'
-import { formatDisplayDate } from '../../utils/date'
-import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { fillDayGaps, formatDisplayDate } from '../../utils/date'
+import { formatCurrency, formatDuration, formatWholeNumber } from '../../utils/number'
+import UploadPublishTooltip from '../../components/charts/UploadPublishTooltip'
 import { useSpikes } from '../../hooks/useSpikes'
+import { useSpikeHover } from '../../hooks/useSpikeHover'
+import { useChannelAnalytics } from '../../hooks/useChannelAnalytics'
 
 type TotalsState = {
   views: number
@@ -47,38 +49,12 @@ type Props = {
   publishedDates: Record<string, PublishedItem[]>
 }
 
-function buildDays(items: any[]): [string[], Map<string, any>] {
-  const byDay = new Map<string, any>()
-  items.forEach((item: any) => {
-    if (typeof item?.day === 'string') byDay.set(item.day, item)
-  })
-  const unique = Array.from(
-    new Set<string>(
-      items.map((i: any) => i.day).filter((d: unknown): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-    )
-  ).sort((a, b) => a.localeCompare(b))
-  if (unique.length === 0) return [[], byDay]
-  const days: string[] = []
-  const cursor = new Date(`${unique[0]}T00:00:00Z`)
-  const end = new Date(`${unique[unique.length - 1]}T00:00:00Z`)
-  while (cursor <= end) {
-    days.push(cursor.toISOString().slice(0, 10))
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return [days, byDay]
-}
-
 export default function MetricsTab({ range, previousRange, granularity, contentType, onOpenVideo, publishedDates }: Props) {
-  const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({ views: [], watch_time: [], subscribers: [], revenue: [] })
-  const [previousSeries, setPreviousSeries] = useState<Record<string, SeriesPoint[]>>({ views: [], watch_time: [], subscribers: [], revenue: [] })
-  const [totals, setTotals] = useState<TotalsState>({ views: 0, watch_time_minutes: 0, avg_view_duration_seconds: 0, estimated_revenue: 0 })
   const [topContent, setTopContent] = useState<TopContentRow[]>([])
   const [latestLongform, setLatestLongform] = useState<LatestContentItem[]>([])
   const [latestShorts, setLatestShorts] = useState<LatestContentItem[]>([])
-  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
-  const spikeTimeoutRef = useRef<number | null>(null)
-  const spikeHoverLockedRef = useRef(false)
-  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
+  const { hoverSpike, hoverHandlers } = useSpikeHover()
+  const { setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef } = hoverHandlers
   const emptyVideoIds = useMemo(() => [], [])
 
   const viewsSpikes = useSpikes(range.start, range.end, 'views', granularity, hoverHandlers, emptyVideoIds)
@@ -86,59 +62,46 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
   const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, emptyVideoIds)
   const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, emptyVideoIds)
 
-  useEffect(() => {
-    async function loadSummary() {
-      try {
-        const buildUrl = (start: string, end: string) =>
-          contentType === 'all'
-            ? `http://localhost:8000/analytics/channel-daily?start_date=${start}&end_date=${end}`
-            : `http://localhost:8000/analytics/daily/summary?start_date=${start}&end_date=${end}&content_type=${contentType}`
-        const [currentRes, previousRes] = await Promise.all([
-          fetch(buildUrl(range.start, range.end)),
-          fetch(buildUrl(previousRange.start, previousRange.end)),
-        ])
-        const [data, previousData] = await Promise.all([currentRes.json(), previousRes.json()])
-        const items = Array.isArray(data.items) ? data.items : []
-        const avgDuration =
-          items.length > 0
-            ? items.reduce((sum: number, item: any) => sum + (item.average_view_duration_seconds ?? 0), 0) / items.length
-            : 0
-        const subscribersNet = items.length > 0
-          ? items.reduce((sum: number, item: any) => sum + ((item.subscribers_gained ?? 0) - (item.subscribers_lost ?? 0)), 0)
-          : 0
-        setTotals({
-          views: data.totals?.views ?? 0,
-          watch_time_minutes: data.totals?.watch_time_minutes ?? 0,
-          avg_view_duration_seconds: avgDuration,
-          estimated_revenue: data.totals?.estimated_revenue ?? 0,
-          subscribers_net: subscribersNet,
-        })
-        const previousItems = Array.isArray(previousData.items) ? previousData.items : []
-        const [days, byDay] = buildDays(items)
-        if (days.length === 0) {
-          setSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
-          setPreviousSeries({ views: [], watch_time: [], subscribers: [], revenue: [] })
-          return
-        }
-        setSeries({
-          views: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })),
-          watch_time: days.map((day) => ({ date: day, value: Math.round((byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-          subscribers: days.map((day) => ({ date: day, value: (byDay.get(day)?.subscribers_gained ?? 0) - (byDay.get(day)?.subscribers_lost ?? 0) })),
-          revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
-        })
-        const [prevDays, prevByDay] = buildDays(previousItems)
-        setPreviousSeries({
-          views: prevDays.map((day) => ({ date: day, value: prevByDay.get(day)?.views ?? 0 })),
-          watch_time: prevDays.map((day) => ({ date: day, value: Math.round((prevByDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
-          subscribers: prevDays.map((day) => ({ date: day, value: (prevByDay.get(day)?.subscribers_gained ?? 0) - (prevByDay.get(day)?.subscribers_lost ?? 0) })),
-          revenue: prevDays.map((day) => ({ date: day, value: prevByDay.get(day)?.estimated_revenue ?? 0 })),
-        })
-      } catch (error) {
-        console.error('Failed to load analytics summary', error)
-      }
+  const { rows: channelRows, previousRows: channelPreviousRows, totals: channelTotals } = useChannelAnalytics(contentType, range, previousRange)
+
+  const totals = useMemo<TotalsState>(() => {
+    const avgDuration =
+      channelRows.length > 0
+        ? channelRows.reduce((sum, r) => sum + (r.average_view_duration_seconds ?? 0), 0) / channelRows.length
+        : 0
+    const subscribersNet = channelRows.reduce((sum, r) => sum + ((r.subscribers_gained ?? 0) - (r.subscribers_lost ?? 0)), 0)
+    return {
+      views: Number(channelTotals.views ?? 0),
+      watch_time_minutes: Number(channelTotals.watch_time_minutes ?? 0),
+      avg_view_duration_seconds: avgDuration,
+      estimated_revenue: Number(channelTotals.estimated_revenue ?? 0),
+      subscribers_net: subscribersNet,
     }
-    loadSummary()
-  }, [range.start, range.end, contentType, previousRange.start, previousRange.end, previousRange.daySpan])
+  }, [channelRows, channelTotals])
+
+  const series = useMemo<Record<string, SeriesPoint[]>>(() => {
+    if (channelRows.length === 0) return { views: [], watch_time: [], subscribers: [], revenue: [] }
+    const byDay = new Map(channelRows.map((r) => [r.day, r]))
+    const days = fillDayGaps(channelRows.map((r) => r.day).filter(Boolean))
+    return {
+      views: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.views ?? 0) })),
+      watch_time: days.map((day) => ({ date: day, value: Math.round(Number(byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
+      subscribers: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.subscribers_gained ?? 0) - Number(byDay.get(day)?.subscribers_lost ?? 0) })),
+      revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
+    }
+  }, [channelRows])
+
+  const previousSeries = useMemo<Record<string, SeriesPoint[]>>(() => {
+    if (channelPreviousRows.length === 0) return { views: [], watch_time: [], subscribers: [], revenue: [] }
+    const byDay = new Map(channelPreviousRows.map((r) => [r.day, r]))
+    const days = fillDayGaps(channelPreviousRows.map((r) => r.day).filter(Boolean))
+    return {
+      views: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.views ?? 0) })),
+      watch_time: days.map((day) => ({ date: day, value: Math.round(Number(byDay.get(day)?.watch_time_minutes ?? 0) / 60) })),
+      subscribers: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.subscribers_gained ?? 0) - Number(byDay.get(day)?.subscribers_lost ?? 0) })),
+      revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
+    }
+  }, [channelPreviousRows])
 
 
   useEffect(() => {
@@ -150,11 +113,6 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
         )
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
-        const formatDuration = (seconds: number) => {
-          const mins = Math.floor(seconds / 60)
-          const secs = Math.floor(seconds % 60)
-          return `${mins}:${secs.toString().padStart(2, '0')}`
-        }
         setTopContent(
           items.map((item: any, index: number) => ({
             video_id: String(item.video_id ?? ''),

@@ -86,6 +86,20 @@ def get_playlist(playlist_id: str) -> dict:
     return {"item": row_to_dict(row)}
 
 
+@router.get("/playlists/{playlist_id}/video-ids")
+def list_playlist_video_ids(playlist_id: str) -> dict:
+    """Return all video IDs for a playlist in position order."""
+    with get_connection() as conn:
+        exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Playlist not found.")
+        rows = conn.execute(
+            "SELECT video_id FROM playlist_items WHERE playlist_id = ? ORDER BY position ASC, id ASC",
+            (playlist_id,),
+        ).fetchall()
+    return {"items": [row["video_id"] for row in rows]}
+
+
 @router.get("/playlists/{playlist_id}/items")
 def list_playlist_items(
     playlist_id: str,

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDecimalNumber, formatWholeNumber } from '../../utils/number'
 import { useHideMonetaryValues } from '../../hooks/usePrivacyMode'
-import UploadPublishMarkers, { type ClusteredPublishMarker } from './UploadPublishMarkers'
+import UploadPublishMarkers, { type ClusteredPublishMarker, type PublishedItem } from './UploadPublishMarkers'
 import UploadPublishTooltip, { type UploadHoverState, type UploadPublishTooltipItem } from './UploadPublishTooltip'
 import './MetricChartCard.css'
 

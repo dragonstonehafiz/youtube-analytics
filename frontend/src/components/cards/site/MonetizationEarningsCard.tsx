@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useHideMonetaryValues } from '../../../hooks/usePrivacyMode'
 import './MonetizationEarningsCard.css'
-
-type MonetizationMonthly = {
-  monthKey: string
-  label: string
-  amount: number
-}
+import type { MonetizationMonthly } from '../../../utils/monetization'
+export type { MonetizationMonthly } from '../../../utils/monetization'
 
 type MonetizationEarningsCardProps = {
   items: MonetizationMonthly[]

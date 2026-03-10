@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, PageCard, type ContentInsights } from '../../components/cards'
 import { ScatterChart, type ScatterPoint } from '../../components/charts'
 import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
-import { formatWholeNumber, formatSecondsAsTime } from '../../utils/number'
+import { formatWholeNumber, formatDuration } from '../../utils/number'
 
 type Props = {
   range: { start: string; end: string }
@@ -102,7 +102,8 @@ export default function InsightsTab({ range, contentType }: Props) {
         published_at: '',
         thumbnail_url: video.thumbnail_url,
         content_type: video.content_type ?? '',
-        detail: `${formatWholeNumber(views[index] ?? 0)} views · ${formatSecondsAsTime(video.avg_view_duration_seconds)} avg duration`,
+
+        detail: `${formatWholeNumber(views[index] ?? 0)} views · ${formatDuration(video.avg_view_duration_seconds)} avg duration`,
       }],
       key: 'scatter',
       startDate: range.start,
@@ -165,7 +166,7 @@ export default function InsightsTab({ range, contentType }: Props) {
         published_at: '',
         thumbnail_url: item.video.thumbnail_url,
         content_type: '',
-        detail: `${formatWholeNumber(item.views)} views · ${formatSecondsAsTime(item.video.avg_view_duration_seconds)} avg duration`,
+        detail: `${formatWholeNumber(item.views)} views · ${formatDuration(item.video.avg_view_duration_seconds)} avg duration`,
       })),
       key: 'histogram',
       startDate: range.start,

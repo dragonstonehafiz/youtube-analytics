@@ -1,21 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useHideMonetaryValues, useHideVideoTitles, useHideVideoThumbnails } from '../../../hooks/usePrivacyMode'
-
-type MonetizationContentType = 'video' | 'short'
-
-type MonetizationTopItem = {
-  video_id: string
-  title: string
-  thumbnail_url: string
-  revenue: number
-}
-
-type MonetizationPerformance = {
-  views: number
-  estimated_revenue: number
-  rpm: number
-  items: MonetizationTopItem[]
-}
+import type { MonetizationContentType, MonetizationPerformance } from '../../../utils/monetization'
+export type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance } from '../../../utils/monetization'
 
 type MonetizationContentPerformanceCardProps = {
   contentType: MonetizationContentType

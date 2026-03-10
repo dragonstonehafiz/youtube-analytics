@@ -51,8 +51,8 @@ function Analytics() {
           if (item.day) map[item.day] = Array.isArray(item.items) ? item.items : []
         })
         setPublishedDatesDaily(map)
-      } catch (error) {
-        console.error('Failed to load published dates', error)
+      } catch {
+        // ignore — published markers are non-critical
       }
     }
     loadPublished()

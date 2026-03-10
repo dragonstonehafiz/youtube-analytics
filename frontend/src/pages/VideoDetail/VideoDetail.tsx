@@ -11,6 +11,7 @@ import DiscoveryTab from './DiscoveryTab'
 import CommentsTab from './CommentsTab'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
+import { formatDuration } from '../../utils/number'
 import '../shared.css'
 import './VideoDetail.css'
 
@@ -39,26 +40,19 @@ export type VideoDailyRow = {
   cpm: number | null
   subscribers_gained: number | null
   subscribers_lost: number | null
+  engaged_views: number | null
 }
 
-type VideoDetailTab = 'analytics' | 'engagement' | 'monetization' | 'discovery' | 'comments'
-function formatDuration(seconds: number | null): string {
-  if (!seconds || seconds < 0) {
-    return '-'
-  }
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remSeconds = seconds % 60
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remSeconds).padStart(2, '0')}`
-  }
-  return `${minutes}:${String(remSeconds).padStart(2, '0')}`
-}
-
+type VideoDetailTab = 'metrics' | 'engagement' | 'monetization' | 'discovery' | 'comments'
 function VideoDetail() {
   const { videoId } = useParams()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<VideoDetailTab>(getStored('videoDetailTab', 'analytics'))
+  const initialTab = getStored('videoDetailTab', 'metrics') as string
+  const [activeTab, setActiveTab] = useState<VideoDetailTab>(
+    (['metrics', 'engagement', 'monetization', 'discovery', 'comments'] as string[]).includes(initialTab)
+      ? initialTab as VideoDetailTab
+      : 'metrics'
+  )
   const [video, setVideo] = useState<VideoMetadata | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -180,53 +174,56 @@ function VideoDetail() {
             )}
           </PageCard>
         </div>
-        <div className="page-row">
-          <div className="video-detail-toolbar">
+        {activeTab !== 'comments' && (
+          <div className="page-row">
             <div className="analytics-range-controls">
-              <ActionButton
-                label="Metrics"
-                onClick={() => setActiveTab('analytics')}
-                variant="soft"
-                active={activeTab === 'analytics'}
-              />
-              <ActionButton
-                label="Engagement"
-                onClick={() => setActiveTab('engagement')}
-                variant="soft"
-                active={activeTab === 'engagement'}
-              />
-              <ActionButton
-                label="Monetization"
-                onClick={() => setActiveTab('monetization')}
-                variant="soft"
-                active={activeTab === 'monetization'}
-              />
-              <ActionButton
-                label="Discovery"
-                onClick={() => setActiveTab('discovery')}
-                variant="soft"
-                active={activeTab === 'discovery'}
-              />
-              <ActionButton
-                label="Comments"
-                onClick={() => setActiveTab('comments')}
-                variant="soft"
-                active={activeTab === 'comments'}
+              <DataRangeControl
+                storageKey="videoDetailRange"
+                years={derivedYears}
+                presetPlaceholder="Full data"
+                onChange={setRangeValue}
               />
             </div>
-            {activeTab === 'analytics' || activeTab === 'engagement' || activeTab === 'monetization' || activeTab === 'discovery' ? (
-              <div className="analytics-range-controls">
-                <DataRangeControl
-                  storageKey="videoDetailRange"
-                  years={derivedYears}
-                  presetPlaceholder="Full data"
-                  onChange={setRangeValue}
-                />
-              </div>
-            ) : null}
           </div>
+        )}
+        <div className="analytics-tab-row">
+          <button
+            type="button"
+            className={activeTab === 'metrics' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setActiveTab('metrics')}
+          >
+            Metrics
+          </button>
+          <button
+            type="button"
+            className={activeTab === 'engagement' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setActiveTab('engagement')}
+          >
+            Engagement
+          </button>
+          <button
+            type="button"
+            className={activeTab === 'monetization' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setActiveTab('monetization')}
+          >
+            Monetization
+          </button>
+          <button
+            type="button"
+            className={activeTab === 'discovery' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setActiveTab('discovery')}
+          >
+            Discovery
+          </button>
+          <button
+            type="button"
+            className={activeTab === 'comments' ? 'analytics-tab active' : 'analytics-tab'}
+            onClick={() => setActiveTab('comments')}
+          >
+            Comments
+          </button>
         </div>
-        {rangeValue && activeTab === 'analytics' && (
+        {rangeValue && activeTab === 'metrics' && (
           <AnalyticsTab
             loading={analyticsLoading}
             error={analyticsError}

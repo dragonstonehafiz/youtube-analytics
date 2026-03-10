@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import { fillDayGaps } from '../../utils/date'
 import type { VideoDailyRow } from './VideoDetail'
 
 type DateRange = { start: string; end: string }
@@ -15,18 +16,6 @@ type Props = {
   previousRange: DateRange
 }
 
-function buildDays(sorted: VideoDailyRow[]): string[] {
-  if (sorted.length === 0) return []
-  const days: string[] = []
-  const cursor = new Date(`${sorted[0].date}T00:00:00Z`)
-  const end = new Date(`${sorted[sorted.length - 1].date}T00:00:00Z`)
-  while (cursor <= end) {
-    days.push(cursor.toISOString().slice(0, 10))
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return days
-}
-
 export default function MonetizationTab({ loading, error, granularity, dailyRows, range, previousRange }: Props) {
   const { monetizationSeries, previousMonetizationSeries, monetizationTotals } = useMemo(() => {
     const empty = {
@@ -37,10 +26,10 @@ export default function MonetizationTab({ loading, error, granularity, dailyRows
     const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
     if (sorted.length === 0) return empty
     const byDay = new Map(sorted.map((item) => [item.date, item]))
-    const days = buildDays(sorted)
+    const days = fillDayGaps(sorted.map((item) => item.date))
     const previousSorted = dailyRows.filter((item) => item.date >= previousRange.start && item.date <= previousRange.end)
     const previousByDay = new Map(previousSorted.map((item) => [item.date, item]))
-    const previousDays = buildDays(previousSorted)
+    const previousDays = fillDayGaps(previousSorted.map((item) => item.date))
     const totalAdImpressions = sorted.reduce((sum, item) => sum + (item.ad_impressions ?? 0), 0)
     const totalCpmWeighted = sorted.reduce((sum, item) => sum + (item.cpm ?? 0) * (item.ad_impressions ?? 0), 0)
     const totalCpm = totalAdImpressions > 0

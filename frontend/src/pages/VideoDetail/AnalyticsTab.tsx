@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import { fillDayGaps } from '../../utils/date'
 import type { VideoDailyRow } from './VideoDetail'
 
 type DateRange = { start: string; end: string }
@@ -15,27 +16,6 @@ type Props = {
   previousRange: DateRange
 }
 
-function formatDuration(seconds: number | null): string {
-  if (!seconds || seconds < 0) return '-'
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remSeconds = seconds % 60
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(remSeconds).padStart(2, '0')}`
-  return `${minutes}:${String(remSeconds).padStart(2, '0')}`
-}
-
-function buildDays(sorted: VideoDailyRow[]): string[] {
-  if (sorted.length === 0) return []
-  const days: string[] = []
-  const cursor = new Date(`${sorted[0].date}T00:00:00Z`)
-  const end = new Date(`${sorted[sorted.length - 1].date}T00:00:00Z`)
-  while (cursor <= end) {
-    days.push(cursor.toISOString().slice(0, 10))
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return days
-}
-
 export default function AnalyticsTab({ loading, error, granularity, dailyRows, range, previousRange }: Props) {
   const { series, previousSeries, totals } = useMemo(() => {
     const empty = {
@@ -46,10 +26,10 @@ export default function AnalyticsTab({ loading, error, granularity, dailyRows, r
     const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
     if (sorted.length === 0) return empty
     const byDay = new Map(sorted.map((item) => [item.date, item]))
-    const days = buildDays(sorted)
+    const days = fillDayGaps(sorted.map((item) => item.date))
     const previousSorted = dailyRows.filter((item) => item.date >= previousRange.start && item.date <= previousRange.end)
     const previousByDay = new Map(previousSorted.map((item) => [item.date, item]))
-    const previousDays = buildDays(previousSorted)
+    const previousDays = fillDayGaps(previousSorted.map((item) => item.date))
     return {
       series: {
         views: days.map((day) => ({ date: day, value: byDay.get(day)?.views ?? 0 })),

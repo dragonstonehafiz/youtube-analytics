@@ -8,7 +8,7 @@ export { default as RatioBar } from './RatioBar'
 export { default as UploadPublishMarkers } from './UploadPublishMarkers'
 export { default as UploadPublishTooltip } from './UploadPublishTooltip'
 
-export type { ClusteredPublishMarker } from './UploadPublishMarkers'
+export type { ClusteredPublishMarker, PublishedItem } from './UploadPublishMarkers'
 export type { UploadHoverState, UploadPublishTooltipItem } from './UploadPublishTooltip'
 export type { BarChartBarInfo } from './BarChart'
 export type { DonutSegmentInput, DonutSegmentResolved } from './DonutChart'

@@ -12,6 +12,7 @@ import CommentsTab from './CommentsTab'
 import InsightsTab from './InsightsTab'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
+import { usePlaylistVideoIds } from '../../hooks/usePlaylistVideoIds'
 import '../shared.css'
 import './PlaylistDetail.css'
 
@@ -24,6 +25,8 @@ type PlaylistMeta = {
   item_count: number | null
   thumbnail_url: string | null
 }
+
+export type PlaylistItemSummary = { video_id: string }
 
 type PlaylistViewMode = 'playlist_views' | 'video_views'
 type PlaylistAnalyticsTab = 'metrics' | 'engagement' | 'monetization' | 'discovery' | 'comments' | 'insights'
@@ -40,14 +43,20 @@ function PlaylistDetail() {
   const [loadingMeta, setLoadingMeta] = useState(false)
   const [errorMeta, setErrorMeta] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(getStored('playlistDetailViewMode', 'playlist_views'))
-  const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(getStored('playlistDetailTab', 'metrics'))
+  const initialTab = getStored('playlistDetailTab', 'metrics') as string
+  const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(
+    (['metrics', 'engagement', 'monetization', 'discovery', 'comments', 'insights'] as string[]).includes(initialTab)
+      ? initialTab as PlaylistAnalyticsTab
+      : 'metrics'
+  )
   const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
   const [years, setYears] = useState<string[]>([])
-  const [playlistItems, setPlaylistItems] = useState<any[]>([])
+  const videoIds = usePlaylistVideoIds(playlistId)
 
   useEffect(() => {
     fetchChannelYears().then(setYears).catch(() => {})
   }, [])
+
   useEffect(() => {
     async function loadMeta() {
       if (!playlistId) {
@@ -72,25 +81,6 @@ function PlaylistDetail() {
     }
 
     loadMeta()
-  }, [playlistId])
-
-  useEffect(() => {
-    async function loadPlaylistItems() {
-      if (!playlistId) {
-        setPlaylistItems([])
-        return
-      }
-      try {
-        const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?limit=1000&offset=0`)
-        if (response.ok) {
-          const data = await response.json()
-          setPlaylistItems(Array.isArray(data.items) ? data.items : [])
-        }
-      } catch {
-        setPlaylistItems([])
-      }
-    }
-    loadPlaylistItems()
   }, [playlistId])
 
   useEffect(() => {
@@ -205,14 +195,16 @@ function PlaylistDetail() {
             Insights
           </button>
         </div>
-        {analyticsTab === 'comments' ? (
+        {analyticsTab === 'comments' && (
           <CommentsTab playlistId={playlistId} />
-        ) : analyticsTab === 'insights' && rangeValue ? (
+        )}
+        {rangeValue && analyticsTab === 'insights' && (
           <InsightsTab
             playlistId={playlistId}
-            range={rangeValue?.range ?? { start: '', end: '' }}
+            range={rangeValue.range}
           />
-        ) : analyticsTab === 'metrics' && rangeValue ? (
+        )}
+        {rangeValue && analyticsTab === 'metrics' && (
           <MetricsTab
             playlistId={playlistId}
             range={rangeValue.range}
@@ -220,35 +212,38 @@ function PlaylistDetail() {
             granularity={rangeValue.granularity}
             viewMode={viewMode}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-            allPlaylistItems={playlistItems}
+            videoIds={videoIds}
           />
-        ) : analyticsTab === 'engagement' && rangeValue ? (
+        )}
+        {rangeValue && analyticsTab === 'engagement' && (
           <EngagementTab
             playlistId={playlistId}
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            allPlaylistItems={playlistItems}
+            videoIds={videoIds}
           />
-        ) : analyticsTab === 'monetization' && rangeValue ? (
+        )}
+        {rangeValue && analyticsTab === 'monetization' && (
           <MonetizationTab
             playlistId={playlistId}
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-            allPlaylistItems={playlistItems}
+            videoIds={videoIds}
           />
-        ) : rangeValue ? (
+        )}
+        {rangeValue && analyticsTab === 'discovery' && (
           <DiscoveryTab
             playlistId={playlistId}
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
-            allPlaylistItems={playlistItems}
+            videoIds={videoIds}
           />
-        ) : null}
+        )}
       </div>
     </section>
   )

@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '../../components/cards'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
-import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { formatCurrency, formatDuration, formatWholeNumber } from '../../utils/number'
+import { fillDayGaps } from '../../utils/date'
+import UploadPublishTooltip from '../../components/charts/UploadPublishTooltip'
 import { useSpikes } from '../../hooks/useSpikes'
+import { useSpikeHover } from '../../hooks/useSpikeHover'
+import { usePlaylistAnalytics } from '../../hooks/usePlaylistAnalytics'
 type PlaylistDailyRow = {
   day: string
   views: number | null
@@ -19,15 +22,6 @@ type PlaylistDailyRow = {
 }
 type PublishedDates = Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>
 
-function formatDurationSeconds(seconds: number | null | undefined): string {
-  const value = Number(seconds ?? 0)
-  if (!Number.isFinite(value) || value <= 0) return '-'
-  const rounded = Math.round(value)
-  const mins = Math.floor(rounded / 60)
-  const secs = rounded % 60
-  return `${mins}:${secs.toString().padStart(2, '0')}`
-}
-
 type Props = {
   playlistId: string | undefined
   range: { start: string; end: string }
@@ -35,16 +29,11 @@ type Props = {
   granularity: Granularity
   viewMode: 'playlist_views' | 'video_views'
   onOpenVideo: (videoId: string) => void
-  allPlaylistItems: any[]
+  videoIds: string[]
 }
 
-export default function MetricsTab({ playlistId, range, previousRange, granularity, viewMode, onOpenVideo, allPlaylistItems }: Props) {
-  const [playlistDailyRows, setPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
-  const [videoDailyRows, setVideoDailyRows] = useState<PlaylistDailyRow[]>([])
-  const [previousPlaylistDailyRows, setPreviousPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
-  const [previousVideoDailyRows, setPreviousVideoDailyRows] = useState<PlaylistDailyRow[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export default function MetricsTab({ playlistId, range, previousRange, granularity, viewMode, onOpenVideo, videoIds }: Props) {
+  const { playlistRows, previousPlaylistRows, videoRows, previousVideoRows, loading, error } = usePlaylistAnalytics(playlistId, videoIds, range, previousRange)
   const [publishedDates, setPublishedDates] = useState<PublishedDates>({})
   const [topPerformingItems, setTopPerformingItems] = useState<VideoDetailListItem[]>([])
   const [topPerformingError, setTopPerformingError] = useState<string | null>(null)
@@ -56,10 +45,8 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
   const [errorItems, setErrorItems] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
-  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
-  const spikeTimeoutRef = useRef<number | null>(null)
-  const spikeHoverLockedRef = useRef(false)
-  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
+  const { hoverSpike, hoverHandlers } = useSpikeHover()
+  const { setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef } = hoverHandlers
   const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total: itemsTotal, defaultPageSize: 10 })
 
   useEffect(() => { setPage(1) }, [sortBy, direction, setPage])
@@ -86,62 +73,16 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
     loadItems()
   }, [playlistId, page, pageSize, sortBy, direction])
 
-  const playlistVideoIds = useMemo(() => {
-    return (allPlaylistItems || [])
-      .filter((item) => item.video_id)
-      .map((item) => item.video_id as string)
-  }, [allPlaylistItems])
-
-  const viewsSpikes = useSpikes(range.start, range.end, 'views', granularity, hoverHandlers, playlistVideoIds)
-  const watchTimeSpikes = useSpikes(range.start, range.end, 'watch_time_minutes', granularity, hoverHandlers, playlistVideoIds)
-  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, playlistVideoIds)
-  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, playlistVideoIds)
+  const viewsSpikes = useSpikes(range.start, range.end, 'views', granularity, hoverHandlers, videoIds)
+  const watchTimeSpikes = useSpikes(range.start, range.end, 'watch_time_minutes', granularity, hoverHandlers, videoIds)
+  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, videoIds)
+  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, videoIds)
 
   const toggleSort = (key: PlaylistItemSortKey) => {
     if (sortBy === key) { setDirection((prev) => (prev === 'asc' ? 'desc' : 'asc')); return }
     setSortBy(key)
     setDirection(key === 'position' ? 'asc' : 'desc')
   }
-
-  useEffect(() => {
-    async function loadPlaylistAnalytics() {
-      if (!playlistId) {
-        setPlaylistDailyRows([])
-        setVideoDailyRows([])
-        setPreviousPlaylistDailyRows([])
-        setPreviousVideoDailyRows([])
-        return
-      }
-      setLoading(true)
-      setError(null)
-      try {
-        const [plCur, plPrev, vidCur, vidPrev] = await Promise.all([
-          fetch(`http://localhost:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`),
-          fetch(`http://localhost:8000/analytics/playlist-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
-          fetch(`http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`),
-          fetch(`http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
-        ])
-        if (!plCur.ok || !plPrev.ok || !vidCur.ok || !vidPrev.ok) {
-          const status = !plCur.ok ? plCur.status : !plPrev.ok ? plPrev.status : !vidCur.ok ? vidCur.status : vidPrev.status
-          throw new Error(`Failed to load playlist analytics (${status})`)
-        }
-        const [plCurData, plPrevData, vidCurData, vidPrevData] = await Promise.all([
-          plCur.json(), plPrev.json(), vidCur.json(), vidPrev.json(),
-        ])
-        const sortRows = (rows: PlaylistDailyRow[]) =>
-          [...rows].filter((r) => typeof r.day === 'string').sort((a, b) => a.day.localeCompare(b.day))
-        setPlaylistDailyRows(sortRows((Array.isArray(plCurData.items) ? plCurData.items : []) as PlaylistDailyRow[]))
-        setPreviousPlaylistDailyRows(sortRows((Array.isArray(plPrevData.items) ? plPrevData.items : []) as PlaylistDailyRow[]))
-        setVideoDailyRows(sortRows((Array.isArray(vidCurData.items) ? vidCurData.items : []) as PlaylistDailyRow[]))
-        setPreviousVideoDailyRows(sortRows((Array.isArray(vidPrevData.items) ? vidPrevData.items : []) as PlaylistDailyRow[]))
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load playlist analytics.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadPlaylistAnalytics()
-  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end])
 
   useEffect(() => {
     async function loadPublished() {
@@ -219,13 +160,13 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
     loadRecentPerformingItems()
   }, [playlistId])
 
-  const dailyRows = useMemo(
-    () => (viewMode === 'playlist_views' ? playlistDailyRows : videoDailyRows),
-    [viewMode, playlistDailyRows, videoDailyRows]
+  const dailyRows = useMemo<PlaylistDailyRow[]>(
+    () => (viewMode === 'playlist_views' ? playlistRows as unknown as PlaylistDailyRow[] : videoRows as unknown as PlaylistDailyRow[]),
+    [viewMode, playlistRows, videoRows]
   )
-  const previousDailyRows = useMemo(
-    () => (viewMode === 'playlist_views' ? previousPlaylistDailyRows : previousVideoDailyRows),
-    [viewMode, previousPlaylistDailyRows, previousVideoDailyRows]
+  const previousDailyRows = useMemo<PlaylistDailyRow[]>(
+    () => (viewMode === 'playlist_views' ? previousPlaylistRows as unknown as PlaylistDailyRow[] : previousVideoRows as unknown as PlaylistDailyRow[]),
+    [viewMode, previousPlaylistRows, previousVideoRows]
   )
 
   const { series, previousSeries, totals } = useMemo(() => {
@@ -245,16 +186,8 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
       .sort((a, b) => a.day.localeCompare(b.day))
     const previousByDay = new Map<string, PlaylistDailyRow>()
     prevFiltered.forEach((r) => previousByDay.set(r.day, r))
-    const days: string[] = []
-    const cursor = new Date(`${sorted[0].day}T00:00:00Z`)
-    const end = new Date(`${sorted[sorted.length - 1].day}T00:00:00Z`)
-    while (cursor <= end) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1) }
-    const previousDays: string[] = []
-    if (prevFiltered.length > 0) {
-      const prevCursor = new Date(`${prevFiltered[0].day}T00:00:00Z`)
-      const prevEnd = new Date(`${prevFiltered[prevFiltered.length - 1].day}T00:00:00Z`)
-      while (prevCursor <= prevEnd) { previousDays.push(prevCursor.toISOString().slice(0, 10)); prevCursor.setUTCDate(prevCursor.getUTCDate() + 1) }
-    }
+    const days = fillDayGaps(sorted.map((r) => r.day))
+    const previousDays = fillDayGaps(prevFiltered.map((r) => r.day))
     const subsSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
       d.map((day) => ({ date: day, value: (map.get(day)?.subscribers_gained ?? 0) - (map.get(day)?.subscribers_lost ?? 0) }))
     const revSeries = (d: string[], map: Map<string, PlaylistDailyRow>) =>
@@ -316,7 +249,7 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
       {
         key: 'revenue',
         label: viewMode === 'video_views' ? 'Estimated revenue' : 'Avg time in playlist',
-        value: viewMode === 'video_views' ? formatCurrency(totals.estimated_revenue) : formatDurationSeconds(totals.average_time_in_playlist_seconds),
+        value: viewMode === 'video_views' ? formatCurrency(totals.estimated_revenue) : formatDuration(totals.average_time_in_playlist_seconds),
         series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue }],
         previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
         comparisonAggregation: viewMode === 'playlist_views' ? 'avg' : undefined,

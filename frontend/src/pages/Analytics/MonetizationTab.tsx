@@ -1,21 +1,13 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { MetricChartCard, type MetricItem, type SeriesPoint, type Granularity } from '../../components/charts'
+import { useState, useEffect, useMemo } from 'react'
+import { MetricChartCard, type MetricItem, type SeriesPoint, type Granularity, type PublishedItem } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { fillDayGaps } from '../../utils/date'
+import UploadPublishTooltip from '../../components/charts/UploadPublishTooltip'
 import { useSpikes } from '../../hooks/useSpikes'
-type MonetizationContentType = 'video' | 'short'
-type MonetizationMonthly = { monthKey: string; label: string; amount: number }
-type MonetizationTopItem = { video_id: string; title: string; thumbnail_url: string; revenue: number }
-type MonetizationPerformance = { views: number; estimated_revenue: number; rpm: number; items: MonetizationTopItem[] }
-
-type PublishedItem = {
-  video_id?: string
-  title: string
-  published_at: string
-  thumbnail_url: string
-  content_type: string
-}
+import { useSpikeHover } from '../../hooks/useSpikeHover'
+import { useChannelAnalytics } from '../../hooks/useChannelAnalytics'
+import type { MonetizationContentType, MonetizationPerformance, MonetizationMonthly } from '../../utils/monetization'
 
 type Props = {
   range: { start: string; end: string }
@@ -26,29 +18,6 @@ type Props = {
   publishedDates: Record<string, PublishedItem[]>
 }
 
-function buildDays(items: any[]): [string[], Map<string, any>] {
-  const byDay = new Map<string, any>()
-  items.forEach((item: any) => {
-    if (typeof item?.day === 'string') byDay.set(item.day, item)
-  })
-  const unique = Array.from(
-    new Set<string>(
-      items.map((i: any) => i.day).filter((d: unknown): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-    )
-  ).sort((a, b) => a.localeCompare(b))
-  if (unique.length === 0) return [[], byDay]
-  const days: string[] = []
-  const cursor = new Date(`${unique[0]}T00:00:00Z`)
-  const end = new Date(`${unique[unique.length - 1]}T00:00:00Z`)
-  while (cursor <= end) {
-    days.push(cursor.toISOString().slice(0, 10))
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return [days, byDay]
-}
-
-const EMPTY_SERIES = { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] }
-const EMPTY_TOTALS = { estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 }
 const EMPTY_PERFORMANCE: Record<MonetizationContentType, MonetizationPerformance> = {
   video: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
   short: { views: 0, estimated_revenue: 0, rpm: 0, items: [] },
@@ -56,122 +25,72 @@ const EMPTY_PERFORMANCE: Record<MonetizationContentType, MonetizationPerformance
 
 export default function MonetizationTab({ range, previousRange, granularity, contentType, onOpenVideo, publishedDates }: Props) {
   const [monetizationContentType, setMonetizationContentType] = useState<MonetizationContentType>('video')
-  const [monetizationTotals, setMonetizationTotals] = useState(EMPTY_TOTALS)
-  const [monetizationSeries, setMonetizationSeries] = useState<Record<string, SeriesPoint[]>>(EMPTY_SERIES)
-  const [previousMonetizationSeries, setPreviousMonetizationSeries] = useState<Record<string, SeriesPoint[]>>(EMPTY_SERIES)
-  const [monthlyEarnings, setMonthlyEarnings] = useState<MonetizationMonthly[]>([])
   const [contentPerformance, setContentPerformance] = useState<Record<MonetizationContentType, MonetizationPerformance>>(EMPTY_PERFORMANCE)
-  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
-  const spikeTimeoutRef = useRef<number | null>(null)
-  const spikeHoverLockedRef = useRef(false)
-  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
-
+  const { hoverSpike, hoverHandlers } = useSpikeHover()
+  const { setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef } = hoverHandlers
   const emptyVideoIds = useMemo(() => [], [])
   const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, emptyVideoIds)
   const adImpressionsSpikes = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, emptyVideoIds)
   const monetizedPlaybacksSpikes = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, emptyVideoIds)
 
+  const { rows, previousRows, totals: channelTotals } = useChannelAnalytics(contentType, range, previousRange)
+
+  const monetizationTotals = useMemo(() => ({
+    estimated_revenue: Number(channelTotals.estimated_revenue ?? 0),
+    ad_impressions: Number(channelTotals.ad_impressions ?? 0),
+    monetized_playbacks: Number(channelTotals.monetized_playbacks ?? 0),
+    cpm: Number(channelTotals.cpm ?? 0),
+  }), [channelTotals])
+
+  const monetizationSeries = useMemo<Record<string, SeriesPoint[]>>(() => {
+    if (rows.length === 0) return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] }
+    const byDay = new Map(rows.map((r) => [r.day, r]))
+    const days = fillDayGaps(rows.map((r) => r.day).filter(Boolean))
+    return {
+      estimated_revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
+      ad_impressions: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.ad_impressions ?? 0) })),
+      monetized_playbacks: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.monetized_playbacks ?? 0) })),
+      cpm: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.cpm ?? 0) })),
+    }
+  }, [rows])
+
+  const previousMonetizationSeries = useMemo<Record<string, SeriesPoint[]>>(() => {
+    if (previousRows.length === 0) return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] }
+    const byDay = new Map(previousRows.map((r) => [r.day, r]))
+    const days = fillDayGaps(previousRows.map((r) => r.day).filter(Boolean))
+    return {
+      estimated_revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
+      ad_impressions: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.ad_impressions ?? 0) })),
+      monetized_playbacks: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.monetized_playbacks ?? 0) })),
+      cpm: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.cpm ?? 0) })),
+    }
+  }, [previousRows])
+
+  const monthlyEarnings = useMemo<MonetizationMonthly[]>(() => {
+    const monthTotals = new Map<string, number>()
+    rows.forEach((r) => {
+      const day = String(r.day ?? '')
+      if (!day || day.length < 7) return
+      const monthKey = day.slice(0, 7)
+      monthTotals.set(monthKey, (monthTotals.get(monthKey) ?? 0) + Number(r.estimated_revenue ?? 0))
+    })
+    return Array.from(monthTotals.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 12)
+      .map(([monthKey, amount]) => {
+        const [year, month] = monthKey.split('-')
+        const dateValue = new Date(Date.UTC(Number(year), Number(month) - 1, 1))
+        return {
+          monthKey,
+          label: dateValue.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+          amount,
+        }
+      })
+  }, [rows])
+
   useEffect(() => {
-    async function loadMonetizationData() {
+    async function loadContentPerformance() {
       try {
-        const summaryUrl =
-          contentType === 'all'
-            ? `http://localhost:8000/analytics/channel-daily?start_date=${range.start}&end_date=${range.end}`
-            : `http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=${contentType}`
-        const previousUrl =
-          contentType === 'all'
-            ? `http://localhost:8000/analytics/channel-daily?start_date=${previousRange.start}&end_date=${previousRange.end}`
-            : `http://localhost:8000/analytics/daily/summary?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentType}`
-
-        const requests = [
-          fetch(summaryUrl),
-          fetch(previousUrl),
-          fetch(
-            `http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10${contentType === 'all' ? '' : `&content_type=${contentType}`}&sort_by=estimated_revenue&direction=desc&privacy_status=public`
-          ),
-        ]
-
-        const topRequests = contentType === 'all' ? [
-          fetch(`http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=video`),
-          fetch(`http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=short`),
-          fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
-          fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
-        ] : []
-
-        const responses = await Promise.all([...requests, ...topRequests])
-        const [summaryRes, previousSummaryRes, topRes, ...topData] = responses
-        const [payload, previousPayload, topContent] = await Promise.all([
-          summaryRes.json(),
-          previousSummaryRes.json(),
-          topRes.json(),
-        ])
-
-        let videoSummary = payload
-        let shortSummary = payload
-        let videoTop = topContent
-        let shortTop = topContent
-
-        if (contentType === 'all' && topData.length === 4) {
-          const [videoSummaryRes, shortSummaryRes, videoTopRes, shortTopRes] = topData
-          videoSummary = await videoSummaryRes.json()
-          shortSummary = await shortSummaryRes.json()
-          videoTop = await videoTopRes.json()
-          shortTop = await shortTopRes.json()
-        }
-
-        const items = Array.isArray(payload?.items) ? payload.items : []
-        const [days, byDay] = buildDays(items)
-        if (days.length === 0) {
-          setMonetizationSeries(EMPTY_SERIES)
-          setPreviousMonetizationSeries(EMPTY_SERIES)
-          setMonetizationTotals(EMPTY_TOTALS)
-          return
-        }
-
-        setMonetizationSeries({
-          estimated_revenue: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.estimated_revenue ?? 0) })),
-          ad_impressions: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.ad_impressions ?? 0) })),
-          monetized_playbacks: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.monetized_playbacks ?? 0) })),
-          cpm: days.map((day) => ({ date: day, value: Number(byDay.get(day)?.cpm ?? 0) })),
-        })
-        setMonetizationTotals({
-          estimated_revenue: Number(payload?.totals?.estimated_revenue ?? 0),
-          ad_impressions: Number(payload?.totals?.ad_impressions ?? 0),
-          monetized_playbacks: Number(payload?.totals?.monetized_playbacks ?? 0),
-          cpm: Number(payload?.totals?.cpm ?? 0),
-        })
-
-        const previousItems = Array.isArray(previousPayload?.items) ? previousPayload.items : []
-        const [prevDays, prevByDay] = buildDays(previousItems)
-        setPreviousMonetizationSeries({
-          estimated_revenue: prevDays.map((day) => ({ date: day, value: Number(prevByDay.get(day)?.estimated_revenue ?? 0) })),
-          ad_impressions: prevDays.map((day) => ({ date: day, value: Number(prevByDay.get(day)?.ad_impressions ?? 0) })),
-          monetized_playbacks: prevDays.map((day) => ({ date: day, value: Number(prevByDay.get(day)?.monetized_playbacks ?? 0) })),
-          cpm: prevDays.map((day) => ({ date: day, value: Number(prevByDay.get(day)?.cpm ?? 0) })),
-        })
-
-        const monthTotals = new Map<string, number>()
-        items.forEach((item: any) => {
-          const day = String(item?.day ?? '')
-          if (!day || day.length < 7) return
-          const monthKey = day.slice(0, 7)
-          monthTotals.set(monthKey, (monthTotals.get(monthKey) ?? 0) + Number(item?.estimated_revenue ?? 0))
-        })
-        setMonthlyEarnings(
-          Array.from(monthTotals.entries())
-            .sort((a, b) => b[0].localeCompare(a[0]))
-            .slice(0, 12)
-            .map(([monthKey, amount]) => {
-              const [year, month] = monthKey.split('-')
-              const dateValue = new Date(Date.UTC(Number(year), Number(month) - 1, 1))
-              return {
-                monthKey,
-                label: dateValue.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
-                amount,
-              }
-            })
-        )
-
         const mapPerformance = (summaryPayload: any, topPayload: any): MonetizationPerformance => {
           const views = Number(summaryPayload?.totals?.views ?? 0)
           const estimatedRevenue = Number(summaryPayload?.totals?.estimated_revenue ?? 0)
@@ -191,26 +110,36 @@ export default function MonetizationTab({ range, previousRange, granularity, con
         }
 
         const performance: Record<MonetizationContentType, MonetizationPerformance> = { ...EMPTY_PERFORMANCE }
+
         if (contentType === 'all') {
+          const [videoSummaryRes, shortSummaryRes, videoTopRes, shortTopRes] = await Promise.all([
+            fetch(`http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=video`),
+            fetch(`http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=short`),
+            fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+            fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+          ])
+          const [videoSummary, shortSummary, videoTop, shortTop] = await Promise.all([
+            videoSummaryRes.json(), shortSummaryRes.json(), videoTopRes.json(), shortTopRes.json(),
+          ])
           performance.video = mapPerformance(videoSummary, videoTop)
           performance.short = mapPerformance(shortSummary, shortTop)
-        } else if (contentType === 'video') {
-          performance.video = mapPerformance(payload, topContent)
         } else {
-          performance.short = mapPerformance(payload, topContent)
+          const [summaryRes, topRes] = await Promise.all([
+            fetch(`http://localhost:8000/analytics/daily/summary?start_date=${range.start}&end_date=${range.end}&content_type=${contentType}`),
+            fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=${contentType}&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+          ])
+          const [summary, topContent] = await Promise.all([summaryRes.json(), topRes.json()])
+          if (contentType === 'video') performance.video = mapPerformance(summary, topContent)
+          else performance.short = mapPerformance(summary, topContent)
         }
+
         setContentPerformance(performance)
-      } catch (error) {
-        console.error('Failed to load monetization data', error)
-        setMonetizationSeries(EMPTY_SERIES)
-        setPreviousMonetizationSeries(EMPTY_SERIES)
-        setMonetizationTotals(EMPTY_TOTALS)
-        setMonthlyEarnings([])
+      } catch {
         setContentPerformance(EMPTY_PERFORMANCE)
       }
     }
-    loadMonetizationData()
-  }, [range.start, range.end, previousRange.start, previousRange.end, previousRange.daySpan, contentType])
+    loadContentPerformance()
+  }, [range.start, range.end, contentType])
 
   const metricsData = useMemo<MetricItem[]>(
     () => [

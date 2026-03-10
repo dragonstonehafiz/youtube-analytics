@@ -1,26 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard, type VideoDetailListItem } from '../../components/cards'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { fillDayGaps } from '../../utils/date'
+import UploadPublishTooltip from '../../components/charts/UploadPublishTooltip'
 import { useSpikes } from '../../hooks/useSpikes'
-type PlaylistDailyRow = {
-  day: string
-  views: number | null
-  watch_time_minutes?: number | null
-  estimated_revenue?: number | null
-  ad_impressions?: number | null
-  monetized_playbacks?: number | null
-  cpm?: number | null
-}
+import { useSpikeHover } from '../../hooks/useSpikeHover'
+import { useVideoAnalyticsByIds, type VideoDailyRow } from '../../hooks/useVideoAnalytics'
+import type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance, MonetizationMonthly } from '../../utils/monetization'
+
 type PublishedDates = Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>
-type MonetizationContentType = 'video' | 'short'
-type MonetizationMonthly = { monthKey: string; label: string; amount: number }
-type MonetizationTopItem = { video_id: string; title: string; thumbnail_url: string; revenue: number }
-type MonetizationPerformance = { views: number; estimated_revenue: number; rpm: number; items: MonetizationTopItem[] }
 
 type Props = {
   playlistId: string | undefined
@@ -28,14 +20,11 @@ type Props = {
   previousRange: { start: string; end: string }
   granularity: Granularity
   onOpenVideo: (videoId: string) => void
-  allPlaylistItems: any[]
+  videoIds: string[]
 }
 
-export default function MonetizationTab({ playlistId, range, previousRange, granularity, onOpenVideo, allPlaylistItems }: Props) {
-  const [videoDailyRows, setVideoDailyRows] = useState<PlaylistDailyRow[]>([])
-  const [previousVideoDailyRows, setPreviousVideoDailyRows] = useState<PlaylistDailyRow[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export default function MonetizationTab({ playlistId, range, previousRange, granularity, onOpenVideo, videoIds }: Props) {
+  const { rows: videoDailyRows, previousRows: previousVideoDailyRows, loading, error } = useVideoAnalyticsByIds(videoIds, range, previousRange)
   const [publishedDates, setPublishedDates] = useState<PublishedDates>({})
   const [topPerformingItems, setTopPerformingItems] = useState<VideoDetailListItem[]>([])
   const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
@@ -46,23 +35,15 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
   const [errorItems, setErrorItems] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
-  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
-  const spikeTimeoutRef = useRef<number | null>(null)
-  const spikeHoverLockedRef = useRef(false)
-  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
+  const { hoverSpike, hoverHandlers } = useSpikeHover()
+  const { setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef } = hoverHandlers
   const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total: itemsTotal, defaultPageSize: 10 })
 
   useEffect(() => { setPage(1) }, [sortBy, direction, setPage])
 
-  const playlistVideoIds = useMemo(() => {
-    return (allPlaylistItems || [])
-      .filter((item: any) => item.video_id)
-      .map((item: any) => item.video_id as string)
-  }, [allPlaylistItems])
-
-  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, playlistVideoIds)
-  const adImpressionsSpikes = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, playlistVideoIds)
-  const monetizedPlaybacksSpikes = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, playlistVideoIds)
+  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, videoIds)
+  const adImpressionsSpikes = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, videoIds)
+  const monetizedPlaybacksSpikes = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, videoIds)
 
   useEffect(() => {
     async function loadItems() {
@@ -91,34 +72,6 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
     setSortBy(key)
     setDirection(key === 'position' ? 'asc' : 'desc')
   }
-
-  useEffect(() => {
-    async function loadVideoAnalytics() {
-      if (!playlistId) { setVideoDailyRows([]); setPreviousVideoDailyRows([]); return }
-      setLoading(true)
-      setError(null)
-      try {
-        const [currentResponse, previousResponse] = await Promise.all([
-          fetch(`http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${range.start}&end_date=${range.end}`),
-          fetch(`http://localhost:8000/analytics/playlist-video-daily?playlist_id=${playlistId}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
-        ])
-        if (!currentResponse.ok || !previousResponse.ok) {
-          const status = !currentResponse.ok ? currentResponse.status : previousResponse.status
-          throw new Error(`Failed to load playlist analytics (${status})`)
-        }
-        const [currentData, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
-        const sortRows = (rows: PlaylistDailyRow[]) =>
-          [...rows].filter((r) => typeof r.day === 'string').sort((a, b) => a.day.localeCompare(b.day))
-        setVideoDailyRows(sortRows((Array.isArray(currentData.items) ? currentData.items : []) as PlaylistDailyRow[]))
-        setPreviousVideoDailyRows(sortRows((Array.isArray(previousData.items) ? previousData.items : []) as PlaylistDailyRow[]))
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load playlist analytics.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadVideoAnalytics()
-  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end])
 
   useEffect(() => {
     async function loadPublished() {
@@ -188,17 +141,14 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
     loadRecentPerformingItems()
   }, [playlistId])
 
-  const buildSeries = (rows: PlaylistDailyRow[], start: string, end: string): Record<string, SeriesPoint[]> => {
+  const buildSeries = (rows: VideoDailyRow[], start: string, end: string): Record<string, SeriesPoint[]> => {
     const sorted = [...rows]
       .filter((r) => typeof r.day === 'string' && r.day >= start && r.day <= end)
       .sort((a, b) => a.day.localeCompare(b.day))
     if (sorted.length === 0) return { estimated_revenue: [], ad_impressions: [], monetized_playbacks: [], cpm: [] }
-    const byDay = new Map<string, PlaylistDailyRow>()
+    const byDay = new Map<string, VideoDailyRow>()
     sorted.forEach((r) => byDay.set(r.day, r))
-    const days: string[] = []
-    const cursor = new Date(`${sorted[0].day}T00:00:00Z`)
-    const endDate = new Date(`${sorted[sorted.length - 1].day}T00:00:00Z`)
-    while (cursor <= endDate) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1) }
+    const days = fillDayGaps(sorted.map((r) => r.day))
     return {
       estimated_revenue: days.map((day) => ({ date: day, value: byDay.get(day)?.estimated_revenue ?? 0 })),
       ad_impressions: days.map((day) => ({ date: day, value: byDay.get(day)?.ad_impressions ?? 0 })),

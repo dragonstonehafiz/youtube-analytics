@@ -1,17 +1,9 @@
 import { useMemo } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '../../components/charts'
 import { PageCard } from '../../components/cards'
-import { formatWholeNumber } from '../../utils/number'
+import { formatDuration, formatWholeNumber } from '../../utils/number'
+import { fillDayGaps } from '../../utils/date'
 import type { VideoDailyRow } from './VideoDetail'
-
-function formatDuration(seconds: number | null): string {
-  if (!seconds || seconds < 0) return '-'
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remSeconds = Math.round(seconds % 60)
-  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(remSeconds).padStart(2, '0')}`
-  return `${minutes}:${String(remSeconds).padStart(2, '0')}`
-}
 
 type DateRange = { start: string; end: string }
 
@@ -22,18 +14,6 @@ type Props = {
   dailyRows: VideoDailyRow[]
   range: DateRange
   previousRange: DateRange
-}
-
-function buildDays(sorted: VideoDailyRow[]): string[] {
-  if (sorted.length === 0) return []
-  const days: string[] = []
-  const cursor = new Date(`${sorted[0].date}T00:00:00Z`)
-  const end = new Date(`${sorted[sorted.length - 1].date}T00:00:00Z`)
-  while (cursor <= end) {
-    days.push(cursor.toISOString().slice(0, 10))
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return days
 }
 
 export default function EngagementTab({ loading, error, granularity, dailyRows, range, previousRange }: Props) {
@@ -68,10 +48,10 @@ export default function EngagementTab({ loading, error, granularity, dailyRows, 
     }
 
     const byDay = new Map(sorted.map((item) => [item.date, item]))
-    const days = buildDays(sorted)
+    const days = fillDayGaps(sorted.map((item) => item.date))
     const previousSorted = dailyRows.filter((item) => item.date >= previousRange.start && item.date <= previousRange.end)
     const previousByDay = new Map(previousSorted.map((item) => [item.date, item]))
-    const previousDays = buildDays(previousSorted)
+    const previousDays = fillDayGaps(previousSorted.map((item) => item.date))
 
     const currentEngagedViews = sorted.reduce((sum, item) => sum + (item.engaged_views ?? 0), 0)
     const currentSubscribersNet = sorted.reduce(

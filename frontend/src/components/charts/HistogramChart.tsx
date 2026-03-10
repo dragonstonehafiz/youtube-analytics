@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatSecondsAsTime } from '../../utils/number'
+import { formatDuration } from '../../utils/number'
 import './HistogramChart.css'
 
 type HistogramChartProps = {
@@ -186,7 +186,7 @@ function HistogramChart({
                 textAnchor="middle"
                 className="histogram-label"
               >
-                {formatSecondsAsTime(bin.min * 60)}
+                {formatDuration(bin.min * 60)}
               </text>
             </g>
           )

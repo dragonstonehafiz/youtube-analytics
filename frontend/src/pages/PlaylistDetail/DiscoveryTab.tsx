@@ -24,10 +24,10 @@ type Props = {
   previousRange: { start: string; end: string }
   granularity: Granularity
   onOpenVideo: (videoId: string) => void
-  allPlaylistItems: any[]
+  videoIds: string[]
 }
 
-export default function DiscoveryTab({ playlistId, range, previousRange, granularity, onOpenVideo, allPlaylistItems }: Props) {
+export default function DiscoveryTab({ playlistId, range, previousRange, granularity, onOpenVideo, videoIds }: Props) {
   const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
   const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
   const [trafficTopSource, setTrafficTopSource] = useState('')
@@ -124,12 +124,6 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
     loadPublished()
   }, [playlistId, range.start, range.end])
 
-  const playlistVideoIds = useMemo(() => {
-    return (allPlaylistItems || [])
-      .filter((item: any) => item.video_id)
-      .map((item: any) => item.video_id as string)
-  }, [allPlaylistItems])
-
   const discoveryMetricsData = useMemo<MetricItem[]>(() => {
     const viewsSeries = buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end)
     const watchTimeSeries = buildTrafficSeries(discoveryTrafficRows, 'watch_time', range.start, range.end)
@@ -220,7 +214,7 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
 
   useEffect(() => {
     async function loadTopSearchTerms() {
-      if (!playlistId || playlistVideoIds.length === 0) {
+      if (!playlistId || videoIds.length === 0) {
         setSearchTopTerms([])
         setSearchTopTermsError(null)
         setSearchTopTermsLoading(false)
@@ -232,7 +226,7 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
         const params = new URLSearchParams({
           start_date: range.start,
           end_date: range.end,
-          video_ids: playlistVideoIds.join(','),
+          video_ids: videoIds.join(','),
         })
         const response = await fetch(`http://localhost:8000/analytics/video-search-insights?${params.toString()}`)
         if (!response.ok) throw new Error(`Failed to load top search terms (${response.status})`)
@@ -252,7 +246,7 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
       }
     }
     loadTopSearchTerms()
-  }, [playlistId, range.start, range.end, playlistVideoIds])
+  }, [playlistId, range.start, range.end, videoIds])
 
 
   return (
@@ -309,7 +303,7 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
                 error={searchTopTermsError}
                 startDate={range.start}
                 endDate={range.end}
-                videoIds={playlistVideoIds}
+                videoIds={videoIds}
               />
             </PageCard>
           </div>

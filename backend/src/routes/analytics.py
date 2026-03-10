@@ -247,9 +247,7 @@ def list_video_daily_analytics(
             {where_sql}
             GROUP BY date
             ORDER BY date ASC
-            LIMIT ?
         """
-        params.append(limit)
     else:
         # Original single video_id logic
         where_clauses = []

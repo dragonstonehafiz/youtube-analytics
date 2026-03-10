@@ -21,8 +21,13 @@ export function formatCurrency(value: number, fractionDigits = 3): string {
   return `$${formatDecimalNumber(value, fractionDigits)}`
 }
 
-export function formatSecondsAsTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.round(seconds % 60)
+export function formatDuration(seconds: number | null | undefined): string {
+  const value = Number(seconds ?? 0)
+  if (!Number.isFinite(value) || value <= 0) return '-'
+  const rounded = Math.round(value)
+  const hours = Math.floor(rounded / 3600)
+  const mins = Math.floor((rounded % 3600) / 60)
+  const secs = rounded % 60
+  if (hours > 0) return `${hours}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
