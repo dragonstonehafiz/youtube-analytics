@@ -1,18 +1,21 @@
 import './StatCard.css'
 
+type StatSize = 'smaller' | 'small' | 'medium' | 'big' | 'bigger'
+
 type StatCardProps = {
   label: React.ReactNode
   value: React.ReactNode
   sub?: React.ReactNode
+  size?: StatSize
   hoverable?: boolean
   onMouseEnter?: (e: React.MouseEvent<HTMLDivElement>) => void
   onMouseLeave?: (e: React.MouseEvent<HTMLDivElement>) => void
 }
 
-function StatCard({ label, value, sub, hoverable, onMouseEnter, onMouseLeave }: StatCardProps) {
+function StatCard({ label, value, sub, size = 'medium', hoverable, onMouseEnter, onMouseLeave }: StatCardProps) {
   return (
     <div
-      className={`stat-card${hoverable ? ' stat-card-hoverable' : ''}`}
+      className={`stat-card stat-card-${size}${hoverable ? ' stat-card-hoverable' : ''}`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >

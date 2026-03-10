@@ -39,3 +39,44 @@
 .stat-card-hoverable:hover {
   background: rgba(148, 163, 184, 0.15);
 }
+
+/* Size variants */
+.stat-card-smaller .stat-card-value {
+  font-size: 20px;
+}
+
+.stat-card-smaller .stat-card-sub {
+  font-size: 11px;
+}
+
+.stat-card-small .stat-card-value {
+  font-size: 26px;
+}
+
+.stat-card-small .stat-card-sub {
+  font-size: 12px;
+}
+
+.stat-card-medium .stat-card-value {
+  font-size: 34px;
+}
+
+.stat-card-medium .stat-card-sub {
+  font-size: 13px;
+}
+
+.stat-card-big .stat-card-value {
+  font-size: 44px;
+}
+
+.stat-card-big .stat-card-sub {
+  font-size: 14px;
+}
+
+.stat-card-bigger .stat-card-value {
+  font-size: 56px;
+}
+
+.stat-card-bigger .stat-card-sub {
+  font-size: 15px;
+}

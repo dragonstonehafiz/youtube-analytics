@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton } from '../../components/ui'
+import { ActionButton, StatCard } from '../../components/ui'
 import { DataRangeControl, type DateRangeValue } from '../../components/features'
 import { fetchVideoYears } from '../../utils/years'
 import { PageCard } from '../../components/cards'
@@ -163,30 +163,16 @@ function VideoDetail() {
                   </div>
                 </div>
                 <div className="video-detail-grid">
-                  <div className="video-detail-item">
-                    <span>Visibility</span>
-                    <strong>{video.privacy_status || '-'}</strong>
-                  </div>
-                  <div className="video-detail-item">
-                    <span>Published</span>
-                    <strong>{formatDisplayDate(video.published_at)}</strong>
-                  </div>
-                  <div className="video-detail-item">
-                    <span>Duration</span>
-                    <strong>{formatDuration(video.duration_seconds)}</strong>
-                  </div>
-                  <div className="video-detail-item">
-                    <span>Views</span>
-                    <strong>{(video.view_count ?? 0).toLocaleString()}</strong>
-                  </div>
-                  <div className="video-detail-item">
-                    <span>Likes</span>
-                    <strong>{(video.like_count ?? 0).toLocaleString()}</strong>
-                  </div>
-                  <div className="video-detail-item">
-                    <span>Comments</span>
-                    <strong>{(video.comment_count ?? 0).toLocaleString()}</strong>
-                  </div>
+                  <StatCard label="Views" value={(video.view_count ?? 0).toLocaleString()} size = "smaller"/>
+                  <StatCard label="Likes" value={(video.like_count ?? 0).toLocaleString()} size = "smaller"/>
+                  <StatCard label="Comments" value={(video.comment_count ?? 0).toLocaleString()} size = "smaller"/>
+                </div>
+                <div className="video-detail-grid">
+                  <StatCard label="Video ID" value={video.id} size = "smaller"/>
+                  <StatCard label="Duration" value={formatDuration(video.duration_seconds)} size = "smaller"/>
+                  <StatCard label="Visibility" value={video.privacy_status || '-'} size = "smaller"/>
+                  <StatCard label="Content Type" value={video.content_type || '-'} size = "smaller"/>
+                  <StatCard label="Published" value={formatDisplayDate(video.published_at)} size = "smaller" />
                 </div>
               </div>
             ) : (
