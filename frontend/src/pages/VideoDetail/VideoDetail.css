@@ -16,7 +16,7 @@
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .video-detail-thumb {
@@ -32,23 +32,14 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 0;
+  height: 250px;
 }
 
 .video-detail-title {
   font-size: 22px;
   font-weight: 700;
   color: var(--color-ink);
-}
-
-.video-detail-description {
-  height: 160px;
-  line-height: 1.35;
-  overflow-y: auto;
-  overflow-x: hidden;
-  white-space: pre-line;
-  color: var(--color-muted);
-  font-size: 13px;
-  padding-right: 6px;
 }
 
 .video-detail-grid {

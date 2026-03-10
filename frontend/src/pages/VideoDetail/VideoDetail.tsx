@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, StatCard } from '../../components/ui'
+import { ActionButton, StatCard, Textbox } from '../../components/ui'
 import { DataRangeControl, type DateRangeValue } from '../../components/features'
 import { fetchVideoYears } from '../../utils/years'
 import { PageCard } from '../../components/cards'
@@ -159,7 +159,7 @@ function VideoDetail() {
                   )}
                   <div className="video-detail-meta-content">
                     <div className="video-detail-title">{video.title || '(untitled)'}</div>
-                    <div className="video-detail-description">{video.description || '-'}</div>
+                    <Textbox value={video.description || ''} placeholder="This video does not have a description" height="250px"/>
                   </div>
                 </div>
                 <div className="video-detail-grid">

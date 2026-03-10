@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState, useMemo } from 'react'
 import './MarkdownTextbox.css'
 
 type MarkdownTextboxProps = {
   value: string
   placeholder?: string
+  width?: number | string | null
+  height?: number | string | null
   className?: string
 }
 
@@ -21,9 +23,12 @@ function formatInlineMarkdown(input: string): string {
   return output
 }
 
-function MarkdownTextbox({ value, placeholder = '', className = '' }: MarkdownTextboxProps) {
+function MarkdownTextbox({ value, placeholder = '', width = null, height = null, className = '' }: MarkdownTextboxProps) {
   const [copied, setCopied] = useState(false)
+
   const renderedHtml = useMemo(() => {
+    if (!value.trim()) return ''
+
     const lines = value.split(/\r?\n/)
     const htmlParts: string[] = []
     let inUnorderedList = false
@@ -87,13 +92,6 @@ function MarkdownTextbox({ value, placeholder = '', className = '' }: MarkdownTe
     closeLists()
     return htmlParts.join('')
   }, [value])
-  useEffect(() => {
-    if (!copied) {
-      return
-    }
-    const timerId = window.setTimeout(() => setCopied(false), 1500)
-    return () => window.clearTimeout(timerId)
-  }, [copied])
 
   const handleCopy = async () => {
     if (!value.trim()) {
@@ -102,47 +100,39 @@ function MarkdownTextbox({ value, placeholder = '', className = '' }: MarkdownTe
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
     } catch {
       setCopied(false)
     }
   }
 
-  const classes = ['markdown-textbox', className].filter(Boolean).join(' ')
-  if (!value.trim()) {
-    return (
-      <div className={classes}>
-        <button
-          type="button"
-          className={copied ? 'markdown-textbox-copy copied' : 'markdown-textbox-copy'}
-          onClick={handleCopy}
-          title="Copy markdown"
-          aria-label="Copy markdown"
-          disabled
-        >
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
-            <path d="M5 15V7a2 2 0 0 1 2-2h8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          </svg>
-        </button>
-        <div className="markdown-textbox-placeholder">{placeholder}</div>
-      </div>
-    )
+  const style: React.CSSProperties = {
+    width: width === null ? '100%' : width,
+    height: height === null ? '100%' : height,
   }
+
+  const classes = ['markdown-textbox', className].filter(Boolean).join(' ')
+
   return (
-    <div className={classes}>
+    <div className={classes} style={style}>
       <button
         type="button"
         className={copied ? 'markdown-textbox-copy copied' : 'markdown-textbox-copy'}
         onClick={handleCopy}
-        title={copied ? 'Copied' : 'Copy markdown'}
+        title={value.trim() ? (copied ? 'Copied' : 'Copy markdown') : 'Copy markdown'}
         aria-label="Copy markdown"
+        disabled={!value.trim()}
       >
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.7" />
           <path d="M5 15V7a2 2 0 0 1 2-2h8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
         </svg>
       </button>
-      <div className="markdown-textbox-content" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+      {!value.trim() ? (
+        <div className="markdown-textbox-placeholder">{placeholder}</div>
+      ) : (
+        <div className="markdown-textbox-content" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+      )}
     </div>
   )
 }
