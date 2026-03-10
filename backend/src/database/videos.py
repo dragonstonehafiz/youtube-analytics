@@ -27,9 +27,6 @@ def upsert_videos(items: list[dict], short_video_ids: set[str] | None = None) ->
         return 0
     short_ids = short_video_ids or set()
 
-    with get_connection() as conn:
-        video_columns = {str(row["name"]) for row in conn.execute("PRAGMA table_info('videos')").fetchall()}
-    has_updated_at = "updated_at" in video_columns
     rows = []
     for item in items:
         snippet = item.get("snippet", {})
@@ -44,7 +41,7 @@ def upsert_videos(items: list[dict], short_video_ids: set[str] | None = None) ->
         duration_seconds = parse_duration_to_seconds(content.get("duration"))
         content_type = "short" if item.get("id") in short_ids else "video"
 
-        base_values = (
+        rows.append((
             item["id"],
             snippet.get("title"),
             snippet.get("description"),
@@ -62,66 +59,35 @@ def upsert_videos(items: list[dict], short_video_ids: set[str] | None = None) ->
             width,
             height,
             content_type,
-        )
-        rows.append(base_values)
+        ))
 
-    if has_updated_at:
-        sql = """
-            INSERT INTO videos (
-                id, title, description, published_at, channel_id, channel_title,
-                privacy_status, made_for_kids, duration_seconds, view_count,
-                like_count, comment_count, favorite_count, thumbnail_url,
-                video_width, video_height, content_type, updated_at
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
-            )
-            ON CONFLICT(id) DO UPDATE SET
-                title=excluded.title,
-                description=excluded.description,
-                published_at=excluded.published_at,
-                channel_id=excluded.channel_id,
-                channel_title=excluded.channel_title,
-                privacy_status=excluded.privacy_status,
-                made_for_kids=excluded.made_for_kids,
-                duration_seconds=excluded.duration_seconds,
-                view_count=excluded.view_count,
-                like_count=excluded.like_count,
-                comment_count=excluded.comment_count,
-                favorite_count=excluded.favorite_count,
-                thumbnail_url=excluded.thumbnail_url,
-                video_width=excluded.video_width,
-                video_height=excluded.video_height,
-                content_type=excluded.content_type,
-                updated_at=CURRENT_TIMESTAMP
-        """
-    else:
-        sql = """
-            INSERT INTO videos (
-                id, title, description, published_at, channel_id, channel_title,
-                privacy_status, made_for_kids, duration_seconds, view_count,
-                like_count, comment_count, favorite_count, thumbnail_url,
-                video_width, video_height, content_type
-            ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-            ON CONFLICT(id) DO UPDATE SET
-                title=excluded.title,
-                description=excluded.description,
-                published_at=excluded.published_at,
-                channel_id=excluded.channel_id,
-                channel_title=excluded.channel_title,
-                privacy_status=excluded.privacy_status,
-                made_for_kids=excluded.made_for_kids,
-                duration_seconds=excluded.duration_seconds,
-                view_count=excluded.view_count,
-                like_count=excluded.like_count,
-                comment_count=excluded.comment_count,
-                favorite_count=excluded.favorite_count,
-                thumbnail_url=excluded.thumbnail_url,
-                video_width=excluded.video_width,
-                video_height=excluded.video_height,
-                content_type=excluded.content_type
-        """
+    sql = """
+        INSERT INTO videos (
+            id, title, description, published_at, channel_id, channel_title,
+            privacy_status, made_for_kids, duration_seconds, view_count,
+            like_count, comment_count, favorite_count, thumbnail_url,
+            video_width, video_height, content_type
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+        ON CONFLICT(id) DO UPDATE SET
+            title=excluded.title,
+            description=excluded.description,
+            published_at=excluded.published_at,
+            channel_id=excluded.channel_id,
+            channel_title=excluded.channel_title,
+            privacy_status=excluded.privacy_status,
+            made_for_kids=excluded.made_for_kids,
+            duration_seconds=excluded.duration_seconds,
+            view_count=excluded.view_count,
+            like_count=excluded.like_count,
+            comment_count=excluded.comment_count,
+            favorite_count=excluded.favorite_count,
+            thumbnail_url=excluded.thumbnail_url,
+            video_width=excluded.video_width,
+            video_height=excluded.video_height,
+            content_type=excluded.content_type
+    """
 
     with get_connection() as conn:
         conn.executemany(sql, rows)

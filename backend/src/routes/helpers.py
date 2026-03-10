@@ -295,7 +295,6 @@ def resolve_table_date_bounds(conn: sqlite3.Connection, table_name: str) -> dict
     preferred = [
         "date",
         "published_at",
-        "updated_at",
         "started_at",
         "finished_at",
         "subscribed_at",
