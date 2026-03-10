@@ -24,16 +24,16 @@ type Props = {
   previousRange: { start: string; end: string }
   granularity: Granularity
   onOpenVideo: (videoId: string) => void
+  allPlaylistItems: any[]
 }
 
-export default function DiscoveryTab({ playlistId, range, previousRange, granularity, onOpenVideo }: Props) {
+export default function DiscoveryTab({ playlistId, range, previousRange, granularity, onOpenVideo, allPlaylistItems }: Props) {
   const [discoveryTrafficRows, setDiscoveryTrafficRows] = useState<TrafficSourceRow[]>([])
   const [discoveryPreviousTrafficRows, setDiscoveryPreviousTrafficRows] = useState<TrafficSourceRow[]>([])
   const [trafficTopSource, setTrafficTopSource] = useState('')
   const [trafficTopVideos, setTrafficTopVideos] = useState<TopTrafficVideo[]>([])
   const [trafficTopLoading, setTrafficTopLoading] = useState(false)
   const [trafficTopError, setTrafficTopError] = useState<string | null>(null)
-  const [playlistVideoIds, setPlaylistVideoIds] = useState<string[]>([])
   const [searchTopTerms, setSearchTopTerms] = useState<SearchInsightsTopTerm[]>([])
   const [searchTopTermsLoading, setSearchTopTermsLoading] = useState(false)
   const [searchTopTermsError, setSearchTopTermsError] = useState<string | null>(null)
@@ -124,36 +124,11 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
     loadPublished()
   }, [playlistId, range.start, range.end])
 
-  useEffect(() => {
-    async function loadPlaylistVideoIds() {
-      if (!playlistId) { setPlaylistVideoIds([]); return }
-      try {
-        const collected = new Set<string>()
-        const pageLimit = 1000
-        let offset = 0
-        let total = 0
-        do {
-          const params = new URLSearchParams({ limit: String(pageLimit), offset: String(offset), sort_by: 'position', direction: 'asc' })
-          const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
-          if (!response.ok) throw new Error(`Failed to load playlist items for search scope (${response.status})`)
-          const payload = await response.json()
-          const batchItems = Array.isArray(payload?.items) ? payload.items : []
-          total = Number(payload?.total ?? 0)
-          batchItems.forEach((item: Record<string, unknown>) => {
-            const videoId = String(item?.video_id ?? '').trim()
-            if (videoId) collected.add(videoId)
-          })
-          offset += pageLimit
-          if (batchItems.length < pageLimit) break
-        } while (offset < total)
-        setPlaylistVideoIds(Array.from(collected))
-      } catch (loadError) {
-        console.error('Failed to load playlist video IDs for search insights', loadError)
-        setPlaylistVideoIds([])
-      }
-    }
-    loadPlaylistVideoIds()
-  }, [playlistId])
+  const playlistVideoIds = useMemo(() => {
+    return (allPlaylistItems || [])
+      .filter((item: any) => item.video_id)
+      .map((item: any) => item.video_id as string)
+  }, [allPlaylistItems])
 
   const discoveryMetricsData = useMemo<MetricItem[]>(() => {
     const viewsSeries = buildTrafficSeries(discoveryTrafficRows, 'views', range.start, range.end)

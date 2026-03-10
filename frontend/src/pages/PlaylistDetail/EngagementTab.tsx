@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '../../components/charts'
 import { PageCard } from '../../components/cards'
 import { formatWholeNumber } from '../../utils/number'
+import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { useSpikes } from '../../hooks/useSpikes'
 
 function formatDurationSeconds(seconds: number | null | undefined): string {
   const value = Number(seconds ?? 0)
@@ -25,11 +27,22 @@ type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string }
   granularity: Granularity
+  allPlaylistItems: any[]
 }
 
-export default function EngagementTab({ playlistId, range, previousRange, granularity }: Props) {
+export default function EngagementTab({ playlistId, range, previousRange, granularity, allPlaylistItems }: Props) {
   const [dailyData, setDailyData] = useState<VideoDailyData[]>([])
   const [previousDailyData, setPreviousDailyData] = useState<VideoDailyData[]>([])
+  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
+  const spikeTimeoutRef = useRef<number | null>(null)
+  const spikeHoverLockedRef = useRef(false)
+  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
+
+  const playlistVideoIds = useMemo(() => {
+    return (allPlaylistItems || [])
+      .filter((item: any) => item.video_id)
+      .map((item: any) => item.video_id as string)
+  }, [allPlaylistItems])
 
   useEffect(() => {
     async function loadData() {
@@ -40,10 +53,7 @@ export default function EngagementTab({ playlistId, range, previousRange, granul
       }
 
       try {
-        // Fetch all videos in the playlist
-        const itemsRes = await fetch(`http://localhost:8000/playlists/${playlistId}/items?page_size=500`)
-        const itemsData = await itemsRes.json()
-        const videoIds = (itemsData.items || []).map((item: any) => item.video_id).filter((id: string) => id)
+        const videoIds = playlistVideoIds
 
         if (videoIds.length === 0) {
           setDailyData([])
@@ -71,7 +81,10 @@ export default function EngagementTab({ playlistId, range, previousRange, granul
     }
 
     loadData()
-  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end])
+  }, [playlistId, range.start, range.end, previousRange.start, previousRange.end, playlistVideoIds])
+
+  const engagedViewsSpikes = useSpikes(range.start, range.end, 'engaged_views', granularity, hoverHandlers, playlistVideoIds)
+  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, playlistVideoIds)
 
   const currentEngagedViews = dailyData.reduce(
     (sum, item) => sum + (item.engaged_views ?? 0),
@@ -116,6 +129,7 @@ export default function EngagementTab({ playlistId, range, previousRange, granul
       ],
       comparisonAggregation: 'sum',
       seriesAggregation: 'sum',
+      spikeRegions: engagedViewsSpikes,
     },
     {
       key: 'subscribers_net',
@@ -145,6 +159,7 @@ export default function EngagementTab({ playlistId, range, previousRange, granul
       ],
       comparisonAggregation: 'sum',
       seriesAggregation: 'sum',
+      spikeRegions: subscribersSpikes,
     },
     {
       key: 'avg_duration',
@@ -176,15 +191,37 @@ export default function EngagementTab({ playlistId, range, previousRange, granul
       comparisonAggregation: 'avg',
       isDuration: true,
     },
-  ], [dailyData, previousDailyData])
+  ], [dailyData, previousDailyData, engagedViewsSpikes, subscribersSpikes])
 
   return (
     <div className="page-row">
-      <PageCard>
+      <PageCard style={{ position: 'relative' }}>
         <MetricChartCard
           data={metricsData}
           granularity={granularity}
           publishedDates={{}}
+        />
+        <UploadPublishTooltip
+          hover={hoverSpike}
+          titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+          statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+          onMouseEnter={() => {
+            if (spikeTimeoutRef.current) {
+              window.clearTimeout(spikeTimeoutRef.current)
+            }
+            spikeHoverLockedRef.current = true
+          }}
+          onMouseLeave={() => {
+            spikeHoverLockedRef.current = false
+            if (spikeTimeoutRef.current) {
+              window.clearTimeout(spikeTimeoutRef.current)
+            }
+            spikeTimeoutRef.current = window.setTimeout(() => {
+              if (!spikeHoverLockedRef.current) {
+                setHoverSpike(null)
+              }
+            }, 150)
+          }}
         />
       </PageCard>
     </div>

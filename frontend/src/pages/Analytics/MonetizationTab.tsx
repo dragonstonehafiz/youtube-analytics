@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { MetricChartCard, type MetricItem, type SeriesPoint, type Granularity } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { useSpikes } from '../../hooks/useSpikes'
 type MonetizationContentType = 'video' | 'short'
 type MonetizationMonthly = { monthKey: string; label: string; amount: number }
 type MonetizationTopItem = { video_id: string; title: string; thumbnail_url: string; revenue: number }
@@ -59,6 +61,15 @@ export default function MonetizationTab({ range, previousRange, granularity, con
   const [previousMonetizationSeries, setPreviousMonetizationSeries] = useState<Record<string, SeriesPoint[]>>(EMPTY_SERIES)
   const [monthlyEarnings, setMonthlyEarnings] = useState<MonetizationMonthly[]>([])
   const [contentPerformance, setContentPerformance] = useState<Record<MonetizationContentType, MonetizationPerformance>>(EMPTY_PERFORMANCE)
+  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
+  const spikeTimeoutRef = useRef<number | null>(null)
+  const spikeHoverLockedRef = useRef(false)
+  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
+
+  const emptyVideoIds = useMemo(() => [], [])
+  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, emptyVideoIds)
+  const adImpressionsSpikes = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, emptyVideoIds)
+  const monetizedPlaybacksSpikes = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, emptyVideoIds)
 
   useEffect(() => {
     async function loadMonetizationData() {
@@ -209,6 +220,7 @@ export default function MonetizationTab({ range, previousRange, granularity, con
         value: formatCurrency(monetizationTotals.estimated_revenue),
         series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue ?? [] }],
         previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue ?? [] }],
+        spikeRegions: revenueSpikes,
       },
       {
         key: 'ad_impressions',
@@ -216,6 +228,7 @@ export default function MonetizationTab({ range, previousRange, granularity, con
         value: formatWholeNumber(monetizationTotals.ad_impressions),
         series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions ?? [] }],
         previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions ?? [] }],
+        spikeRegions: adImpressionsSpikes,
       },
       {
         key: 'monetized_playbacks',
@@ -223,6 +236,7 @@ export default function MonetizationTab({ range, previousRange, granularity, con
         value: formatWholeNumber(monetizationTotals.monetized_playbacks),
         series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks ?? [] }],
         previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks ?? [] }],
+        spikeRegions: monetizedPlaybacksSpikes,
       },
       {
         key: 'cpm',
@@ -233,16 +247,38 @@ export default function MonetizationTab({ range, previousRange, granularity, con
         comparisonAggregation: 'avg',
       },
     ],
-    [monetizationTotals, monetizationSeries, previousMonetizationSeries]
+    [monetizationTotals, monetizationSeries, previousMonetizationSeries, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes]
   )
 
   return (
     <div className="analytics-monetization-layout">
-      <PageCard>
+      <PageCard style={{ position: 'relative' }}>
         <MetricChartCard
           data={metricsData}
           granularity={granularity}
           publishedDates={publishedDates}
+        />
+        <UploadPublishTooltip
+          hover={hoverSpike}
+          titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+          statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+          onMouseEnter={() => {
+            if (spikeTimeoutRef.current) {
+              window.clearTimeout(spikeTimeoutRef.current)
+            }
+            spikeHoverLockedRef.current = true
+          }}
+          onMouseLeave={() => {
+            spikeHoverLockedRef.current = false
+            if (spikeTimeoutRef.current) {
+              window.clearTimeout(spikeTimeoutRef.current)
+            }
+            spikeTimeoutRef.current = window.setTimeout(() => {
+              if (!spikeHoverLockedRef.current) {
+                setHoverSpike(null)
+              }
+            }, 150)
+          }}
         />
       </PageCard>
       <div className="analytics-monetization-cards-row">

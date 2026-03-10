@@ -43,6 +43,7 @@ function PlaylistDetail() {
   const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(getStored('playlistDetailTab', 'metrics'))
   const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
   const [years, setYears] = useState<string[]>([])
+  const [playlistItems, setPlaylistItems] = useState<any[]>([])
 
   useEffect(() => {
     fetchChannelYears().then(setYears).catch(() => {})
@@ -71,6 +72,25 @@ function PlaylistDetail() {
     }
 
     loadMeta()
+  }, [playlistId])
+
+  useEffect(() => {
+    async function loadPlaylistItems() {
+      if (!playlistId) {
+        setPlaylistItems([])
+        return
+      }
+      try {
+        const response = await fetch(`http://localhost:8000/playlists/${playlistId}/items?limit=1000&offset=0`)
+        if (response.ok) {
+          const data = await response.json()
+          setPlaylistItems(Array.isArray(data.items) ? data.items : [])
+        }
+      } catch {
+        setPlaylistItems([])
+      }
+    }
+    loadPlaylistItems()
   }, [playlistId])
 
   useEffect(() => {
@@ -200,6 +220,7 @@ function PlaylistDetail() {
             granularity={rangeValue.granularity}
             viewMode={viewMode}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+            allPlaylistItems={playlistItems}
           />
         ) : analyticsTab === 'engagement' && rangeValue ? (
           <EngagementTab
@@ -207,6 +228,7 @@ function PlaylistDetail() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
+            allPlaylistItems={playlistItems}
           />
         ) : analyticsTab === 'monetization' && rangeValue ? (
           <MonetizationTab
@@ -215,6 +237,7 @@ function PlaylistDetail() {
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+            allPlaylistItems={playlistItems}
           />
         ) : rangeValue ? (
           <DiscoveryTab
@@ -223,6 +246,7 @@ function PlaylistDetail() {
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
             onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
+            allPlaylistItems={playlistItems}
           />
         ) : null}
       </div>

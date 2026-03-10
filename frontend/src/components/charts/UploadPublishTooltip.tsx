@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-type PublishedItem = {
+export type UploadPublishTooltipItem = {
   video_id?: string
   title: string
   published_at: string
@@ -13,7 +13,7 @@ type PublishedItem = {
 export type UploadHoverState = {
   x: number
   y: number
-  items: PublishedItem[]
+  items: UploadPublishTooltipItem[]
   key: string
   startDate: string
   endDate: string

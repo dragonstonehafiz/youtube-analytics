@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatDecimalNumber, formatWholeNumber } from '../../utils/number'
 import { useHideMonetaryValues } from '../../hooks/usePrivacyMode'
 import UploadPublishMarkers, { type ClusteredPublishMarker } from './UploadPublishMarkers'
-import UploadPublishTooltip, { type UploadHoverState } from './UploadPublishTooltip'
+import UploadPublishTooltip, { type UploadHoverState, type UploadPublishTooltipItem } from './UploadPublishTooltip'
 import './MetricChartCard.css'
 
 export type Granularity = 'daily' | '7d' | '28d' | '90d' | 'monthly' | 'yearly'
@@ -28,9 +28,18 @@ export type MetricItem = {
   comparisonAggregation?: 'sum' | 'avg'
   seriesAggregation?: 'sum' | 'avg' | 'last'
   isDuration?: boolean
+  spikeRegions?: SpikeRegion[]
 }
 
-export type PublishedItem = { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }
+export type SpikeRegion = {
+  start_date: string
+  end_date: string
+  items: UploadPublishTooltipItem[]
+  onMouseEnter: (x: number, y: number) => void
+  onMouseLeave: () => void
+}
+
+export type SpikeContributor = { date: string; video_id: string; title: string; thumbnail_url: string; content_type: string; views: number }
 
 type BucketMeta = { startDate: string; endDate: string; dayCount: number }
 
@@ -242,6 +251,7 @@ function MetricChartCard({
 
   const hideMonetaryValues = useHideMonetaryValues()
   const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
+  const spikeRegions = data.find(m => m.key === activeMetric)?.spikeRegions ?? []
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [hoverPublish, setHoverPublish] = useState<UploadHoverState | null>(null)
   const [hoverLocked, setHoverLocked] = useState(false)
@@ -453,6 +463,33 @@ function MetricChartCard({
     }
     return markers
   }, [showYearMarkers, displayDates])
+
+  const computedSpikeRects = useMemo(() => {
+    if (!spikeRegions.length || displayDates.length === 0) return []
+
+    // Map region dates to displayDate indices
+    return spikeRegions.map((region) => {
+      const startIndex = (() => {
+        let closest = 0
+        for (let i = 0; i < displayDates.length; i++) {
+          if (displayDates[i] >= region.start_date) return i
+          closest = i
+        }
+        return closest
+      })()
+      const endIndex = (() => {
+        for (let i = displayDates.length - 1; i >= 0; i--) {
+          if (displayDates[i] <= region.end_date) return i
+        }
+        return 0
+      })()
+      const minEndIndex = Math.max(endIndex, Math.min(startIndex + 1, displayDates.length - 1))
+      const x1 = xScale(startIndex)
+      const x2 = xScale(minEndIndex)
+      const centerX = (x1 + x2) / 2
+      return { region, x1, x2, centerX }
+    })
+  }, [spikeRegions, displayDates, xScale])
 
   const rebucketedPublished = useMemo(() => {
     const rebucketed: Record<string, PublishedItem[]> = {}
@@ -836,6 +873,24 @@ function MetricChartCard({
               }, 150)
             }}
           />
+          {computedSpikeRects.map(({ region, x1, x2, centerX }) => (
+            <rect
+              key={`spike-${region.start_date}-${region.end_date}`}
+              x={x1}
+              y={padding.top}
+              width={Math.max(x2 - x1, 2)}
+              height={innerHeight}
+              fill="rgba(251, 146, 60, 0.12)"
+              stroke="rgba(251, 146, 60, 0.35)"
+              strokeWidth="1"
+              style={{ cursor: 'default', pointerEvents: 'auto' }}
+              onMouseEnter={() => {
+                const wrapEl = chartWrapRef.current
+                region.onMouseEnter(centerX + (wrapEl?.offsetLeft ?? 0), padding.top + innerHeight + (wrapEl?.offsetTop ?? 0))
+              }}
+              onMouseLeave={() => region.onMouseLeave()}
+            />
+          ))}
         </svg>
         {!isMulti && activeDay && activeX !== null && activeY !== null ? (
           <div

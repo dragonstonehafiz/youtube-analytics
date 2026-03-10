@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard, type VideoDetailListItem } from '../../components/cards'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { useSpikes } from '../../hooks/useSpikes'
 type PlaylistDailyRow = {
   day: string
   views: number | null
@@ -26,9 +28,10 @@ type Props = {
   previousRange: { start: string; end: string }
   granularity: Granularity
   onOpenVideo: (videoId: string) => void
+  allPlaylistItems: any[]
 }
 
-export default function MonetizationTab({ playlistId, range, previousRange, granularity, onOpenVideo }: Props) {
+export default function MonetizationTab({ playlistId, range, previousRange, granularity, onOpenVideo, allPlaylistItems }: Props) {
   const [videoDailyRows, setVideoDailyRows] = useState<PlaylistDailyRow[]>([])
   const [previousVideoDailyRows, setPreviousVideoDailyRows] = useState<PlaylistDailyRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -43,9 +46,23 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
   const [errorItems, setErrorItems] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
+  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
+  const spikeTimeoutRef = useRef<number | null>(null)
+  const spikeHoverLockedRef = useRef(false)
+  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
   const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total: itemsTotal, defaultPageSize: 10 })
 
   useEffect(() => { setPage(1) }, [sortBy, direction, setPage])
+
+  const playlistVideoIds = useMemo(() => {
+    return (allPlaylistItems || [])
+      .filter((item: any) => item.video_id)
+      .map((item: any) => item.video_id as string)
+  }, [allPlaylistItems])
+
+  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, playlistVideoIds)
+  const adImpressionsSpikes = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, playlistVideoIds)
+  const monetizedPlaybacksSpikes = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, playlistVideoIds)
 
   useEffect(() => {
     async function loadItems() {
@@ -255,6 +272,7 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
         value: formatCurrency(monetizationTotals.estimated_revenue),
         series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: monetizationSeries.estimated_revenue ?? [] }],
         previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: previousMonetizationSeries.estimated_revenue ?? [] }],
+        spikeRegions: revenueSpikes,
       },
       {
         key: 'ad_impressions',
@@ -262,6 +280,7 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
         value: formatWholeNumber(monetizationTotals.ad_impressions),
         series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: monetizationSeries.ad_impressions ?? [] }],
         previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: previousMonetizationSeries.ad_impressions ?? [] }],
+        spikeRegions: adImpressionsSpikes,
       },
       {
         key: 'monetized_playbacks',
@@ -269,6 +288,7 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
         value: formatWholeNumber(monetizationTotals.monetized_playbacks),
         series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: monetizationSeries.monetized_playbacks ?? [] }],
         previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: previousMonetizationSeries.monetized_playbacks ?? [] }],
+        spikeRegions: monetizedPlaybacksSpikes,
       },
       {
         key: 'cpm',
@@ -279,23 +299,47 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
         comparisonAggregation: 'avg',
       },
     ],
-    [monetizationTotals, monetizationSeries, previousMonetizationSeries]
+    [monetizationTotals, monetizationSeries, previousMonetizationSeries, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes]
   )
 
   return (
     <>
       <div className="page-row">
-        <PageCard>
+        <PageCard style={{ position: 'relative' }}>
           {loading ? (
             <div className="video-detail-state">Loading playlist analytics...</div>
           ) : error ? (
             <div className="video-detail-state">{error}</div>
           ) : (
-            <MetricChartCard
-              data={metricsData}
-              granularity={granularity}
-              publishedDates={publishedDates}
-            />
+            <>
+              <MetricChartCard
+                data={metricsData}
+                granularity={granularity}
+                publishedDates={publishedDates}
+              />
+              <UploadPublishTooltip
+                hover={hoverSpike}
+                titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+                statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+                onMouseEnter={() => {
+                  if (spikeTimeoutRef.current) {
+                    window.clearTimeout(spikeTimeoutRef.current)
+                  }
+                  spikeHoverLockedRef.current = true
+                }}
+                onMouseLeave={() => {
+                  spikeHoverLockedRef.current = false
+                  if (spikeTimeoutRef.current) {
+                    window.clearTimeout(spikeTimeoutRef.current)
+                  }
+                  spikeTimeoutRef.current = window.setTimeout(() => {
+                    if (!spikeHoverLockedRef.current) {
+                      setHoverSpike(null)
+                    }
+                  }, 150)
+                }}
+              />
+            </>
           )}
         </PageCard>
       </div>

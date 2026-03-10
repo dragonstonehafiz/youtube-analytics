@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { MetricChartCard, type Granularity, type SeriesPoint, type MetricItem, type PublishedItem } from '../../components/charts'
 import { PageCard, VideoDetailListCard } from '../../components/cards'
 import { TopContentTable } from '../../components/tables'
 import { formatDisplayDate } from '../../utils/date'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { useSpikes } from '../../hooks/useSpikes'
 
 type TotalsState = {
   views: number
@@ -73,6 +75,16 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
   const [topContent, setTopContent] = useState<TopContentRow[]>([])
   const [latestLongform, setLatestLongform] = useState<LatestContentItem[]>([])
   const [latestShorts, setLatestShorts] = useState<LatestContentItem[]>([])
+  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
+  const spikeTimeoutRef = useRef<number | null>(null)
+  const spikeHoverLockedRef = useRef(false)
+  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
+  const emptyVideoIds = useMemo(() => [], [])
+
+  const viewsSpikes = useSpikes(range.start, range.end, 'views', granularity, hoverHandlers, emptyVideoIds)
+  const watchTimeSpikes = useSpikes(range.start, range.end, 'watch_time_minutes', granularity, hoverHandlers, emptyVideoIds)
+  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, emptyVideoIds)
+  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, emptyVideoIds)
 
   useEffect(() => {
     async function loadSummary() {
@@ -210,6 +222,7 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
         value: formatWholeNumber(totals.views),
         series: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views ?? [] }],
         previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views ?? [] }],
+        spikeRegions: viewsSpikes,
       },
       {
         key: 'watch_time',
@@ -217,6 +230,7 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
         value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
         series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time ?? [] }],
         previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time ?? [] }],
+        spikeRegions: watchTimeSpikes,
       },
       {
         key: 'subscribers',
@@ -224,6 +238,7 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
         value: formatWholeNumber(totals.subscribers_net ?? 0),
         series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers ?? [] }],
         previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers ?? [] }],
+        spikeRegions: subscribersSpikes,
       },
       {
         key: 'revenue',
@@ -231,19 +246,42 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
         value: formatCurrency(totals.estimated_revenue),
         series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: series.revenue ?? [] }],
         previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue ?? [] }],
+        spikeRegions: revenueSpikes,
       },
     ],
-    [totals, series, previousSeries]
+    [totals, series, previousSeries, viewsSpikes, watchTimeSpikes, subscribersSpikes, revenueSpikes]
   )
 
   return (
     <div className="analytics-main-layout">
       <div className="analytics-main-column">
-        <PageCard>
+        <PageCard style={{ position: 'relative' }}>
           <MetricChartCard
             data={metricsData}
             granularity={granularity}
             publishedDates={publishedDates}
+          />
+          <UploadPublishTooltip
+            hover={hoverSpike}
+            titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+            statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+            onMouseEnter={() => {
+              if (spikeTimeoutRef.current) {
+                window.clearTimeout(spikeTimeoutRef.current)
+              }
+              spikeHoverLockedRef.current = true
+            }}
+            onMouseLeave={() => {
+              spikeHoverLockedRef.current = false
+              if (spikeTimeoutRef.current) {
+                window.clearTimeout(spikeTimeoutRef.current)
+              }
+              spikeTimeoutRef.current = window.setTimeout(() => {
+                if (!spikeHoverLockedRef.current) {
+                  setHoverSpike(null)
+                }
+              }, 150)
+            }}
           />
         </PageCard>
         <PageCard>

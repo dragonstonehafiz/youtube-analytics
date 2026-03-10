@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
 import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '../../components/cards'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
+import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { useSpikes } from '../../hooks/useSpikes'
 type PlaylistDailyRow = {
   day: string
   views: number | null
@@ -33,9 +35,10 @@ type Props = {
   granularity: Granularity
   viewMode: 'playlist_views' | 'video_views'
   onOpenVideo: (videoId: string) => void
+  allPlaylistItems: any[]
 }
 
-export default function MetricsTab({ playlistId, range, previousRange, granularity, viewMode, onOpenVideo }: Props) {
+export default function MetricsTab({ playlistId, range, previousRange, granularity, viewMode, onOpenVideo, allPlaylistItems }: Props) {
   const [playlistDailyRows, setPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
   const [videoDailyRows, setVideoDailyRows] = useState<PlaylistDailyRow[]>([])
   const [previousPlaylistDailyRows, setPreviousPlaylistDailyRows] = useState<PlaylistDailyRow[]>([])
@@ -53,6 +56,10 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
   const [errorItems, setErrorItems] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
   const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
+  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
+  const spikeTimeoutRef = useRef<number | null>(null)
+  const spikeHoverLockedRef = useRef(false)
+  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
   const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total: itemsTotal, defaultPageSize: 10 })
 
   useEffect(() => { setPage(1) }, [sortBy, direction, setPage])
@@ -78,6 +85,17 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
     }
     loadItems()
   }, [playlistId, page, pageSize, sortBy, direction])
+
+  const playlistVideoIds = useMemo(() => {
+    return (allPlaylistItems || [])
+      .filter((item) => item.video_id)
+      .map((item) => item.video_id as string)
+  }, [allPlaylistItems])
+
+  const viewsSpikes = useSpikes(range.start, range.end, 'views', granularity, hoverHandlers, playlistVideoIds)
+  const watchTimeSpikes = useSpikes(range.start, range.end, 'watch_time_minutes', granularity, hoverHandlers, playlistVideoIds)
+  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, playlistVideoIds)
+  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, playlistVideoIds)
 
   const toggleSort = (key: PlaylistItemSortKey) => {
     if (sortBy === key) { setDirection((prev) => (prev === 'asc' ? 'desc' : 'asc')); return }
@@ -277,6 +295,7 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
         value: formatWholeNumber(totals.views),
         series: [{ key: 'views', label: '', color: '#0ea5e9', points: series.views }],
         previousSeries: [{ key: 'views', label: '', color: '#0ea5e9', points: previousSeries.views }],
+        spikeRegions: viewsSpikes,
       },
       {
         key: 'watch_time',
@@ -284,6 +303,7 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
         value: formatWholeNumber(Math.round(totals.watch_time_minutes / 60)),
         series: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: series.watch_time }],
         previousSeries: [{ key: 'watch_time', label: '', color: '#0ea5e9', points: previousSeries.watch_time }],
+        spikeRegions: watchTimeSpikes,
       },
       {
         key: 'subscribers',
@@ -291,6 +311,7 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
         value: formatWholeNumber(totals.subscribers_net),
         series: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: series.subscribers }],
         previousSeries: [{ key: 'subscribers', label: '', color: '#0ea5e9', points: previousSeries.subscribers }],
+        spikeRegions: subscribersSpikes,
       },
       {
         key: 'revenue',
@@ -300,24 +321,49 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
         previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousSeries.revenue }],
         comparisonAggregation: viewMode === 'playlist_views' ? 'avg' : undefined,
         isDuration: isDuration('revenue'),
+        spikeRegions: revenueSpikes,
       },
     ]
-  }, [totals, series, previousSeries, viewMode])
+  }, [totals, series, previousSeries, viewMode, viewsSpikes, watchTimeSpikes, subscribersSpikes, revenueSpikes])
 
   return (
     <>
       <div className="page-row">
-        <PageCard>
+        <PageCard style={{ position: 'relative' }}>
           {loading ? (
             <div className="video-detail-state">Loading playlist analytics...</div>
           ) : error ? (
             <div className="video-detail-state">{error}</div>
           ) : (
-            <MetricChartCard
-              data={metricsData}
-              granularity={granularity}
-              publishedDates={publishedDates}
-            />
+            <>
+              <MetricChartCard
+                data={metricsData}
+                granularity={granularity}
+                publishedDates={publishedDates}
+              />
+              <UploadPublishTooltip
+                hover={hoverSpike}
+                titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+                statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+                onMouseEnter={() => {
+                  if (spikeTimeoutRef.current) {
+                    window.clearTimeout(spikeTimeoutRef.current)
+                  }
+                  spikeHoverLockedRef.current = true
+                }}
+                onMouseLeave={() => {
+                  spikeHoverLockedRef.current = false
+                  if (spikeTimeoutRef.current) {
+                    window.clearTimeout(spikeTimeoutRef.current)
+                  }
+                  spikeTimeoutRef.current = window.setTimeout(() => {
+                    if (!spikeHoverLockedRef.current) {
+                      setHoverSpike(null)
+                    }
+                  }, 150)
+                }}
+              />
+            </>
           )}
         </PageCard>
       </div>

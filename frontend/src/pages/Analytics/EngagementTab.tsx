@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { MetricChartCard, type PublishedItem, type MetricItem, type Granularity } from '../../components/charts'
 import { PageCard } from '../../components/cards'
 import { formatWholeNumber } from '../../utils/number'
+import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
+import { useSpikes } from '../../hooks/useSpikes'
 
 function formatDurationSeconds(seconds: number | null | undefined): string {
   const value = Number(seconds ?? 0)
@@ -32,6 +34,14 @@ type Props = {
 export default function EngagementTab({ range, previousRange, granularity, contentType, onOpenVideo, publishedDates }: Props) {
   const [dailyData, setDailyData] = useState<ChannelDailyData[]>([])
   const [previousDailyData, setPreviousDailyData] = useState<ChannelDailyData[]>([])
+  const [hoverSpike, setHoverSpike] = useState<UploadHoverState | null>(null)
+  const spikeTimeoutRef = useRef<number | null>(null)
+  const spikeHoverLockedRef = useRef(false)
+  const hoverHandlers = useMemo(() => ({ setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef }), [])
+
+  const emptyVideoIds = useMemo(() => [], [])
+  const engagedViewsSpikes = useSpikes(range.start, range.end, 'engaged_views', granularity, hoverHandlers, emptyVideoIds)
+  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, emptyVideoIds)
 
   useEffect(() => {
     async function loadData() {
@@ -127,6 +137,7 @@ export default function EngagementTab({ range, previousRange, granularity, conte
       ],
       comparisonAggregation: 'sum',
       seriesAggregation: 'sum',
+      spikeRegions: engagedViewsSpikes,
     },
     {
       key: 'subscribers_net',
@@ -156,6 +167,7 @@ export default function EngagementTab({ range, previousRange, granularity, conte
       ],
       comparisonAggregation: 'sum',
       seriesAggregation: 'sum',
+      spikeRegions: subscribersSpikes,
     },
     {
       key: 'avg_duration',
@@ -187,15 +199,37 @@ export default function EngagementTab({ range, previousRange, granularity, conte
       comparisonAggregation: 'avg',
       isDuration: true,
     },
-  ], [dailyData, previousDailyData])
+  ], [dailyData, previousDailyData, engagedViewsSpikes, subscribersSpikes])
 
   return (
     <div className="page-row">
-      <PageCard>
+      <PageCard style={{ position: 'relative' }}>
         <MetricChartCard
           data={metricsData}
           granularity={granularity}
           publishedDates={publishedDates}
+        />
+        <UploadPublishTooltip
+          hover={hoverSpike}
+          titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+          statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+          onMouseEnter={() => {
+            if (spikeTimeoutRef.current) {
+              window.clearTimeout(spikeTimeoutRef.current)
+            }
+            spikeHoverLockedRef.current = true
+          }}
+          onMouseLeave={() => {
+            spikeHoverLockedRef.current = false
+            if (spikeTimeoutRef.current) {
+              window.clearTimeout(spikeTimeoutRef.current)
+            }
+            spikeTimeoutRef.current = window.setTimeout(() => {
+              if (!spikeHoverLockedRef.current) {
+                setHoverSpike(null)
+              }
+            }, 150)
+          }}
         />
       </PageCard>
     </div>
