@@ -113,53 +113,12 @@ def fetch_video_details(video_ids: list[str]) -> tuple[list[dict], int]:
     return response.get("items", []), 1
 
 
-def get_all_videos_by_search(channel_id: str) -> tuple[list[dict], int]:
-    """Fetch all videos from a channel using Search API (handles channels with broken uploads playlist).
-
-    Args:
-        channel_id: The YouTube channel ID
-
-    Returns:
-        Tuple of (videos list, total api_calls made)
-    """
-    api_calls = 0
-    youtube = get_youtube_client()
-    page_token = None
-    video_ids: list[str] = []
-
-    # Search for all videos from this channel
-    while True:
-        response = youtube.search().list(
-            part="id",
-            channelId=channel_id,
-            type="video",
-            maxResults=50,
-            pageToken=page_token,
-            order="date"
-        ).execute()
-        api_calls += 1
-        for item in response.get("items", []):
-            video_id = item["id"]["videoId"]
-            video_ids.append(video_id)
-        page_token = response.get("nextPageToken")
-        if not page_token:
-            break
-
-    # Fetch full details for all videos in batches
-    videos: list[dict] = []
-    for i in range(0, len(video_ids), 50):
-        batch = video_ids[i : i + 50]
-        batch_videos, batch_calls = fetch_video_details(batch)
-        videos.extend(batch_videos)
-        api_calls += batch_calls
-    return videos, api_calls
-
-
-def get_all_videos(uploads_playlist_id: str) -> tuple[list[dict], int]:
+def get_all_videos(uploads_playlist_id: str, on_batch: callable = None) -> tuple[list[dict], int]:
     """Return full metadata for all uploaded videos and API call count.
 
     Args:
         uploads_playlist_id: The uploads playlist ID for a channel
+        on_batch: Optional callback(videos, api_calls) called after each batch is fetched
 
     Returns:
         Tuple of (videos list, total api_calls made)
@@ -190,6 +149,8 @@ def get_all_videos(uploads_playlist_id: str) -> tuple[list[dict], int]:
         batch_videos, batch_calls = fetch_video_details(batch)
         videos.extend(batch_videos)
         api_calls += batch_calls
+        if on_batch:
+            on_batch(batch_videos)
     return videos, api_calls
 
 

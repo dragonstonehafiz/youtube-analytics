@@ -46,10 +46,9 @@ from src.youtube.subscribers import extract_public_subscribers
 from src.youtube.videos import (
     fetch_video_details,
     get_short_video_ids,
-    get_all_videos,
-    get_all_videos_by_search,
     get_uploads_playlist_id,
     get_channel_uploads_playlist_id,
+    get_all_videos,
 )
 from src.utils.logger import get_logger
 from config import settings
@@ -127,31 +126,33 @@ def find_next_month_sync_date(latest_date: str | None, fallback_start: str) -> s
 
 def sync_videos() -> None:
     """Sync all video metadata into the database."""
-    sync_progress.set_total(2)
-    sync_progress.set_current(0)
-    sync_progress.format_message("Pulling videos [{current}/{total}] 1/2: loading uploads")
+    sync_progress.set_total(3)
     sync_progress.raise_if_stop_requested("Stop requested.")
     try:
         api_calls = 1  # For get_uploads_playlist_id
+        sync_progress.set_current(0)
+        sync_progress.format_message("Pulling videos [{current}/{total}] 0/3: loading uploads")
         uploads_playlist_id = get_uploads_playlist_id()
-        videos, fetch_api_calls = get_all_videos(uploads_playlist_id)
-        sync_progress.increment_api_calls(api_calls + fetch_api_calls)
+        sync_progress.increment_api_calls(api_calls)
+
+        # Fetch shorts upfront so we know which videos are shorts
+        sync_progress.set_current(1)
+        sync_progress.format_message("Pulling videos [{current}/{total}] 1/3: finding all shorts")
+        short_video_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
+        sync_progress.increment_api_calls(fetch_api_calls)
+
+        # Callback to upsert each batch with shorts info
+        def on_batch(batch_videos):
+            upsert_videos(batch_videos, short_video_ids=short_video_ids)
+
+        sync_progress.set_current(2)
+        sync_progress.format_message("Pulling videos [{current}/{total}] 2/3: finding all videos and details")
+
+        videos, fetch_api_calls = get_all_videos(uploads_playlist_id, on_batch=on_batch)
+        sync_progress.increment_api_calls(fetch_api_calls)
     except HttpError as exc:
         raise RuntimeError(f"YouTube API error: {exc}") from exc
     sync_progress.increment()
-
-    sync_progress.format_message("Pulling videos [{current}/{total}] 2/2: loading shorts IDs")
-    sync_progress.raise_if_stop_requested("Stop requested.")
-    try:
-        api_calls = 1  # For get_uploads_playlist_id
-        uploads_playlist_id = get_uploads_playlist_id()
-        short_video_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
-        sync_progress.increment_api_calls(api_calls + fetch_api_calls)
-    except HttpError:
-        short_video_ids = set()
-    upsert_videos(videos, short_video_ids=short_video_ids)
-    sync_progress.set_current(2)
-    sync_progress.format_message("Pulling videos [{current}/{total}] complete")
 
 
 def sync_competitors() -> None:
@@ -197,7 +198,6 @@ def sync_competitors() -> None:
         sync_progress.set_total(competitor_count)
         sync_progress.set_current(0)
 
-        all_videos = []
         all_short_ids: set[str] = set()
 
         for name, channel_id in enabled_competitors:
@@ -205,41 +205,47 @@ def sync_competitors() -> None:
             sync_progress.format_message("Syncing competitors [{current}/{total}] {detail}", detail=name)
 
             try:
-                # Fetch videos using search API
-                videos, fetch_api_calls = get_all_videos_by_search(channel_id)
-                all_videos.extend(videos)
-                sync_progress.increment_api_calls(fetch_api_calls)
-
-                # Fetch shorts
+                # Get uploads playlist ID
                 uploads_playlist_id = get_channel_uploads_playlist_id(channel_id)
+                sync_progress.increment_api_calls(1)
+
+                # Fetch shorts upfront
                 short_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
                 all_short_ids.update(short_ids)
                 sync_progress.increment_api_calls(fetch_api_calls)
 
-                # Fetch shorts
-                api_calls = 1
-                short_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
-                all_short_ids.update(short_ids)
-                sync_progress.increment_api_calls(api_calls + fetch_api_calls)
+                # Callback to upsert each batch with shorts info
+                def on_batch(batch_videos):
+                    upsert_competitor_videos(batch_videos, short_video_ids=short_ids)
+
+                # Fetch videos (upserts happen in callback)
+                videos, fetch_api_calls = get_all_videos(uploads_playlist_id, on_batch=on_batch)
+                sync_progress.increment_api_calls(fetch_api_calls)
             except HttpError as exc:
                 raise RuntimeError(f"YouTube API error for channel {name} ({channel_id}): {exc}") from exc
 
             sync_progress.increment()
 
-        upsert_competitor_videos(all_videos, short_video_ids=all_short_ids)
         sync_progress.format_message("Syncing competitors [{current}/{total}] complete")
 
-        # Update row counts in config
+        # Update row counts and channel name in config
         with get_connection() as conn:
             for name, channel_id in enabled_competitors:
                 row_count = conn.execute(
                     "SELECT COUNT(*) FROM videos_competitors WHERE channel_id = ?",
                     (channel_id,)
                 ).fetchone()[0]
-                # Find the config entry for this competitor and update row count
+                # Get the channel_title from one of the videos
+                channel_title_row = conn.execute(
+                    "SELECT channel_title FROM videos_competitors WHERE channel_id = ? LIMIT 1",
+                    (channel_id,)
+                ).fetchone()
+                channel_title = channel_title_row["channel_title"] if channel_title_row else name
+                # Find the config entry for this competitor and update row count and label
                 for key, config in competitors_config.items():
                     if isinstance(config, dict) and config.get("channel_id") == channel_id:
                         config["row_count"] = row_count
+                        config["label"] = channel_title
                         break
 
         # Save updated config back to file

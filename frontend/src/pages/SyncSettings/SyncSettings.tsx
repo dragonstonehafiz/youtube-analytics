@@ -705,10 +705,20 @@ function SyncSettings() {
     }))
   }
 
-  const removeCompetitor = (index: number) => {
+  const removeCompetitor = async (index: number) => {
     const entries = Object.entries(competitorsConfig)
     if (index < 0 || index >= entries.length) return
-    const [key] = entries[index]
+    const [key, config] = entries[index]
+    const channel_id = (config as any).channel_id
+
+    // Delete videos for this competitor from database
+    try {
+      await fetch(`http://localhost:8000/competitors/${channel_id}`, { method: 'DELETE' })
+    } catch (error) {
+      console.error('Failed to delete competitor videos', error)
+    }
+
+    // Remove from config
     setCompetitorsConfig((prev) => {
       const updated = { ...prev }
       delete updated[key]

@@ -12,6 +12,7 @@ import PlaylistDetail from './pages/PlaylistDetail'
 import Playlists from './pages/Playlists'
 import SyncSettings from './pages/SyncSettings'
 import VideoDetail from './pages/VideoDetail'
+import Competitors from './pages/Competitors'
 import Videos from './pages/Videos'
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/videos" element={<Videos />} />
+          <Route path="/competitors" element={<Competitors />} />
           <Route path="/playlists" element={<Playlists />} />
           <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />
           <Route path="/comments" element={<Comments />} />

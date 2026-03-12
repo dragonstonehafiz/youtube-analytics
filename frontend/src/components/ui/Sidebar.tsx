@@ -47,6 +47,10 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           <VideosIcon className="nav-icon" />
           <span className="nav-label">Videos</span>
         </NavLink>
+        <NavLink to="/competitors">
+          <VideosIcon className="nav-icon" />
+          <span className="nav-label">Competitors</span>
+        </NavLink>
         <NavLink to="/playlists">
           <PlaylistIcon className="nav-icon" />
           <span className="nav-label">Playlists</span>
