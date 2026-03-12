@@ -203,51 +203,58 @@ function CompetitorsSyncTab({
           variant={isSyncActive ? 'danger' : 'primary'}
         />
       </div>
-      <div className="sync-controls">
-        <div className="sync-stage-table">
+      <table className="sync-table">
+        <thead>
+          <tr>
+            <th style={{ width: 200 }}>Channel Name</th>
+            <th style={{ width: 200 }}>Channel ID</th>
+            <th style={{ width: 120 }}>Row Count</th>
+            <th style={{ width: 60 }}>Include</th>
+            <th style={{ width: 60 }}></th>
+          </tr>
+        </thead>
+        <tbody>
           {Object.entries(competitorsConfig).map(([key, config], index) => (
-            <div key={key} className="sync-stage-row" style={{ gap: '12px' }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, minWidth: 0 }}>
+            <tr key={key}>
+              <td>
                 <TextInput
                   value={config.label}
                   onChange={(v) => updateCompetitor(index, 'label', v)}
                   placeholder="Channel name"
                   disableNewlines
-                  width="150px"
+                  width="100%"
                   height="36px"
                 />
+              </td>
+              <td>
                 <TextInput
                   value={config.channel_id}
                   onChange={(v) => updateCompetitor(index, 'channel_id', v)}
                   placeholder="Channel ID"
                   disableNewlines
-                  width="200px"
+                  width="100%"
                   height="36px"
                 />
-                <span style={{ fontSize: '12px', color: 'var(--color-muted)', minWidth: '60px' }}>
-                  {formatWholeNumber(config.row_count || 0)} rows
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginLeft: 'auto' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
-                  <input
-                    type="checkbox"
-                    checked={config.enabled}
-                    onChange={(e) => updateCompetitor(index, 'enabled', e.target.checked)}
-                  />
-                  Include
-                </label>
+              </td>
+              <td className="sync-row-count">{formatWholeNumber(config.row_count || 0)} rows</td>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={config.enabled}
+                  onChange={(e) => updateCompetitor(index, 'enabled', e.target.checked)}
+                />
+              </td>
+              <td>
                 <ActionButton
-                  label="-"
+                  label="Delete"
                   onClick={() => removeCompetitor(index)}
                   variant="danger"
-                  style={{ minWidth: '44px', padding: '0' }}
                 />
-              </div>
-            </div>
+              </td>
+            </tr>
           ))}
-        </div>
-      </div>
+        </tbody>
+      </table>
       <div className="sync-estimate-section">
         {apiCallsLoading ? (
           <div className="sync-estimate-meta">Loading...</div>

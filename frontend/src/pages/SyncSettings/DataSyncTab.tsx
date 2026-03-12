@@ -155,39 +155,42 @@ function DataSyncTab({
           variant={isSyncActive ? 'danger' : 'primary'}
         />
       </div>
-      <div className="sync-controls">
-        <div className="sync-stage-table">
+      <table className="sync-table">
+        <thead>
+          <tr>
+            <th style={{ width: 120 }}>Table Name</th>
+            <th style={{ width: 120 }}>Row Count</th>
+            <th style={{ width: 60 }}>Include</th>
+            <th style={{ width: 60 }}></th>
+          </tr>
+        </thead>
+        <tbody>
           {DATA_PULL_OPTIONS.map((opt) => {
             const cfg = dataPullConfigs[opt.value]
             return (
-              <div key={opt.value} className="sync-stage-row">
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <span className="sync-stage-label">{opt.label}</span>
-                  <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
-                    {formatWholeNumber(tableRowCounts[opt.value] || 0)} rows
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginLeft: 'auto' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
-                    <input
-                      type="checkbox"
-                      checked={cfg.included}
-                      onChange={() => toggleDataConfig(opt.value, 'included')}
-                    />
-                    Include
-                  </label>
+              <tr key={opt.value}>
+                <td className="sync-stage-label">{opt.label}</td>
+                <td className="sync-row-count">{formatWholeNumber(tableRowCounts[opt.value] || 0)} rows</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={cfg.included}
+                    onChange={() => toggleDataConfig(opt.value, 'included')}
+                  />
+                </td>
+                <td>
                   <ActionButton
-                    label={resettingTableName === opt.value ? 'Resetting...' : 'Reset'}
+                    label={resettingTableName === opt.value ? 'Deleting...' : 'Delete'}
                     onClick={() => onResetTable(opt.value)}
                     disabled={resettingTableName === opt.value}
                     variant="danger"
                   />
-                </div>
-              </div>
+                </td>
+              </tr>
             )
           })}
-        </div>
-      </div>
+        </tbody>
+      </table>
       <div className="sync-estimate-section">
         {apiCallsLoading ? (
           <div className="sync-estimate-meta">Loading...</div>

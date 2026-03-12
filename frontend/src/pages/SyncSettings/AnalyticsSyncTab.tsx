@@ -259,20 +259,26 @@ function AnalyticsSyncTab({
           variant={isSyncActive ? 'danger' : 'primary'}
         />
       </div>
-      <div className="sync-controls">
-        <div className="sync-stage-table">
+      <table className="sync-table">
+        <thead>
+          <tr>
+            <th style={{ width: 120 }}>Table Name</th>
+            <th style={{ width: 120 }}>Row Count</th>
+            <th style={{ width: 400 }}>Period</th>
+            <th style={{ width: 60 }}>Include</th>
+            <th style={{ width: 60 }}>Deep Sync</th>
+            <th style={{ width: 60 }}></th>
+          </tr>
+        </thead>
+        <tbody>
           {ANALYTICS_PULL_OPTIONS.map((opt) => {
             const cfg = analyticsPullConfigs[opt.value]
             const tableName = getTableNameFromOption(opt.value)
             return (
-              <div key={opt.value} className="sync-stage-row">
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <span className="sync-stage-label">{opt.label}</span>
-                  <span style={{ fontSize: '12px', color: 'var(--color-muted)' }}>
-                    {formatWholeNumber(tableRowCounts[tableName] || 0)} rows
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginLeft: 'auto' }}>
+              <tr key={opt.value}>
+                <td className="sync-stage-label">{opt.label}</td>
+                <td className="sync-row-count">{formatWholeNumber(tableRowCounts[tableName] || 0)} rows</td>
+                <td>
                   {cfg.included ? (
                     <div className="sync-stage-date-controls">
                       <Dropdown
@@ -285,13 +291,13 @@ function AnalyticsSyncTab({
                           { type: 'option' as const, label: 'Custom range', value: 'custom' },
                         ]}
                       />
-                      {cfg.rangeMode === 'year' ? (
+                      {cfg.rangeMode === 'year' && (
                         <YearInput
                           value={cfg.year}
                           onChange={(v) => setAnalyticsDateField(opt.value, 'year', v)}
                         />
-                      ) : null}
-                      {cfg.rangeMode === 'custom' ? (
+                      )}
+                      {cfg.rangeMode === 'custom' && (
                         <DateRangePicker
                           startDate={cfg.startDate}
                           endDate={cfg.endDate}
@@ -300,38 +306,38 @@ function AnalyticsSyncTab({
                             setAnalyticsDateField(opt.value, 'endDate', end)
                           }}
                         />
-                      ) : null}
+                      )}
                     </div>
                   ) : null}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
-                    <input
-                      type="checkbox"
-                      checked={cfg.included}
-                      onChange={() => toggleAnalyticsConfig(opt.value, 'included')}
-                    />
-                    Include
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: cfg.deepSync ? '#1e293b' : 'var(--color-muted)' }}>
-                    <input
-                      type="checkbox"
-                      checked={cfg.deepSync}
-                      disabled={!cfg.included}
-                      onChange={() => toggleAnalyticsConfig(opt.value, 'deepSync')}
-                    />
-                    Deep Sync
-                  </label>
+                </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={cfg.included}
+                    onChange={() => toggleAnalyticsConfig(opt.value, 'included')}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={cfg.deepSync}
+                    disabled={!cfg.included}
+                    onChange={() => toggleAnalyticsConfig(opt.value, 'deepSync')}
+                  />
+                </td>
+                <td>
                   <ActionButton
-                    label={resettingTableName === tableName ? 'Resetting...' : 'Reset'}
+                    label={resettingTableName === tableName ? 'Deleting...' : 'Delete'}
                     onClick={() => onResetTable(tableName)}
                     disabled={resettingTableName === tableName}
                     variant="danger"
                   />
-                </div>
-              </div>
+                </td>
+              </tr>
             )
           })}
-        </div>
-      </div>
+        </tbody>
+      </table>
       <div className="sync-estimate-section">
         {apiCallsLoading ? (
           <div className="sync-estimate-meta">Loading...</div>
