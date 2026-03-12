@@ -1,0 +1,21 @@
+.text-input {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-size: 13px;
+  line-height: 1.45;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: rgba(148, 163, 184, 0.5);
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.1);
+}
+
+.text-input::placeholder {
+  color: var(--color-muted);
+}

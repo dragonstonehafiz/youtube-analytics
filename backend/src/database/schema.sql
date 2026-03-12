@@ -15,8 +15,24 @@ CREATE TABLE IF NOT EXISTS videos (
     comment_count INTEGER,
     favorite_count INTEGER,
     thumbnail_url TEXT,
-    video_width INTEGER,
-    video_height INTEGER,
+    content_type TEXT
+);
+
+CREATE TABLE IF NOT EXISTS videos_competitors (
+    id TEXT PRIMARY KEY,
+    title TEXT,
+    description TEXT,
+    published_at TEXT,
+    channel_id TEXT,
+    channel_title TEXT,
+    privacy_status TEXT,
+    made_for_kids INTEGER,
+    duration_seconds INTEGER,
+    view_count INTEGER,
+    like_count INTEGER,
+    comment_count INTEGER,
+    favorite_count INTEGER,
+    thumbnail_url TEXT,
     content_type TEXT
 );
 

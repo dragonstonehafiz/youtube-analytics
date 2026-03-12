@@ -14,6 +14,7 @@ from src.sync import (
     SyncQueueItem,
     sync_analytics,
     sync_data,
+    sync_competitors,
     sync_progress,
 )
 from src.youtube.videos import get_channel_info
@@ -122,6 +123,18 @@ def sync_analytics_route(body: _AnalyticsSyncBody, background_tasks: BackgroundT
     return JSONResponse(content={"queued": True})
 
 
+@router.post("/sync/competitors")
+def sync_competitors_route(background_tasks: BackgroundTasks) -> JSONResponse:
+    """Trigger a competitor video sync.
+
+    Syncs all enabled competitors from competitors.json into videos_competitors table.
+    """
+    if not sync_progress.try_start():
+        return JSONResponse(status_code=409, content={"error": "A sync is already running."})
+    background_tasks.add_task(sync_competitors)
+    return JSONResponse(content={"queued": True})
+
+
 @router.get("/sync/data/estimate")
 def get_data_estimate(
     pull: str | None = None,
@@ -215,6 +228,7 @@ def reset_table(body: dict) -> dict:
     # Allowed tables that can be reset
     allowed_tables = {
         "videos",
+        "videos_competitors",
         "playlists",
         "playlist_items",
         "comments",

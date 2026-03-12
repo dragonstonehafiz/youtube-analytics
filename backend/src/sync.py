@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+
+from googleapiclient.errors import HttpError
 
 from src.helper.sync_dates import (
     build_sync_date_range,
@@ -18,6 +22,7 @@ from src.database.analytics import upsert_daily_analytics
 from src.database.audience import upsert_audience, upsert_commenters_from_comments
 from src.database.channel_daily import upsert_channel_daily
 from src.database.comments import upsert_comments
+from src.database.competitors import upsert_competitor_videos
 from src.database.db import get_connection
 from src.database.playlist_daily import upsert_playlist_daily_analytics
 from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
@@ -38,8 +43,16 @@ from src.youtube.analytics import (
 from src.youtube.comments import extract_comments
 from src.youtube.playlists import get_all_playlist_items, get_all_playlists
 from src.youtube.subscribers import extract_public_subscribers
-from src.youtube.videos import fetch_video_details, get_short_video_ids, safe_get_videos
+from src.youtube.videos import (
+    fetch_video_details,
+    get_short_video_ids,
+    get_all_videos,
+    get_all_videos_by_search,
+    get_uploads_playlist_id,
+    get_channel_uploads_playlist_id,
+)
 from src.utils.logger import get_logger
+from config import settings
 
 sync_progress = SyncProgress()
 sync_logger = get_logger("sync", filename="sync.log")
@@ -59,6 +72,7 @@ _STAGE_TABLE: dict[str, str] = {
     "comments": "comments",
     "audience": "audience",
     "playlists": "playlists",
+    "videos_competitors": "videos_competitors",
     "playlist_analytics": "playlist_daily_analytics",
     "traffic": "traffic_sources_daily",
     "channel_analytics": "channel_analytics",
@@ -117,17 +131,139 @@ def sync_videos() -> None:
     sync_progress.set_current(0)
     sync_progress.format_message("Pulling videos [{current}/{total}] 1/2: loading uploads")
     sync_progress.raise_if_stop_requested("Stop requested.")
-    videos, videos_api_calls = safe_get_videos()
-    sync_progress.increment_api_calls(videos_api_calls)
+    try:
+        api_calls = 1  # For get_uploads_playlist_id
+        uploads_playlist_id = get_uploads_playlist_id()
+        videos, fetch_api_calls = get_all_videos(uploads_playlist_id)
+        sync_progress.increment_api_calls(api_calls + fetch_api_calls)
+    except HttpError as exc:
+        raise RuntimeError(f"YouTube API error: {exc}") from exc
     sync_progress.increment()
 
     sync_progress.format_message("Pulling videos [{current}/{total}] 2/2: loading shorts IDs")
     sync_progress.raise_if_stop_requested("Stop requested.")
-    short_video_ids, shorts_api_calls = safe_get_short_video_ids()
-    sync_progress.increment_api_calls(shorts_api_calls)
+    try:
+        api_calls = 1  # For get_uploads_playlist_id
+        uploads_playlist_id = get_uploads_playlist_id()
+        short_video_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
+        sync_progress.increment_api_calls(api_calls + fetch_api_calls)
+    except HttpError:
+        short_video_ids = set()
     upsert_videos(videos, short_video_ids=short_video_ids)
     sync_progress.set_current(2)
     sync_progress.format_message("Pulling videos [{current}/{total}] complete")
+
+
+def sync_competitors() -> None:
+    """Sync competitor channel videos into videos_competitors table."""
+    # Create sync run to track this operation
+    run_id = _create_sync_run("videos_competitors", None, None, False)
+    api_calls_before = sync_progress.get_api_calls()
+
+    try:
+        competitors_json_path = settings.data_dir / "competitors.json"
+
+        # Load competitors config
+        if not competitors_json_path.exists():
+            sync_progress.set_total(1)
+            sync_progress.set_current(0)
+            sync_progress.format_message("Syncing competitors [{current}/{total}] no competitors configured")
+            api_delta = sync_progress.get_api_calls() - api_calls_before
+            _finish_sync_run(run_id, "success", api_delta)
+            return
+
+        try:
+            with open(competitors_json_path, "r") as f:
+                competitors_config = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            raise RuntimeError(f"Failed to load competitors.json: {exc}") from exc
+
+        # Filter to enabled competitors
+        enabled_competitors = [
+            (config.get("label"), config.get("channel_id"))
+            for config in competitors_config.values()
+            if isinstance(config, dict) and config.get("enabled", False)
+        ]
+
+        if not enabled_competitors:
+            sync_progress.set_total(1)
+            sync_progress.set_current(0)
+            sync_progress.format_message("Syncing competitors [{current}/{total}] no competitors enabled")
+            api_delta = sync_progress.get_api_calls() - api_calls_before
+            _finish_sync_run(run_id, "success", api_delta)
+            return
+
+        competitor_count = len(enabled_competitors)
+        sync_progress.set_total(competitor_count)
+        sync_progress.set_current(0)
+
+        all_videos = []
+        all_short_ids: set[str] = set()
+
+        for name, channel_id in enabled_competitors:
+            sync_progress.raise_if_stop_requested("Stop requested.")
+            sync_progress.format_message("Syncing competitors [{current}/{total}] {detail}", detail=name)
+
+            try:
+                # Fetch videos using search API
+                videos, fetch_api_calls = get_all_videos_by_search(channel_id)
+                all_videos.extend(videos)
+                sync_progress.increment_api_calls(fetch_api_calls)
+
+                # Fetch shorts
+                uploads_playlist_id = get_channel_uploads_playlist_id(channel_id)
+                short_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
+                all_short_ids.update(short_ids)
+                sync_progress.increment_api_calls(fetch_api_calls)
+
+                # Fetch shorts
+                api_calls = 1
+                short_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
+                all_short_ids.update(short_ids)
+                sync_progress.increment_api_calls(api_calls + fetch_api_calls)
+            except HttpError as exc:
+                raise RuntimeError(f"YouTube API error for channel {name} ({channel_id}): {exc}") from exc
+
+            sync_progress.increment()
+
+        upsert_competitor_videos(all_videos, short_video_ids=all_short_ids)
+        sync_progress.format_message("Syncing competitors [{current}/{total}] complete")
+
+        # Update row counts in config
+        with get_connection() as conn:
+            for name, channel_id in enabled_competitors:
+                row_count = conn.execute(
+                    "SELECT COUNT(*) FROM videos_competitors WHERE channel_id = ?",
+                    (channel_id,)
+                ).fetchone()[0]
+                # Find the config entry for this competitor and update row count
+                for key, config in competitors_config.items():
+                    if isinstance(config, dict) and config.get("channel_id") == channel_id:
+                        config["row_count"] = row_count
+                        break
+
+        # Save updated config back to file
+        try:
+            with open(competitors_json_path, "w") as f:
+                json.dump(competitors_config, f, indent=2)
+        except (OSError, IOError) as exc:
+            sync_logger.warning("Failed to update competitors.json with row counts: %s", exc)
+
+        api_delta = sync_progress.get_api_calls() - api_calls_before
+        _finish_sync_run(run_id, "success", api_delta)
+        sync_progress.mark_done("Competitors sync complete")
+    except SyncStopRequested as exc:
+        api_delta = sync_progress.get_api_calls() - api_calls_before
+        _finish_sync_run(run_id, "stopped", api_delta)
+        sync_progress.mark_stopped(str(exc))
+        raise
+    except Exception as exc:
+        api_delta = sync_progress.get_api_calls() - api_calls_before
+        error_trace = traceback.format_exc() or str(exc)
+        _finish_sync_run(run_id, "failed", api_delta, error=error_trace)
+        _log_sync_error("competitors", exc)
+        sync_progress.mark_failed("Competitors sync failed unexpectedly")
+        raise
 
 
 def list_video_ids() -> list[str]:
@@ -590,8 +726,8 @@ def _get_earliest_for_table(table_name: str) -> str | None:
     """Get the earliest date for a given table to resolve None date ranges.
 
     Only analytics tables have meaningful date ranges. Data tables (videos, playlists,
-    comments, audience) pull all data from YouTube API regardless of dates, so they
-    don't need date resolution.
+    comments, audience, videos_competitors) pull all data from YouTube API regardless
+    of dates, so they don't need date resolution.
     """
     # Analytics tables that depend on videos' published dates
     if table_name in ("video_analytics", "video_traffic_source", "video_search_insights", "traffic_sources_daily", "channel_analytics"):

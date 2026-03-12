@@ -5,6 +5,7 @@ import {
   Dropdown,
   PageSizePicker,
   PageSwitcher,
+  TextInput,
   YearInput,
 } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
@@ -198,6 +199,13 @@ function SyncSettings() {
   const [analyticsPullApiCallsByPull, setAnalyticsPullApiCallsByPull] = useState<
     Record<string, number>
   >({})
+
+  // Competitors sync state
+  type CompetitorConfig = { label: string; channel_id: string; enabled: boolean; row_count?: number }
+  const [competitorsConfig, setCompetitorsConfig] = useState<Record<string, CompetitorConfig>>({})
+  const [competitorsApiCallsLoading, setCompetitorsApiCallsLoading] = useState(false)
+  const [competitorsApiCallsError, setCompetitorsApiCallsError] = useState<string | null>(null)
+  const [competitorsApiCalls, setCompetitorsApiCalls] = useState(0)
 
   // Table column counts
   const [tableRowCounts, setTableRowCounts] = useState<Record<string, number>>({})
@@ -618,6 +626,172 @@ function SyncSettings() {
     }
   }
 
+  // Load competitors from backend
+  useEffect(() => {
+    const loadCompetitors = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/competitors')
+        const data = await response.json()
+        setCompetitorsConfig(data || {})
+      } catch (error) {
+        console.error('Failed to load competitors', error)
+      }
+    }
+    loadCompetitors()
+  }, [])
+
+  // Save competitors to backend
+  useEffect(() => {
+    const saveCompetitors = async () => {
+      try {
+        await fetch('http://localhost:8000/competitors', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(competitorsConfig),
+        })
+      } catch (error) {
+        console.error('Failed to save competitors', error)
+      }
+    }
+    if (Object.keys(competitorsConfig).length > 0) {
+      saveCompetitors()
+    }
+  }, [competitorsConfig])
+
+  // Fetch competitors API estimate
+  useEffect(() => {
+    const enabledCount = Object.values(competitorsConfig).filter((c) => c.enabled).length
+    if (enabledCount === 0) {
+      setCompetitorsApiCalls(0)
+      return
+    }
+    let active = true
+    async function load() {
+      setCompetitorsApiCallsLoading(true)
+      setCompetitorsApiCallsError(null)
+      try {
+        const response = await fetch('http://localhost:8000/competitors')
+        if (!response.ok) throw new Error(`Request failed (${response.status})`)
+        const data = await response.json()
+        if (active) {
+          const enabledCompetitors = Object.values(data).filter((c: CompetitorConfig) => c.enabled)
+          setCompetitorsApiCalls(enabledCompetitors.length * 4)
+        }
+      } catch (error) {
+        if (active) {
+          setCompetitorsApiCallsError(
+            error instanceof Error ? error.message : 'Failed to load estimate',
+          )
+        }
+      } finally {
+        if (active) {
+          setCompetitorsApiCallsLoading(false)
+        }
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+  }, [competitorsConfig])
+
+  const updateCompetitor = (index: number, field: 'label' | 'channel_id' | 'enabled', value: string | boolean) => {
+    const entries = Object.entries(competitorsConfig)
+    if (index < 0 || index >= entries.length) return
+    const [key, config] = entries[index]
+    setCompetitorsConfig((prev) => ({
+      ...prev,
+      [key]: { ...config, [field]: value },
+    }))
+  }
+
+  const removeCompetitor = (index: number) => {
+    const entries = Object.entries(competitorsConfig)
+    if (index < 0 || index >= entries.length) return
+    const [key] = entries[index]
+    setCompetitorsConfig((prev) => {
+      const updated = { ...prev }
+      delete updated[key]
+      return updated
+    })
+  }
+
+  const handleCompetitorsSync = async () => {
+    const enabledCount = Object.values(competitorsConfig).filter((c) => c.enabled).length
+    if (enabledCount === 0) {
+      alert('No competitors enabled')
+      return
+    }
+    setStopRequestedByUser(false)
+    setIsSyncing(true)
+    setProgress({
+      is_syncing: true,
+      current_step: 0,
+      max_steps: 0,
+      message: 'Starting competitors sync…',
+      stop_requested: false,
+    })
+    try {
+      const response = await fetch('http://localhost:8000/sync/competitors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (response.status === 409) {
+        // A sync is already running
+      }
+    } catch (error) {
+      console.error('Failed to start competitors sync', error)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const competitorsApiCallRow = useMemo(() => {
+    return {
+      total: competitorsApiCalls,
+      max: 10000,
+      segments: competitorsApiCalls > 0 ? [
+        {
+          key: 'competitors',
+          color: '#a78bfa',
+          ratio: Math.min(100, (competitorsApiCalls / 10000) * 100),
+          title: `Competitors: ${competitorsApiCalls.toLocaleString()}`,
+        },
+      ] : [],
+      legendItems: competitorsApiCalls > 0 ? [
+        {
+          key: 'competitors',
+          label: 'Competitors',
+          value: competitorsApiCalls,
+          color: '#a78bfa',
+        },
+      ] : [],
+    }
+  }, [competitorsApiCalls])
+
+  const addCompetitor = () => {
+    const timestamp = Date.now()
+    setCompetitorsConfig((prev) => ({
+      ...prev,
+      [`competitor_${timestamp}`]: {
+        label: '',
+        channel_id: '',
+        enabled: true,
+        row_count: 0,
+      },
+    }))
+  }
+
+  const refreshCompetitorsData = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/competitors')
+      const data = await response.json()
+      setCompetitorsConfig(data || {})
+    } catch (error) {
+      console.error('Failed to refresh competitors data', error)
+    }
+  }
+
   const formatDuration = (started: string, finished: string | null) => {
     if (!finished) return '—'
     const totalSeconds = Math.max(
@@ -871,6 +1045,89 @@ function SyncSettings() {
               analyticsPullApiCallsLoading,
               analyticsPullApiCallsError,
               analyticsApiCallRow,
+            )}
+          </div>
+        </div>
+
+        {/* Competitors Sync Card */}
+        <div className="page-row">
+          <div className="sync-card">
+            <div className="sync-card-header-row">
+              <div className="sync-card-header">Competitors Sync</div>
+              <span className="sync-api-badge">YouTube Data API v3</span>
+              <ActionButton
+                label="Refresh"
+                onClick={refreshCompetitorsData}
+                variant="soft"
+              />
+              <ActionButton
+                label="Add"
+                onClick={addCompetitor}
+                variant="soft"
+              />
+              <ActionButton
+                label={
+                  isSyncActive
+                    ? isStopPending
+                      ? 'Stopping...'
+                      : 'Stop sync'
+                    : 'Start sync'
+                }
+                onClick={isSyncActive ? handleStopSync : handleCompetitorsSync}
+                disabled={isStopPending}
+                variant={isSyncActive ? 'danger' : 'primary'}
+              />
+            </div>
+            <div className="sync-controls">
+              <div className="sync-stage-table">
+                {Object.entries(competitorsConfig).map(([key, config], index) => (
+                  <div key={key} className="sync-stage-row" style={{ gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                      <TextInput
+                        value={config.label}
+                        onChange={(v) => updateCompetitor(index, 'label', v)}
+                        placeholder="Channel name"
+                        disableNewlines
+                        width="150px"
+                        height="36px"
+                      />
+                      <TextInput
+                        value={config.channel_id}
+                        onChange={(v) => updateCompetitor(index, 'channel_id', v)}
+                        placeholder="Channel ID"
+                        disableNewlines
+                        width="200px"
+                        height="36px"
+                      />
+                      <span style={{ fontSize: '12px', color: 'var(--color-muted)', minWidth: '60px' }}>
+                        {formatWholeNumber(config.row_count || 0)} rows
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginLeft: 'auto' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--color-muted)' }}>
+                        <input
+                          type="checkbox"
+                          checked={config.enabled}
+                          onChange={(e) => updateCompetitor(index, 'enabled', e.target.checked)}
+                        />
+                        Include
+                      </label>
+                      <ActionButton
+                        label="-"
+                        onClick={() => removeCompetitor(index)}
+                        variant="danger"
+                        style={{ minWidth: '44px', padding: '0' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {renderEstimate(
+              'YouTube Data API v3',
+              competitorsApiCallsLoading,
+              competitorsApiCallsError,
+              competitorsApiCallRow,
             )}
           </div>
         </div>

@@ -55,20 +55,16 @@ def _iter_playlist_video_ids(playlist_id: str, page_size: int = 50) -> Iterable[
             break
 
 
-def iter_upload_video_ids(page_size: int = 50) -> Iterable[str]:
-    """Yield all uploaded video IDs for the authenticated channel."""
-    playlist_id = get_uploads_playlist_id()
-    yield from _iter_playlist_video_ids(playlist_id, page_size=page_size)
-
-
-def get_short_video_ids() -> tuple[set[str], int]:
+def get_short_video_ids(uploads_playlist_id: str) -> tuple[set[str], int]:
     """Return short-video IDs from the UUSH-derived shorts playlist and API call count.
+
+    Args:
+        uploads_playlist_id: The uploads playlist ID for a channel
 
     Returns:
         Tuple of (short video IDs set, api_calls made)
     """
-    uploads_playlist_id = get_uploads_playlist_id()
-    api_calls = 1  # For get_uploads_playlist_id
+    api_calls = 0
     if not uploads_playlist_id.startswith("UU"):
         return set(), api_calls
     shorts_playlist_id = f"UUSH{uploads_playlist_id[2:]}"
@@ -76,12 +72,18 @@ def get_short_video_ids() -> tuple[set[str], int]:
     page_token = None
     video_ids: set[str] = set()
     while True:
-        response = youtube.playlistItems().list(
-            part="contentDetails",
-            playlistId=shorts_playlist_id,
-            maxResults=50,
-            pageToken=page_token,
-        ).execute()
+        try:
+            response = youtube.playlistItems().list(
+                part="contentDetails",
+                playlistId=shorts_playlist_id,
+                maxResults=50,
+                pageToken=page_token,
+            ).execute()
+        except HttpError as exc:
+            if exc.resp.status == 404:
+                # Shorts playlist doesn't exist for this channel
+                return video_ids, api_calls
+            raise
         api_calls += 1
         for item in response.get("items", []):
             video_id = item["contentDetails"]["videoId"]
@@ -104,23 +106,67 @@ def fetch_video_details(video_ids: list[str]) -> tuple[list[dict], int]:
     youtube = get_youtube_client()
     # The videos endpoint accepts up to 50 IDs per request.
     response = youtube.videos().list(
-        part="snippet,contentDetails,statistics,status,fileDetails",
+        part="snippet,contentDetails,statistics,status",
         id=",".join(video_ids),
         maxResults=50,
     ).execute()
     return response.get("items", []), 1
 
 
-def get_all_videos() -> tuple[list[dict], int]:
-    """Return full metadata for every uploaded video and API call count.
+def get_all_videos_by_search(channel_id: str) -> tuple[list[dict], int]:
+    """Fetch all videos from a channel using Search API (handles channels with broken uploads playlist).
+
+    Args:
+        channel_id: The YouTube channel ID
+
+    Returns:
+        Tuple of (videos list, total api_calls made)
+    """
+    api_calls = 0
+    youtube = get_youtube_client()
+    page_token = None
+    video_ids: list[str] = []
+
+    # Search for all videos from this channel
+    while True:
+        response = youtube.search().list(
+            part="id",
+            channelId=channel_id,
+            type="video",
+            maxResults=50,
+            pageToken=page_token,
+            order="date"
+        ).execute()
+        api_calls += 1
+        for item in response.get("items", []):
+            video_id = item["id"]["videoId"]
+            video_ids.append(video_id)
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+
+    # Fetch full details for all videos in batches
+    videos: list[dict] = []
+    for i in range(0, len(video_ids), 50):
+        batch = video_ids[i : i + 50]
+        batch_videos, batch_calls = fetch_video_details(batch)
+        videos.extend(batch_videos)
+        api_calls += batch_calls
+    return videos, api_calls
+
+
+def get_all_videos(uploads_playlist_id: str) -> tuple[list[dict], int]:
+    """Return full metadata for all uploaded videos and API call count.
+
+    Args:
+        uploads_playlist_id: The uploads playlist ID for a channel
 
     Returns:
         Tuple of (videos list, total api_calls made)
     """
     # 1) Gather all upload video IDs (with pagination), 2) fetch details in 50-id batches.
-    api_calls = 1  # For get_uploads_playlist_id
+    api_calls = 0
     youtube = get_youtube_client()
-    uploads_playlist_id = get_uploads_playlist_id()
     page_token = None
     video_ids: list[str] = []
     while True:
@@ -131,7 +177,8 @@ def get_all_videos() -> tuple[list[dict], int]:
             pageToken=page_token,
         ).execute()
         api_calls += 1
-        for item in response.get("items", []):
+        items = response.get("items", [])
+        for item in items:
             video_ids.append(item["contentDetails"]["videoId"])
         page_token = response.get("nextPageToken")
         if not page_token:
@@ -146,30 +193,6 @@ def get_all_videos() -> tuple[list[dict], int]:
     return videos, api_calls
 
 
-def safe_get_videos() -> tuple[list[dict], int]:
-    """Return all videos with API call count or raise a RuntimeError on API failure.
-
-    Returns:
-        Tuple of (videos list, total api_calls made)
-    """
-    try:
-        return get_all_videos()
-    except HttpError as exc:
-        raise RuntimeError(f"YouTube API error: {exc}") from exc
-
-
-def safe_get_short_video_ids() -> tuple[set[str], int]:
-    """Return short-video IDs from UUSH playlist with API call count, or empty set on API failure.
-
-    Returns:
-        Tuple of (short video IDs set, api_calls made)
-    """
-    try:
-        return get_short_video_ids()
-    except HttpError:
-        return set(), 0
-
-
 def get_channel_info() -> dict:
     """Return the authenticated channel's metadata and statistics."""
     youtube = get_youtube_client()
@@ -182,3 +205,13 @@ def get_channel_info() -> dict:
     if not items:
         raise RuntimeError("No channel found for the authenticated user.")
     return items[0]
+
+
+def get_channel_uploads_playlist_id(channel_id: str) -> str:
+    """Return the uploads playlist ID for a specific channel."""
+    youtube = get_youtube_client()
+    response = youtube.channels().list(part="contentDetails", id=channel_id, maxResults=1).execute()
+    items = response.get("items", [])
+    if not items:
+        raise RuntimeError(f"Channel {channel_id} not found or not accessible.")
+    return items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
