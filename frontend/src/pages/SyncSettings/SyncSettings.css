@@ -1,5 +1,28 @@
 /* SyncSettings page styles */
 
+.sync-tab-row {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.sync-tab {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: #ffffff;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sync-tab.active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
 .page {
   display: flex;
   flex-direction: column;

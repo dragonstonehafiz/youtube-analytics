@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS playlist_items (
     channel_title TEXT,
     privacy_status TEXT,
     thumbnail_url TEXT,
-    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+    FOREIGN KEY (playlist_id) REFERENCES playlists(id)
 );
 
 -- GET /playlists/{id}/items — filter items by playlist
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS video_analytics (
     subscribers_gained INTEGER,
     subscribers_lost INTEGER,
     PRIMARY KEY (video_id, date),
-    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    FOREIGN KEY (video_id) REFERENCES videos(id)
 );
 
 -- GET /analytics/video-daily — fetch all rows for a specific video
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS video_traffic_source (
     views INTEGER,
     watch_time_minutes REAL,
     PRIMARY KEY (video_id, date, traffic_source),
-    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    FOREIGN KEY (video_id) REFERENCES videos(id)
 );
 
 -- GET /analytics/video-traffic-sources — filter by date range
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS video_search_insights (
     watch_time_minutes REAL,
     CHECK (substr(date, 9, 2) = '01'),
     PRIMARY KEY (video_id, date, search_term),
-    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    FOREIGN KEY (video_id) REFERENCES videos(id)
 );
 
 -- GET /analytics/video-search-insights — filter by date range
@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS playlist_daily_analytics (
     views_per_playlist_start REAL,
     average_time_in_playlist_seconds REAL,
     PRIMARY KEY (playlist_id, date),
-    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
+    FOREIGN KEY (playlist_id) REFERENCES playlists(id)
 );
 
 -- GET /analytics/playlist-daily — filter by date range
@@ -212,7 +212,7 @@ CREATE TABLE IF NOT EXISTS comments (
     text_display TEXT,
     like_count INTEGER,
     published_at TEXT,
-    FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+    FOREIGN KEY (video_id) REFERENCES videos(id)
 );
 
 -- GET /comments — filter comments belonging to a specific video
