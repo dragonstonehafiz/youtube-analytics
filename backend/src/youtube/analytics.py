@@ -219,23 +219,35 @@ def fetch_channel_analytics(start_date: str, end_date: str) -> tuple[list[dict[s
 
 
 def fetch_traffic_sources(start_date: str, end_date: str) -> tuple[list[dict[str, Any]], int]:
-    """Fetch traffic sources by day for a date range.
+    """Fetch traffic sources by day for a date range (7-day chunks due to 200-row API limit).
 
-    Returns:
-        Tuple of (rows list, api_calls made)
+    YouTube Analytics API has a hard 200-row limit per request. We chunk by week to get all data.
+    See: https://developers.google.com/youtube/analytics/reference/reports/query
     """
     yt_analytics = get_analytics_client()
-    request_params = {
-        "ids": "channel==MINE",
-        "startDate": start_date,
-        "endDate": end_date,
-        "metrics": "views,estimatedMinutesWatched",
-        "dimensions": "day,insightTrafficSourceType",
-        "maxResults": 200,
-        "startIndex": 1,
-    }
-    rows, page_count = _fetch_report_rows(yt_analytics, request_params, 200)
-    return rows, page_count
+    all_rows: list[dict[str, Any]] = []
+    total_api_calls = 0
+
+    current = date.fromisoformat(start_date)
+    end = date.fromisoformat(end_date)
+
+    while current <= end:
+        week_end = min(current + timedelta(days=6), end)
+        request_params = {
+            "ids": "channel==MINE",
+            "startDate": current.isoformat(),
+            "endDate": week_end.isoformat(),
+            "metrics": "views,estimatedMinutesWatched",
+            "dimensions": "day,insightTrafficSourceType",
+            "maxResults": 200,
+            "startIndex": 1,
+        }
+        rows, page_count = _fetch_report_rows(yt_analytics, request_params, 200)
+        all_rows.extend(rows)
+        total_api_calls += page_count
+        current = week_end + timedelta(days=1)
+
+    return all_rows, total_api_calls
 
 
 def fetch_playlist_daily_metrics(
@@ -337,7 +349,7 @@ def _fetch_report_rows(
         page_count += 1
         if max_pages is not None and page_count >= max_pages:
             break
-        if len(rows) < max_results:
+        if not rows:
             break
         request_params["startIndex"] += max_results
         time.sleep(0.2)

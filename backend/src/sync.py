@@ -553,7 +553,7 @@ def sync_traffic_sources(
             date_range = DateRange(start=next_date, end=date_range.end)
     if date_range.start > date_range.end:
         return
-    segments = chunk_date_range(date_range, months_per_chunk=12)
+    segments = chunk_date_range(date_range, months_per_chunk=1)
     sync_progress.set_total(max(len(segments), 1))
     sync_progress.set_current(0)
     for index, segment in enumerate(segments, start=1):
