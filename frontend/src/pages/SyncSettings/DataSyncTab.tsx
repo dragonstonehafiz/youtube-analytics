@@ -158,9 +158,9 @@ function DataSyncTab({
       <table className="sync-table">
         <thead>
           <tr>
-            <th style={{ width: 120 }}>Table Name</th>
-            <th style={{ width: 120 }}>Row Count</th>
-            <th style={{ width: 60 }}>Include</th>
+            <th style={{ width: 200 }}>Table Name</th>
+            <th style={{ width: 200 }}>Row Count</th>
+            <th style={{ width: 100 }}>Include</th>
             <th style={{ width: 60 }}></th>
           </tr>
         </thead>

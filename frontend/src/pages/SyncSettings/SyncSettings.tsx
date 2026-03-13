@@ -34,6 +34,12 @@ type SyncRun = {
 
 type SyncTab = 'data' | 'analytics' | 'competitors'
 
+// Dependency map: parent table -> tables that depend on it
+const TABLE_DEPENDENCIES: Record<string, string[]> = {
+  videos: ['video_analytics', 'video_traffic_source', 'video_search_insights', 'comments'],
+  playlists: ['playlist_items', 'playlist_daily_analytics'],
+}
+
 function SyncSettings() {
   const initialSyncTab = getStored('syncSettingsTab', 'data') as string
   const [syncTab, setSyncTab] = useState<SyncTab>(
@@ -166,13 +172,18 @@ function SyncSettings() {
   }
 
   const handleResetTable = async (tableName: string) => {
-    if (
-      !confirm(
-        `Are you sure you want to reset the ${tableName} table? This will delete all data and recreate the table.`,
-      )
-    ) {
+    const dependents = TABLE_DEPENDENCIES[tableName] || []
+    const affectedTables = [tableName, ...dependents]
+
+    let confirmMessage = `Are you sure you want to reset the "${tableName}" table? This will delete all data.`
+    if (dependents.length > 0) {
+      confirmMessage += `\n\nThe following tables will also be cleared:\n${dependents.map((t) => `• ${t}`).join('\n')}`
+    }
+
+    if (!confirm(confirmMessage)) {
       return
     }
+
     setResettingTableName(tableName)
     try {
       const response = await fetch('http://localhost:8000/sync/reset-table', {
@@ -182,6 +193,7 @@ function SyncSettings() {
       })
       if (!response.ok) throw new Error(`Reset failed: ${response.status}`)
       await loadRuns()
+      await refreshTableData()
     } catch (error) {
       console.error('Failed to reset table', error)
       alert(`Failed to reset table: ${error instanceof Error ? error.message : 'Unknown error'}`)
