@@ -1,92 +1,40 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard } from '../../components/cards'
 import { ProfileImage } from '../../components/ui'
 import { formatDisplayDate } from '../../utils/date'
 import ThumbnailUploader from './ThumbnailUploader'
+import UserVideoSelector from './UserVideoSelector'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import { insertThumbnailsAtRandom } from './utils'
+import useUserVideoState from './useUserVideoState'
+import { insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailVideoPlayerTab.css'
 
-const SAMPLE_COMMENTS = [
-  {
-    author: 'User One',
-    text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    likes: 1200,
-    timeAgo: '1 day ago',
-  },
-  {
-    author: 'User Two',
-    text: 'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-    likes: 850,
-    timeAgo: '2 days ago',
-  },
-  {
-    author: 'User Three',
-    text: 'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
-    likes: 450,
-    timeAgo: '3 days ago',
-  },
-  {
-    author: 'User Four',
-    text: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum.',
-    likes: 620,
-    timeAgo: '1 day ago',
-  },
-  {
-    author: 'User Five',
-    text: 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.',
-    likes: 340,
-    timeAgo: '4 hours ago',
-  },
-  {
-    author: 'User Six',
-    text: 'Nulla facilisi. Cras non velit nec insit tempor feugiat non magnis.',
-    likes: 890,
-    timeAgo: '2 hours ago',
-  },
-  {
-    author: 'User Seven',
-    text: 'Pellentesque habitant morbi tristique senectus et netus et malesuada fames.',
-    likes: 540,
-    timeAgo: '6 hours ago',
-  },
-  {
-    author: 'User Eight',
-    text: 'Vestibulum tortor quam, feugiat vitae, ultricies eget, consequat quis.',
-    likes: 720,
-    timeAgo: '12 hours ago',
-  },
-  {
-    author: 'User Nine',
-    text: 'Integer posuere erat a ante venenatis dapibus posuere velit aliquet.',
-    likes: 415,
-    timeAgo: '18 hours ago',
-  },
-  {
-    author: 'User Ten',
-    text: 'Aenean lacinia bibendum nulla sed consectetur. Praesent commodo cursus magna.',
-    likes: 980,
-    timeAgo: '1 day ago',
-  },
-  {
-    author: 'User Eleven',
-    text: 'Vivamus suscipit tortor eget felis porttitor volutpat. Cras ultricies libero.',
-    likes: 645,
-    timeAgo: '1 day ago',
-  },
-  {
-    author: 'User Twelve',
-    text: 'Donec sollicitudin molestie malesuada. Nulla porttitor accumsan tincidunt.',
-    likes: 555,
-    timeAgo: '2 days ago',
-  },
-  {
-    author: 'User Thirteen',
-    text: 'Mauris blandit aliquet elit, eget tincidunt nibh pulvinar a. Sed porttitor.',
-    likes: 480,
-    timeAgo: '2 days ago',
-  },
+const SAMPLE_COMMENT_TEXTS = [
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+  'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+  'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
+  'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum.',
+  'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.',
+  'Nulla facilisi. Cras non velit nec insit tempor feugiat non magnis.',
+  'Pellentesque habitant morbi tristique senectus et netus et malesuada fames.',
+  'Vestibulum tortor quam, feugiat vitae, ultricies eget, consequat quis.',
+  'Integer posuere erat a ante venenatis dapibus posuere velit aliquet.',
+  'Aenean lacinia bibendum nulla sed consectetur. Praesent commodo cursus magna.',
+  'Vivamus suscipit tortor eget felis porttitor volutpat. Cras ultricies libero.',
+  'Donec sollicitudin molestie malesuada. Nulla porttitor accumsan tincidunt.',
+  'Mauris blandit aliquet elit, eget tincidunt nibh pulvinar a. Sed porttitor.',
 ]
+
+const generateSampleComments = () => {
+  return SAMPLE_COMMENT_TEXTS.map((text, idx) => ({
+    author: `User ${idx + 1}`,
+    text,
+    likes: Math.floor(Math.random() * 1000) + 100,
+    timeAgo: ['1 day ago', '2 days ago', '3 days ago', '4 hours ago', '2 hours ago', '6 hours ago', '12 hours ago', '18 hours ago'][idx % 8],
+  }))
+}
+
+const SAMPLE_COMMENTS = generateSampleComments()
 
 function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails }: ThumbnailTabProps) {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
@@ -94,6 +42,21 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
   const [selectedVideo, setSelectedVideo] = useState<CompetitorVideoRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
+
+  const {
+    userVideoSource,
+    setUserVideoSource,
+    userVideoPlaylist,
+    setUserVideoPlaylist,
+    userVideoSelectionMode,
+    setUserVideoSelectionMode,
+    userVideoPercentileRange,
+    setUserVideoPercentileRange,
+    userVideoCount,
+    setUserVideoCount,
+    userVideos,
+    handleUserVideosSelected,
+  } = useUserVideoState()
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -137,14 +100,20 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
     fetchVideos('')
   }, [fetchVideos])
 
-  const handleGetVideos = () => {
+  const handleGetVideos = useCallback(() => {
     fetchVideos('')
-  }
+  }, [fetchVideos])
+
+  // Combine videos with user selected videos
+  const { allVideosCombined, allShortsCombined } = useMemo(() => ({
+    allVideosCombined: shuffleArray([...videos, ...userVideos]),
+    allShortsCombined: shuffleArray([...shorts, ...userVideos.filter((v) => v.content_type === 'short')]),
+  }), [videos, shorts, userVideos])
 
   // Build sidebar with videos and shorts
-  const buildSidebar = () => {
+  const sidebarItems = useMemo(() => {
     const sidebar: { type: string; data: CompetitorVideoRow | CompetitorVideoRow[] }[] = []
-    const allItems = [...videos]
+    const allItems = [...allVideosCombined]
 
     // Add first 4 videos
     allItems.slice(0, 4).forEach((video) => {
@@ -152,8 +121,8 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
     })
 
     // Add shorts section after first 4 videos
-    if (shorts.length > 0) {
-      sidebar.push({ type: 'shorts-section', data: shorts })
+    if (allShortsCombined.length > 0) {
+      sidebar.push({ type: 'shorts-section', data: allShortsCombined })
     }
 
     // Add remaining videos
@@ -162,9 +131,7 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
     })
 
     return sidebar
-  }
-
-  const sidebarItems = buildSidebar()
+  }, [allVideosCombined, allShortsCombined])
 
   return (
     <div className="page-body">
@@ -175,6 +142,22 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
+        />
+      </div>
+      <div className="page-row">
+        <UserVideoSelector
+          selectedSource={userVideoSource}
+          setSelectedSource={setUserVideoSource}
+          selectedPlaylist={userVideoPlaylist}
+          setSelectedPlaylist={setUserVideoPlaylist}
+          selectionMode={userVideoSelectionMode}
+          setSelectionMode={setUserVideoSelectionMode}
+          percentileRange={userVideoPercentileRange}
+          setPercentileRange={setUserVideoPercentileRange}
+          videoCount={userVideoCount}
+          setVideoCount={setUserVideoCount}
+          selectedVideos={userVideos}
+          onVideosSelected={handleUserVideosSelected}
         />
       </div>
       {loading && (

@@ -11,6 +11,10 @@ export type ThumbnailTabProps = {
   setThumbnails: (thumbnails: Thumbnail[]) => void
 }
 
+export type UserVideoSource = 'uploads' | 'playlist'
+
+export type UserVideoSelectionMode = 'random' | 'percentile'
+
 export type CompetitorVideoRow = {
   id: string
   title: string

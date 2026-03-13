@@ -79,6 +79,10 @@ function ThumbnailUploader({
     setThumbnails(thumbnails.filter((t) => t.id !== id))
   }
 
+  const handleClearAll = () => {
+    setThumbnails([])
+  }
+
   return (
     <div className="thumbnail-uploader">
       <div className="thumbnail-uploader-header">
@@ -94,6 +98,9 @@ function ThumbnailUploader({
         </div>
         {onReloadThumbnails && (
           <ActionButton label="Reload Thumbnails" onClick={onReloadThumbnails} variant="primary" />
+        )}
+        {thumbnails.length > 0 && (
+          <ActionButton label="Clear" onClick={handleClearAll} variant="danger" />
         )}
       </div>
       <div className="thumbnail-uploader-header">

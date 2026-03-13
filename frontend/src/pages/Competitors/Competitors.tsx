@@ -11,10 +11,19 @@ import './Competitors.css'
 
 type CompetitorsTab = 'videos' | 'thumbnail-home' | 'thumbnail-search' | 'thumbnail-player'
 
+const TAB_OPTIONS: Array<{ key: CompetitorsTab; label: string }> = [
+  { key: 'videos', label: 'Videos List' },
+  { key: 'thumbnail-home', label: 'Thumbnail Test (Home Page)' },
+  { key: 'thumbnail-search', label: 'Thumbnail Test (Search)' },
+  { key: 'thumbnail-player', label: 'Thumbnail Test (Video Player)' },
+]
+
+const VALID_TABS: CompetitorsTab[] = TAB_OPTIONS.map((option) => option.key)
+
 function Competitors() {
   const initialTab = getStored('competitorsTab', 'videos') as string
   const [tab, setTab] = useState<CompetitorsTab>(
-    (['videos', 'thumbnail-home', 'thumbnail-search', 'thumbnail-player'] as string[]).includes(initialTab) ? (initialTab as CompetitorsTab) : 'videos'
+    VALID_TABS.includes(initialTab as CompetitorsTab) ? (initialTab as CompetitorsTab) : 'videos',
   )
   const [thumbnailTitle, setThumbnailTitle] = useState(getStored('thumbnailTitle', ''))
   const [thumbnails, setThumbnails] = useState<Thumbnail[]>(JSON.parse(getStored('thumbnails', '[]') as string))
@@ -32,66 +41,34 @@ function Competitors() {
     setStored('thumbnails', JSON.stringify(thumbnails))
   }, [thumbnails])
 
+  const sharedThumbnailTabProps = {
+    thumbnailTitle,
+    setThumbnailTitle,
+    thumbnails,
+    setThumbnails,
+  }
+
   return (
     <section className="page">
       <header className="page-header">
         <h1>Competitors</h1>
       </header>
       <div className="competitors-tab-row">
-        <button
-          type="button"
-          className={tab === 'videos' ? 'competitors-tab active' : 'competitors-tab'}
-          onClick={() => handleTabChange('videos')}
-        >
-          Videos List
-        </button>
-        <button
-          type="button"
-          className={tab === 'thumbnail-home' ? 'competitors-tab active' : 'competitors-tab'}
-          onClick={() => handleTabChange('thumbnail-home')}
-        >
-          Thumbnail Test (Home Page)
-        </button>
-        <button
-          type="button"
-          className={tab === 'thumbnail-search' ? 'competitors-tab active' : 'competitors-tab'}
-          onClick={() => handleTabChange('thumbnail-search')}
-        >
-          Thumbnail Test (Search)
-        </button>
-        <button
-          type="button"
-          className={tab === 'thumbnail-player' ? 'competitors-tab active' : 'competitors-tab'}
-          onClick={() => handleTabChange('thumbnail-player')}
-        >
-          Thumbnail Test (Video Player)
-        </button>
+        {TAB_OPTIONS.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            className={tab === option.key ? 'competitors-tab active' : 'competitors-tab'}
+            onClick={() => handleTabChange(option.key)}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
       {tab === 'videos' && <CompetitorVideosTab />}
-      {tab === 'thumbnail-home' && (
-        <TestThumbnailHomeTab
-          thumbnailTitle={thumbnailTitle}
-          setThumbnailTitle={setThumbnailTitle}
-          thumbnails={thumbnails}
-          setThumbnails={setThumbnails}
-        />
-      )}
-      {tab === 'thumbnail-search' && (
-        <TestThumbnailSearchTab
-          thumbnailTitle={thumbnailTitle}
-          setThumbnailTitle={setThumbnailTitle}
-          thumbnails={thumbnails}
-          setThumbnails={setThumbnails}
-        />
-      )}
-      {tab === 'thumbnail-player' && (
-        <TestThumbnailVideoPlayerTab
-          thumbnailTitle={thumbnailTitle}
-          setThumbnailTitle={setThumbnailTitle}
-          thumbnails={thumbnails}
-          setThumbnails={setThumbnails}
-        />
-      )}
+      {tab === 'thumbnail-home' && <TestThumbnailHomeTab {...sharedThumbnailTabProps} />}
+      {tab === 'thumbnail-search' && <TestThumbnailSearchTab {...sharedThumbnailTabProps} />}
+      {tab === 'thumbnail-player' && <TestThumbnailVideoPlayerTab {...sharedThumbnailTabProps} />}
     </section>
   )
 }

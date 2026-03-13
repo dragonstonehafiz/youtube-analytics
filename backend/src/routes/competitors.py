@@ -106,12 +106,27 @@ def list_competitor_videos(
 def get_related_videos(
     title: str = Query(default="", description="Video title to find related videos for"),
     limit: int = Query(default=20, ge=1, le=100),
+    content_type: str = Query(default="all", description="Filter by content type: all, video, or short"),
 ) -> dict:
     """Return random competitor videos for thumbnail testing alongside a given video title."""
     try:
         with get_connection() as conn:
+            where_clauses = []
+            params: list[object] = []
+
+            if content_type and content_type != "all":
+                where_clauses.append("content_type = ?")
+                params.append(content_type)
+
+            where_sql = ""
+            if where_clauses:
+                where_sql = "WHERE " + " AND ".join(where_clauses)
+
             # Get total count of videos
-            total_row = conn.execute("SELECT COUNT(*) AS total FROM videos_competitors").fetchone()
+            total_row = conn.execute(
+                f"SELECT COUNT(*) AS total FROM videos_competitors {where_sql}",
+                tuple(params),
+            ).fetchone()
             total = total_row["total"] if total_row and total_row["total"] is not None else 0
 
             if total == 0:
@@ -120,8 +135,8 @@ def get_related_videos(
             # For now, return random videos
             # TODO: Implement semantic similarity search based on title
             rows = conn.execute(
-                "SELECT * FROM videos_competitors ORDER BY RANDOM() LIMIT ?",
-                (limit,),
+                f"SELECT * FROM videos_competitors {where_sql} ORDER BY RANDOM() LIMIT ?",
+                tuple(params + [limit]),
             ).fetchall()
 
         return {"items": [row_to_dict(row) for row in rows], "total": total}

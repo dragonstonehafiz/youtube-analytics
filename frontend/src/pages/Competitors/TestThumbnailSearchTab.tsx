@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import ThumbnailUploader from './ThumbnailUploader'
+import UserVideoSelector from './UserVideoSelector'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import { insertThumbnailsAtRandom } from './utils'
+import useUserVideoState from './useUserVideoState'
+import { insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailSearchTab.css'
 
 const FILTER_BUTTONS = ['All', 'Shorts', 'Videos', 'Unwatched', 'Watched', 'Recently uploaded', 'Live']
@@ -13,6 +15,21 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState('All')
+
+  const {
+    userVideoSource,
+    setUserVideoSource,
+    userVideoPlaylist,
+    setUserVideoPlaylist,
+    userVideoSelectionMode,
+    setUserVideoSelectionMode,
+    userVideoPercentileRange,
+    setUserVideoPercentileRange,
+    userVideoCount,
+    setUserVideoCount,
+    userVideos,
+    handleUserVideosSelected,
+  } = useUserVideoState()
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -43,9 +60,15 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
     fetchVideos('')
   }, [fetchVideos])
 
-  const handleGetVideos = () => {
+  const handleGetVideos = useCallback(() => {
     fetchVideos('')
-  }
+  }, [fetchVideos])
+
+  // Combine videos with user selected videos
+  const { allVideosCombined, allShortsCombined } = useMemo(() => ({
+    allVideosCombined: shuffleArray([...videos, ...userVideos]),
+    allShortsCombined: shuffleArray([...shorts, ...userVideos.filter((v) => v.content_type === 'short')]),
+  }), [videos, shorts, userVideos])
 
   const renderVideo = (video: CompetitorVideoRow) => (
     <div key={video.id} className="thumbnail-search-result">
@@ -75,11 +98,11 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
   // Combine filtered results
   const getFilteredResults = () => {
     if (activeFilter === 'All') {
-      return [...videos, ...shorts]
+      return [...allVideosCombined, ...allShortsCombined]
     } else if (activeFilter === 'Videos') {
-      return videos
+      return allVideosCombined
     } else if (activeFilter === 'Shorts') {
-      return shorts
+      return allShortsCombined
     }
     return []
   }
@@ -95,6 +118,22 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
+        />
+      </div>
+      <div className="page-row">
+        <UserVideoSelector
+          selectedSource={userVideoSource}
+          setSelectedSource={setUserVideoSource}
+          selectedPlaylist={userVideoPlaylist}
+          setSelectedPlaylist={setUserVideoPlaylist}
+          selectionMode={userVideoSelectionMode}
+          setSelectionMode={setUserVideoSelectionMode}
+          percentileRange={userVideoPercentileRange}
+          setPercentileRange={setUserVideoPercentileRange}
+          videoCount={userVideoCount}
+          setVideoCount={setUserVideoCount}
+          selectedVideos={userVideos}
+          onVideosSelected={handleUserVideosSelected}
         />
       </div>
       <div className="page-row">

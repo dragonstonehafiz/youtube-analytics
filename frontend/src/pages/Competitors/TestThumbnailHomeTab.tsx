@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
+import UserVideoSelector from './UserVideoSelector'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import { insertThumbnailsAtRandom } from './utils'
+import useUserVideoState from './useUserVideoState'
+import { insertThumbnailsAtRandom, shuffleArray } from './utils'
 
 type Category = {
   id: string
@@ -27,13 +29,40 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
   const [selectedCategory, setSelectedCategory] = useState(getStored('thumbnailTestCategory', 'all'))
   const [loading, setLoading] = useState(true)
 
+  const {
+    userVideoSource,
+    setUserVideoSource,
+    userVideoPlaylist,
+    setUserVideoPlaylist,
+    userVideoSelectionMode,
+    setUserVideoSelectionMode,
+    userVideoPercentileRange,
+    setUserVideoPercentileRange,
+    userVideoCount,
+    setUserVideoCount,
+    userVideos,
+    handleUserVideosSelected,
+  } = useUserVideoState()
+
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({ title, limit: '20' })
-      const response = await fetch(`http://localhost:8000/competitors/related-videos?${params.toString()}`)
-      const data = await response.json()
-      const allVideos = Array.isArray(data.items) ? data.items : []
+      // Fetch regular videos and shorts separately to ensure we always have both
+      const videoParams = new URLSearchParams({ title, limit: '20', content_type: 'video' })
+      const shortsParams = new URLSearchParams({ title, limit: '20', content_type: 'short' })
+
+      const [videoResponse, shortsResponse] = await Promise.all([
+        fetch(`http://localhost:8000/competitors/related-videos?${videoParams.toString()}`),
+        fetch(`http://localhost:8000/competitors/related-videos?${shortsParams.toString()}`),
+      ])
+
+      const videoData = await videoResponse.json()
+      const shortsData = await shortsResponse.json()
+
+      const allVideos = [
+        ...(Array.isArray(videoData.items) ? videoData.items : []),
+        ...(Array.isArray(shortsData.items) ? shortsData.items : []),
+      ]
 
       setAllVideos(allVideos)
     } catch (error) {
@@ -48,88 +77,79 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
     fetchVideos('')
   }, [fetchVideos])
 
-  const handleGetVideos = () => {
+  const handleGetVideos = useCallback(() => {
     fetchVideos('')
-  }
+  }, [fetchVideos])
 
   useEffect(() => {
     setStored('thumbnailTestCategory', selectedCategory)
   }, [selectedCategory])
 
-  const regularVideos = insertThumbnailsAtRandom(
-    allVideos.filter((v) => v.content_type !== 'short').slice(0, 12),
-    thumbnails,
-    thumbnailTitle,
-  )
-  const shorts = allVideos.filter((v) => v.content_type === 'short').slice(0, 5) // First 5 shorts
+  // Always use all available videos (competitor + user), arrange in home layout
+  const renderContent = useMemo(() => {
+    const combined = [...allVideos, ...userVideos]
+    const allRegularVideos = combined.filter((v) => v.content_type !== 'short')
+    const allShorts = combined.filter((v) => v.content_type !== 'short')
 
-  const renderContent = () => {
-    if (loading) {
+    const regularVideos = insertThumbnailsAtRandom(
+      shuffleArray(allRegularVideos),
+      thumbnails,
+      thumbnailTitle,
+    )
+    const shorts = shuffleArray(allShorts)
+
+    if (loading && combined.length === 0) {
       return <div className="thumbnail-loading">Loading videos...</div>
     }
 
-    if (allVideos.length === 0) {
+    if (combined.length === 0) {
       return <div className="thumbnail-empty">No videos found.</div>
     }
 
     const content = []
+    let videoIndex = 0
+    let shortIndex = 0
 
-    // Pattern: 2 rows of regular (6 videos) → 1 row of shorts (5 videos) → 2 rows of regular (6 videos)
-    // First 2 rows (6 regular videos)
-    if (regularVideos.length > 0) {
-      content.push(
-        <div key="regular-1" className="thumbnail-grid">
-          {regularVideos.slice(0, 3).map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
-      )
-    }
+    // Pattern: 2 rows of 4 videos (8 total) → 5 shorts → repeat
+    while (videoIndex < regularVideos.length || shortIndex < shorts.length) {
+      // 2 rows of 4 regular videos
+      if (videoIndex < regularVideos.length) {
+        content.push(
+          <div key={`regular-${videoIndex}`} className="thumbnail-grid">
+            {regularVideos.slice(videoIndex, videoIndex + 4).map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+        )
+        videoIndex += 4
+      }
 
-    if (regularVideos.length > 3) {
-      content.push(
-        <div key="regular-2" className="thumbnail-grid">
-          {regularVideos.slice(3, 6).map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
-      )
-    }
+      if (videoIndex < regularVideos.length) {
+        content.push(
+          <div key={`regular-${videoIndex}`} className="thumbnail-grid">
+            {regularVideos.slice(videoIndex, videoIndex + 4).map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+        )
+        videoIndex += 4
+      }
 
-    // Shorts row (5 shorts)
-    if (shorts.length > 0) {
-      content.push(
-        <div key="shorts-section" className="thumbnail-shorts-grid">
-          {shorts.map((video) => (
-            <VideoCard key={video.id} video={video} isShort />
-          ))}
-        </div>
-      )
-    }
-
-    // Last 2 rows (6 regular videos)
-    if (regularVideos.length > 6) {
-      content.push(
-        <div key="regular-3" className="thumbnail-grid">
-          {regularVideos.slice(6, 9).map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
-      )
-    }
-
-    if (regularVideos.length > 9) {
-      content.push(
-        <div key="regular-4" className="thumbnail-grid">
-          {regularVideos.slice(9, 12).map((video) => (
-            <VideoCard key={video.id} video={video} />
-          ))}
-        </div>
-      )
+      // 5 shorts
+      if (shortIndex < shorts.length) {
+        content.push(
+          <div key={`shorts-${shortIndex}`} className="thumbnail-shorts-grid">
+            {shorts.slice(shortIndex, shortIndex + 5).map((video) => (
+              <VideoCard key={video.id} video={video} isShort />
+            ))}
+          </div>
+        )
+        shortIndex += 5
+      }
     }
 
     return content
-  }
+  }, [allVideos, userVideos, thumbnails, thumbnailTitle, loading])
 
   return (
     <div className="page-body">
@@ -140,6 +160,22 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
+        />
+      </div>
+      <div className="page-row">
+        <UserVideoSelector
+          selectedSource={userVideoSource}
+          setSelectedSource={setUserVideoSource}
+          selectedPlaylist={userVideoPlaylist}
+          setSelectedPlaylist={setUserVideoPlaylist}
+          selectionMode={userVideoSelectionMode}
+          setSelectionMode={setUserVideoSelectionMode}
+          percentileRange={userVideoPercentileRange}
+          setPercentileRange={setUserVideoPercentileRange}
+          videoCount={userVideoCount}
+          setVideoCount={setUserVideoCount}
+          selectedVideos={userVideos}
+          onVideosSelected={handleUserVideosSelected}
         />
       </div>
       <div className="page-row">
@@ -160,7 +196,7 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
             </div>
           </div>
 
-          <div className="thumbnail-videos-content">{renderContent()}</div>
+          <div className="thumbnail-videos-content">{renderContent}</div>
           </div>
         </PageCard>
       </div>
