@@ -20,7 +20,7 @@ export type PlaylistItemRowData = {
   video_description: string | null
   video_thumbnail_url: string | null
   video_privacy_status: string | null
-  video_view_count: number | null
+  views: number | null
   video_comment_count: number | null
   video_like_count: number | null
   video_recent_views: number | null
@@ -85,7 +85,7 @@ function PlaylistItemRow({ item }: PlaylistItemRowProps) {
       </div>
       <span>{formatDisplayDate(item.published_at)}</span>
       <span className="video-muted">{item.video_privacy_status || item.privacy_status || '-'}</span>
-      <span className="right">{(item.video_view_count ?? 0).toLocaleString()}</span>
+      <span className="right">{(item.views ?? 0).toLocaleString()}</span>
       <span className="right">{(item.video_comment_count ?? 0).toLocaleString()}</span>
       <span className="right">{(item.video_like_count ?? 0).toLocaleString()}</span>
     </div>

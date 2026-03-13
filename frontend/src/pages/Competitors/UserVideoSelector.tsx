@@ -10,7 +10,6 @@ type Video = {
   id: string
   title: string
   views?: number
-  view_count?: number
   channel_title?: string
   published_at?: string
   description?: string
@@ -77,6 +76,7 @@ function UserVideoSelector({
         const response = await fetch(`http://localhost:8000/playlists/${selectedPlaylist}/items?limit=1000`)
         const data = await response.json()
         videos = Array.isArray(data.items) ? data.items : []
+        console.log(videos[0])
       }
 
       if (videos.length === 0) {
@@ -91,7 +91,7 @@ function UserVideoSelector({
         const maxPercentile = parseInt(maxStr) / 100
 
         // Sort in ascending order (lowest views first) so 0-10% = worst performers
-        const sorted = [...videos].sort((a, b) => ((a as any).views ?? 0) - ((b as any).views ?? 0))
+        const sorted = [...videos].sort((a, b) => (a.views ?? 0) - (b.views ?? 0))
         const minIndex = Math.floor(sorted.length * minPercentile)
         const maxIndex = Math.ceil(sorted.length * maxPercentile)
 
@@ -114,7 +114,7 @@ function UserVideoSelector({
       const videoRows: CompetitorVideoRow[] = chosen.map((video) => ({
         id: video.id,
         title: video.title,
-        view_count: video.view_count ?? null,
+        views: video.views ?? null,
         channel_title: video.channel_title ?? null,
         published_at: video.published_at ?? null,
         description: video.description,
@@ -243,7 +243,7 @@ function UserVideoSelector({
                     <div className="user-video-selector-result-metadata">
                       <span className="user-video-selector-result-channel">{video.channel_title ?? 'Unknown'}</span>
                       <div className="user-video-selector-result-stats">
-                        <span>{(video.view_count ?? 0).toLocaleString()} views</span>
+                        <span>{(video.views ?? 0).toLocaleString()} views</span>
                         <span>•</span>
                         <span>{formatDisplayDate(video.published_at)}</span>
                       </div>

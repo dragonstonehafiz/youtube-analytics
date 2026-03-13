@@ -219,7 +219,7 @@ function VideoCard({ video, isShort = false }: { video: CompetitorVideoRow; isSh
         <div className="thumbnail-video-metadata">
           <span className="thumbnail-channel-name">{video.channel_title ?? 'Unknown'}</span>
           <div className="thumbnail-video-stats">
-            <span>{(video.view_count ?? 0).toLocaleString()} views</span>
+            <span>{(video.views ?? 0).toLocaleString()} views</span>
             <span>•</span>
             <span>{formatDisplayDate(video.published_at)}</span>
           </div>

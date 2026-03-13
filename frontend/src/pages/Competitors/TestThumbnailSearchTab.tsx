@@ -85,7 +85,7 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
         <div className="thumbnail-search-metadata">
           <span className="thumbnail-search-channel">{video.channel_title ?? 'Unknown'}</span>
           <div className="thumbnail-search-stats">
-            <span>{(video.view_count ?? 0).toLocaleString()} views</span>
+            <span>{(video.views ?? 0).toLocaleString()} views</span>
             <span>•</span>
             <span>{formatDisplayDate(video.published_at)}</span>
           </div>

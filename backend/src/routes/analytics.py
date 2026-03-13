@@ -1003,7 +1003,7 @@ def get_content_insights(
         "median_views": 0, "mean_views": 0.0,
         "p90_threshold": 0, "outlier_count": 0, "outlier_videos": [],
         "outlier_share_pct": 0.0, "videos_with_views": 0,
-        "all_video_views": [],
+        "all_views": [],
         "all_video_avg_view_durations": [],
         "all_videos": [],
     }
@@ -1076,7 +1076,7 @@ def get_content_insights(
         "outlier_count": len(outlier_rows),
         "outlier_videos": [video_item(r) for r in outlier_rows],
         "outlier_share_pct": round(outlier_views / total_views * 100, 1) if total_views else 0.0,
-        "all_video_views": views_list,
+        "all_views": views_list,
         "all_video_avg_view_durations": avg_view_duration_list,
         "all_videos": all_videos,
     }

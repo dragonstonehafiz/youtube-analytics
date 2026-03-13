@@ -40,7 +40,7 @@ def me() -> dict:
         "description": snippet.get("description"),
         "published_at": snippet.get("publishedAt"),
         "country": snippet.get("country"),
-        "view_count": stats.get("viewCount"),
+        "views": stats.get("viewCount"),
         "subscriber_count": stats.get("subscriberCount"),
         "video_count": stats.get("videoCount"),
     }

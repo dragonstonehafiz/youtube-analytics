@@ -7,7 +7,7 @@ export type CompetitorVideoRow = {
   published_at: string | null
   channel_id: string | null
   channel_title: string | null
-  view_count: number | null
+  views: number | null
   like_count: number | null
   comment_count: number | null
   thumbnail_url: string | null
@@ -56,7 +56,7 @@ function CompetitorListRow({ video }: CompetitorListRowProps) {
       </div>
       <span className="video-muted">{video.channel_title ?? '-'}</span>
       <span>{formatDisplayDate(video.published_at)}</span>
-      <span className="right">{(video.view_count ?? 0).toLocaleString()}</span>
+      <span className="right">{(video.views ?? 0).toLocaleString()}</span>
       <span className="right">{(video.comment_count ?? 0).toLocaleString()}</span>
       <span className="right">{(video.like_count ?? 0).toLocaleString()}</span>
     </div>

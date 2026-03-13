@@ -28,12 +28,12 @@ type PlaylistMeta = {
 
 export type PlaylistItemSummary = { video_id: string }
 
-type PlaylistViewMode = 'playlist_views' | 'video_views'
+type PlaylistViewMode = 'playlist_views' | 'views'
 type PlaylistAnalyticsTab = 'metrics' | 'engagement' | 'monetization' | 'discovery' | 'comments' | 'insights'
 
 const VIEW_MODE_OPTIONS = [
   { label: 'Playlist Views', value: 'playlist_views' },
-  { label: 'Video Views', value: 'video_views' },
+  { label: 'Video Views', value: 'views' },
 ]
 
 function PlaylistDetail() {

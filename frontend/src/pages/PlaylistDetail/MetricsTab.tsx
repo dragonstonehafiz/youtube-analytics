@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity } from '../../components/charts'
 import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '../../components/cards'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
@@ -27,7 +27,7 @@ type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string }
   granularity: Granularity
-  viewMode: 'playlist_views' | 'video_views'
+  viewMode: 'playlist_views' | 'views'
   onOpenVideo: (videoId: string) => void
   videoIds: string[]
 }
@@ -119,7 +119,7 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
           title: item.video_title || item.title || '(untitled)',
           thumbnail_url: item.video_thumbnail_url || item.thumbnail_url || '',
           published_at: item.video_published_at || item.published_at || '',
-          views: item.video_view_count ?? 0,
+          views: item.views ?? 0,
           watch_time_minutes: item.video_watch_time_minutes ?? 0,
           avg_view_duration_seconds: item.video_average_view_duration_seconds ?? 0,
           avg_view_pct: 0,
@@ -232,8 +232,8 @@ export default function MetricsTab({ playlistId, range, previousRange, granulari
       },
       {
         key: 'revenue',
-        label: viewMode === 'video_views' ? 'Estimated revenue' : 'Avg time in playlist',
-        value: viewMode === 'video_views' ? formatCurrency(totals.estimated_revenue) : formatDuration(totals.average_time_in_playlist_seconds),
+        label: viewMode === 'views' ? 'Estimated revenue' : 'Avg time in playlist',
+        value: viewMode === 'views' ? formatCurrency(totals.estimated_revenue) : formatDuration(totals.average_time_in_playlist_seconds),
         series: [{ key: 'revenue', label: '', color: '#0ea5e9', points: days.map((day) => ({ date: day, value: viewMode === 'playlist_views' ? byDay.get(day)?.average_time_in_playlist_seconds ?? 0 : byDay.get(day)?.estimated_revenue ?? 0 })) }],
         previousSeries: [{ key: 'revenue', label: '', color: '#0ea5e9', points: previousDays.map((day) => ({ date: day, value: viewMode === 'playlist_views' ? previousByDay.get(day)?.average_time_in_playlist_seconds ?? 0 : previousByDay.get(day)?.estimated_revenue ?? 0 })) }],
         comparisonAggregation: viewMode === 'playlist_views' ? 'avg' : undefined,

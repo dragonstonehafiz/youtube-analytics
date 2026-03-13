@@ -38,7 +38,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
 
   const scatterPoints = useMemo((): ScatterPoint[] => {
     const videos = contentInsights?.all_videos ?? []
-    const views = contentInsights?.all_video_views ?? []
+    const views = contentInsights?.all_views ?? []
 
     // Find 80th percentile watch time (seconds)
     const watchTimes = videos.map((v) => v.avg_view_duration_seconds ?? 0).sort((a, b) => a - b)
@@ -82,7 +82,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
 
   const handleScatterPointMouseEnter = (index: number, event: React.MouseEvent<SVGCircleElement>) => {
     const videos = contentInsights?.all_videos ?? []
-    const views = contentInsights?.all_video_views ?? []
+    const views = contentInsights?.all_views ?? []
     const video = videos[index]
     if (!video || !scatterContainerRef.current) return
 
@@ -113,9 +113,9 @@ export default function InsightsTab({ playlistId, range }: Props) {
   }
 
   const histogramViewData = useMemo(() => {
-    const views = contentInsights?.all_video_views ?? []
+    const views = contentInsights?.all_views ?? []
     return views.length > 0 ? views : [0]
-  }, [contentInsights?.all_video_views])
+  }, [contentInsights?.all_views])
 
   const histogramAvgViewDurationData = useMemo(() => {
     const durations = contentInsights?.all_video_avg_view_durations ?? []
@@ -141,7 +141,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
 
   const handleHistogramBinMouseEnter = (_binIndex: number, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
     const videos = contentInsights?.all_videos ?? []
-    const views = contentInsights?.all_video_views ?? []
+    const views = contentInsights?.all_views ?? []
     const videosInBin = dataIndices
       .map((idx) => ({ video: videos[idx], views: views[idx] }))
       .filter((item) => item.video !== undefined)
@@ -177,7 +177,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
 
   const handleBarChartMouseEnter = (_bar: any, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
     const videos = contentInsights?.all_videos ?? []
-    const views = contentInsights?.all_video_views ?? []
+    const views = contentInsights?.all_views ?? []
     const videosInBar = dataIndices
       .map((idx) => ({ video: videos[idx], views: views[idx] }))
       .filter((item) => item.video !== undefined)

@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard, type VideoDetailListItem } from '../../components/cards'
 import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import { fillDayGaps } from '../../utils/date'
 import UploadPublishTooltip from '../../components/charts/UploadPublishTooltip'
 import { useSpikes } from '../../hooks/useSpikes'
 import { useSpikeHover } from '../../hooks/useSpikeHover'
-import { useVideoAnalyticsByIds, type VideoDailyRow } from '../../hooks/useVideoAnalytics'
+import { useVideoAnalyticsByIds } from '../../hooks/useVideoAnalytics'
 import type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance, MonetizationMonthly } from '../../utils/monetization'
 
 type PublishedDates = Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>
@@ -107,7 +106,7 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
           title: item.video_title || item.title || '(untitled)',
           thumbnail_url: item.video_thumbnail_url || item.thumbnail_url || '',
           published_at: item.video_published_at || item.published_at || '',
-          views: item.video_view_count ?? 0,
+          views: item.views ?? 0,
           watch_time_minutes: item.video_watch_time_minutes ?? 0,
           avg_view_duration_seconds: item.video_average_view_duration_seconds ?? 0,
           avg_view_pct: 0,

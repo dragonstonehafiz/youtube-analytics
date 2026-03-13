@@ -20,7 +20,7 @@ type VideoMetadata = {
   title: string
   description: string | null
   published_at: string | null
-  view_count: number | null
+  views: number | null
   like_count: number | null
   comment_count: number | null
   privacy_status: string | null
@@ -157,7 +157,7 @@ function VideoDetail() {
                   </div>
                 </div>
                 <div className="video-detail-grid">
-                  <StatCard label="Views" value={(video.view_count ?? 0).toLocaleString()} size = "smaller"/>
+                  <StatCard label="Views" value={(video.views ?? 0).toLocaleString()} size = "smaller"/>
                   <StatCard label="Likes" value={(video.like_count ?? 0).toLocaleString()} size = "smaller"/>
                   <StatCard label="Comments" value={(video.comment_count ?? 0).toLocaleString()} size = "smaller"/>
                 </div>

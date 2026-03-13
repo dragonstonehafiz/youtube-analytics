@@ -214,7 +214,7 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
                 </div>
 
                 <div className="thumbnail-player-metadata">
-                  <span>{(selectedVideo.view_count ?? 0).toLocaleString()} views</span>
+                  <span>{(selectedVideo.views ?? 0).toLocaleString()} views</span>
                   <span>•</span>
                   <span>{formatDisplayDate(selectedVideo.published_at)}</span>
                 </div>
@@ -305,7 +305,7 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
                       <h4 className="thumbnail-player-sidebar-title">{video.title}</h4>
                       <p className="thumbnail-player-sidebar-channel">{video.channel_title}</p>
                       <p className="thumbnail-player-sidebar-stats">
-                        {(video.view_count ?? 0).toLocaleString()} views • {formatDisplayDate(video.published_at)}
+                        {(video.views ?? 0).toLocaleString()} views • {formatDisplayDate(video.published_at)}
                       </p>
                     </div>
                   </div>

@@ -8,7 +8,7 @@ export type VideoRow = {
   title: string
   description: string | null
   published_at: string | null
-  view_count: number | null
+  views: number | null
   like_count: number | null
   comment_count: number | null
   privacy_status: string | null
@@ -59,7 +59,7 @@ function VideoListRow({ video }: VideoListRowProps) {
       </div>
       <span className="video-muted">{video.privacy_status ?? '-'}</span>
       <span>{formatDisplayDate(video.published_at)}</span>
-      <span className="right">{(video.view_count ?? 0).toLocaleString()}</span>
+      <span className="right">{(video.views ?? 0).toLocaleString()}</span>
       <span className="right">{(video.comment_count ?? 0).toLocaleString()}</span>
       <span className="right">{(video.like_count ?? 0).toLocaleString()}</span>
     </div>

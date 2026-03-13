@@ -32,7 +32,7 @@ export type ContentInsights = {
   outlier_videos: InsightVideo[]
   outlier_share_pct: number
   videos_with_views: number
-  all_video_views: number[]
+  all_views: number[]
   all_video_avg_view_durations: number[]
   all_videos: Array<{ video_id: string; title: string; thumbnail_url: string; avg_view_duration_seconds: number; view_percentage: number; content_type?: string }>
 }
@@ -159,7 +159,7 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
   const stats = useMemo(() => {
     if (!data) return null
 
-    const views = data.all_video_views
+    const views = data.all_views
     const n = views.length
     const mean = data.mean_views
 
@@ -205,7 +205,7 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
     setTooltipTitle('Top 25% videos')
     setTooltipStats([`${formatWholeNumber(stats?.top25Views || 0)} views`])
 
-    const viewsWithIndices = data.all_video_views.map((v, idx) => ({ views: v, idx }))
+    const viewsWithIndices = data.all_views.map((v, idx) => ({ views: v, idx }))
     const sorted = [...viewsWithIndices].sort((a, b) => b.views - a.views)
     const topQuartileIndex = Math.ceil(data.all_videos.length * 0.25)
     const topQuartile = sorted.slice(0, topQuartileIndex)

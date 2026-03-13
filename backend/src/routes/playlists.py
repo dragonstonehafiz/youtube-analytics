@@ -143,7 +143,7 @@ def list_playlist_items(
                 v.description AS video_description,
                 v.thumbnail_url AS video_thumbnail_url,
                 v.privacy_status AS video_privacy_status,
-                v.view_count AS video_view_count,
+                v.view_count AS views,
                 v.comment_count AS video_comment_count,
                 v.like_count AS video_like_count,
                 COALESCE(rv.recent_views, 0) AS video_recent_views,

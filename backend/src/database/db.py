@@ -19,7 +19,12 @@ def get_connection() -> sqlite3.Connection:
 
 def row_to_dict(row: sqlite3.Row) -> dict:
     """Convert a SQLite row to a plain dict."""
-    return {key: row[key] for key in row.keys()}
+    item = {key: row[key] for key in row.keys()}
+    if "view_count" in item:
+        item["views"] = item.pop("view_count")
+    if "views" in item:
+        item["views"] = item.pop("views")
+    return item
 
 
 def init_db() -> None:

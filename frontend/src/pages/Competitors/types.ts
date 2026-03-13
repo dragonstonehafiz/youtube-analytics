@@ -21,7 +21,7 @@ export type CompetitorVideoRow = {
   description?: string | null
   channel_title: string | null
   published_at: string | null
-  view_count: number | null
+  views: number | null
   thumbnail_url: string | null
   content_type?: string | null
 }

@@ -24,7 +24,7 @@ export function insertThumbnailsAtRandom(
       description: null,
       channel_title: 'Your Channel',
       published_at: new Date().toISOString(),
-      view_count: 0,
+      views: 0,
       thumbnail_url: thumbnail.preview,
       content_type: undefined,
     }
