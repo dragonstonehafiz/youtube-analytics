@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, type ContentInsights } from '../../components/cards'
 import { PageCard } from '../../components/cards'
-import { ScatterChart, type ScatterPoint } from '../../components/charts'
+import { ScatterChart, type ScatterPoint, type BarChartBarInfo } from '../../components/charts'
 import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
 import { formatWholeNumber, formatDuration } from '../../utils/number'
 
@@ -175,7 +175,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
     scheduleHide()
   }
 
-  const handleBarChartMouseEnter = (_bar: any, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
+  const handleBarChartMouseEnter = (_bar: BarChartBarInfo, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
     const videos = contentInsights?.all_videos ?? []
     const views = contentInsights?.all_views ?? []
     const videosInBar = dataIndices
@@ -213,7 +213,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
 
   return (
     <div className="page-row">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="playlist-insights-column">
         <PageCard>
         <ContentInsightsCard data={contentInsights} range={range} playlistId={playlistId} />
       </PageCard>
@@ -261,7 +261,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
           })()}
         </PageCard>
       </div>
-      <div ref={scatterContainerRef} style={{ position: 'relative' }}>
+      <div ref={scatterContainerRef} className="playlist-chart-wrapper">
         <PageCard title="Engagement Matrix: Views vs Watch %">
           <ScatterChart
             points={scatterPoints}
@@ -279,7 +279,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
         </PageCard>
         <UploadPublishTooltip hover={scatterHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
       </div>
-      <div ref={histogramContainerRef} style={{ position: 'relative' }}>
+      <div ref={histogramContainerRef} className="playlist-chart-wrapper">
         <PageCard title="Distribution of Average View Duration">
           <HistogramChartCard
             viewData={histogramAvgViewDurationData}
@@ -291,7 +291,7 @@ export default function InsightsTab({ playlistId, range }: Props) {
         </PageCard>
         <UploadPublishTooltip hover={histogramHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
       </div>
-      <div ref={barChartContainerRef} style={{ position: 'relative' }}>
+      <div ref={barChartContainerRef} className="playlist-chart-wrapper">
         <PageCard title="Total Views by Percentile">
           <BarChartCard
             data={histogramViewData}

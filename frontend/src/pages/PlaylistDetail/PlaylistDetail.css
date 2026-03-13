@@ -1,5 +1,15 @@
 /* PlaylistDetail page styles */
 
+.playlist-chart-wrapper {
+  position: relative;
+}
+
+.playlist-insights-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .page {
   display: flex;
   flex-direction: column;

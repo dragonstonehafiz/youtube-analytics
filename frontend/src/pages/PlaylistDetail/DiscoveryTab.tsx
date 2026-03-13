@@ -9,12 +9,12 @@ import {
   type TopTrafficVideo,
   type TrafficSourceShareItem,
 } from '../../components/cards'
-import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
+import { PlaylistItemsTable } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
-import usePagination from '../../hooks/usePagination'
 import { formatWholeNumber } from '../../utils/number'
 import { buildTrafficSeries, type TrafficSourceRow } from '../../utils/trafficSeries'
-type PublishedDates = Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>
+import { usePlaylistItems } from './usePlaylistItems'
+import type { PublishedDates } from './types'
 type TopVideosBySourceResponseItem = { video_id: string; title: string; thumbnail_url: string; published_at: string; views: number; watch_time_minutes: number }
 type TopSearchResponseItem = { search_term: string; views: number; watch_time_minutes: number; video_count: number }
 
@@ -38,43 +38,7 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
   const [searchTopTermsLoading, setSearchTopTermsLoading] = useState(false)
   const [searchTopTermsError, setSearchTopTermsError] = useState<string | null>(null)
   const [publishedDates, setPublishedDates] = useState<PublishedDates>({})
-  const [items, setItems] = useState<PlaylistItemRowData[]>([])
-  const [itemsTotal, setItemsTotal] = useState(0)
-  const [loadingItems, setLoadingItems] = useState(false)
-  const [errorItems, setErrorItems] = useState<string | null>(null)
-  const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
-  const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
-  const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total: itemsTotal, defaultPageSize: 10 })
-
-  useEffect(() => { setPage(1) }, [sortBy, direction, setPage])
-
-  useEffect(() => {
-    async function loadItems() {
-      if (!playlistId) { setItems([]); setItemsTotal(0); return }
-      setLoadingItems(true)
-      setErrorItems(null)
-      try {
-        const offset = (page - 1) * pageSize
-        const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset), sort_by: sortBy, direction })
-        const res = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
-        if (!res.ok) throw new Error(`Failed to load playlist items (${res.status})`)
-        const data = await res.json()
-        setItems(Array.isArray(data.items) ? (data.items as PlaylistItemRowData[]) : [])
-        setItemsTotal(typeof data.total === 'number' ? data.total : 0)
-      } catch (err) {
-        setErrorItems(err instanceof Error ? err.message : 'Failed to load playlist items.')
-      } finally {
-        setLoadingItems(false)
-      }
-    }
-    loadItems()
-  }, [playlistId, page, pageSize, sortBy, direction])
-
-  const toggleSort = (key: PlaylistItemSortKey) => {
-    if (sortBy === key) { setDirection((prev) => (prev === 'asc' ? 'desc' : 'asc')); return }
-    setSortBy(key)
-    setDirection(key === 'position' ? 'asc' : 'desc')
-  }
+  const { items, loadingItems, errorItems, sortBy, direction, page, setPage, pageSize, setPageSize, totalPages, toggleSort } = usePlaylistItems(playlistId)
 
   useEffect(() => {
     async function loadDiscoveryTraffic() {
@@ -95,8 +59,7 @@ export default function DiscoveryTab({ playlistId, range, previousRange, granula
           }))
         setDiscoveryTrafficRows(Array.isArray(currentPayload?.items) ? toRows(currentPayload.items) : [])
         setDiscoveryPreviousTrafficRows(Array.isArray(previousPayload?.items) ? toRows(previousPayload.items) : [])
-      } catch (error) {
-        console.error('Failed to load playlist discovery traffic data', error)
+      } catch {
         setDiscoveryTrafficRows([])
         setDiscoveryPreviousTrafficRows([])
       }

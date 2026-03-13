@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard, type VideoDetailListItem } from '../../components/cards'
-import { PlaylistItemsTable, type PlaylistItemRowData, type PlaylistItemSortKey } from '../../components/tables'
+import { PlaylistItemsTable, type PlaylistItemRowData } from '../../components/tables'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
-import usePagination from '../../hooks/usePagination'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import UploadPublishTooltip from '../../components/charts/UploadPublishTooltip'
 import { useSpikes } from '../../hooks/useSpikes'
 import { useSpikeHover } from '../../hooks/useSpikeHover'
 import { useVideoAnalyticsByIds } from '../../hooks/useVideoAnalytics'
 import type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance, MonetizationMonthly } from '../../utils/monetization'
-
-type PublishedDates = Record<string, { video_id?: string; title: string; published_at: string; thumbnail_url: string; content_type: string }[]>
+import { usePlaylistItems } from './usePlaylistItems'
+import type { PublishedDates } from './types'
 
 type Props = {
   playlistId: string | undefined
@@ -28,49 +27,13 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
   const [topPerformingItems, setTopPerformingItems] = useState<VideoDetailListItem[]>([])
   const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
   const [monetizationContentType, setMonetizationContentType] = useState<MonetizationContentType>('video')
-  const [items, setItems] = useState<PlaylistItemRowData[]>([])
-  const [itemsTotal, setItemsTotal] = useState(0)
-  const [loadingItems, setLoadingItems] = useState(false)
-  const [errorItems, setErrorItems] = useState<string | null>(null)
-  const [sortBy, setSortBy] = useState<PlaylistItemSortKey>('position')
-  const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
+  const { items, loadingItems, errorItems, sortBy, direction, page, setPage, pageSize, setPageSize, totalPages, toggleSort } = usePlaylistItems(playlistId)
   const { hoverSpike, hoverHandlers } = useSpikeHover()
   const { setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef } = hoverHandlers
-  const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total: itemsTotal, defaultPageSize: 10 })
-
-  useEffect(() => { setPage(1) }, [sortBy, direction, setPage])
 
   const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, videoIds)
   const adImpressionsSpikes = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, videoIds)
   const monetizedPlaybacksSpikes = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, videoIds)
-
-  useEffect(() => {
-    async function loadItems() {
-      if (!playlistId) { setItems([]); setItemsTotal(0); return }
-      setLoadingItems(true)
-      setErrorItems(null)
-      try {
-        const offset = (page - 1) * pageSize
-        const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset), sort_by: sortBy, direction })
-        const res = await fetch(`http://localhost:8000/playlists/${playlistId}/items?${params.toString()}`)
-        if (!res.ok) throw new Error(`Failed to load playlist items (${res.status})`)
-        const data = await res.json()
-        setItems(Array.isArray(data.items) ? (data.items as PlaylistItemRowData[]) : [])
-        setItemsTotal(typeof data.total === 'number' ? data.total : 0)
-      } catch (err) {
-        setErrorItems(err instanceof Error ? err.message : 'Failed to load playlist items.')
-      } finally {
-        setLoadingItems(false)
-      }
-    }
-    loadItems()
-  }, [playlistId, page, pageSize, sortBy, direction])
-
-  const toggleSort = (key: PlaylistItemSortKey) => {
-    if (sortBy === key) { setDirection((prev) => (prev === 'asc' ? 'desc' : 'asc')); return }
-    setSortBy(key)
-    setDirection(key === 'position' ? 'asc' : 'desc')
-  }
 
   useEffect(() => {
     async function loadPublished() {
@@ -266,43 +229,45 @@ export default function MonetizationTab({ playlistId, range, previousRange, gran
   return (
     <>
       <div className="page-row">
-        <PageCard style={{ position: 'relative' }}>
-          {loading ? (
-            <div className="video-detail-state">Loading playlist analytics...</div>
-          ) : error ? (
-            <div className="video-detail-state">{error}</div>
-          ) : (
-            <>
-              <MetricChartCard
-                data={metricsData}
-                granularity={granularity}
-                publishedDates={publishedDates}
-              />
-              <UploadPublishTooltip
-                hover={hoverSpike}
-                titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
-                statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
-                onMouseEnter={() => {
-                  if (spikeTimeoutRef.current) {
-                    window.clearTimeout(spikeTimeoutRef.current)
-                  }
-                  spikeHoverLockedRef.current = true
-                }}
-                onMouseLeave={() => {
-                  spikeHoverLockedRef.current = false
-                  if (spikeTimeoutRef.current) {
-                    window.clearTimeout(spikeTimeoutRef.current)
-                  }
-                  spikeTimeoutRef.current = window.setTimeout(() => {
-                    if (!spikeHoverLockedRef.current) {
-                      setHoverSpike(null)
+        <div className="playlist-chart-wrapper">
+          <PageCard>
+            {loading ? (
+              <div className="video-detail-state">Loading playlist analytics...</div>
+            ) : error ? (
+              <div className="video-detail-state">{error}</div>
+            ) : (
+              <>
+                <MetricChartCard
+                  data={metricsData}
+                  granularity={granularity}
+                  publishedDates={publishedDates}
+                />
+                <UploadPublishTooltip
+                  hover={hoverSpike}
+                  titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+                  statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+                  onMouseEnter={() => {
+                    if (spikeTimeoutRef.current) {
+                      window.clearTimeout(spikeTimeoutRef.current)
                     }
-                  }, 150)
-                }}
-              />
-            </>
-          )}
-        </PageCard>
+                    spikeHoverLockedRef.current = true
+                  }}
+                  onMouseLeave={() => {
+                    spikeHoverLockedRef.current = false
+                    if (spikeTimeoutRef.current) {
+                      window.clearTimeout(spikeTimeoutRef.current)
+                    }
+                    spikeTimeoutRef.current = window.setTimeout(() => {
+                      if (!spikeHoverLockedRef.current) {
+                        setHoverSpike(null)
+                      }
+                    }, 150)
+                  }}
+                />
+              </>
+            )}
+          </PageCard>
+        </div>
       </div>
       <div className="page-row">
         <div className="playlist-detail-items-layout">

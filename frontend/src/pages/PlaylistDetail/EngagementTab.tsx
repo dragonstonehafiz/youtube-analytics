@@ -132,35 +132,37 @@ export default function EngagementTab({ range, previousRange, granularity, video
 
   return (
     <div className="page-row">
-      <PageCard style={{ position: 'relative' }}>
-        <MetricChartCard
-          data={metricsData}
-          granularity={granularity}
-          publishedDates={{}}
-        />
-        <UploadPublishTooltip
-          hover={hoverSpike}
-          titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
-          statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
-          onMouseEnter={() => {
-            if (spikeTimeoutRef.current) {
-              window.clearTimeout(spikeTimeoutRef.current)
-            }
-            spikeHoverLockedRef.current = true
-          }}
-          onMouseLeave={() => {
-            spikeHoverLockedRef.current = false
-            if (spikeTimeoutRef.current) {
-              window.clearTimeout(spikeTimeoutRef.current)
-            }
-            spikeTimeoutRef.current = window.setTimeout(() => {
-              if (!spikeHoverLockedRef.current) {
-                setHoverSpike(null)
+      <div className="playlist-chart-wrapper">
+        <PageCard>
+          <MetricChartCard
+            data={metricsData}
+            granularity={granularity}
+            publishedDates={{}}
+          />
+          <UploadPublishTooltip
+            hover={hoverSpike}
+            titleOverride={hoverSpike ? `Spike: ${hoverSpike.startDate} → ${hoverSpike.endDate}` : undefined}
+            statsOverride={hoverSpike ? [`${hoverSpike.items.length} top ${hoverSpike.items.length === 1 ? 'video' : 'videos'} during spike`] : undefined}
+            onMouseEnter={() => {
+              if (spikeTimeoutRef.current) {
+                window.clearTimeout(spikeTimeoutRef.current)
               }
-            }, 150)
-          }}
-        />
-      </PageCard>
+              spikeHoverLockedRef.current = true
+            }}
+            onMouseLeave={() => {
+              spikeHoverLockedRef.current = false
+              if (spikeTimeoutRef.current) {
+                window.clearTimeout(spikeTimeoutRef.current)
+              }
+              spikeTimeoutRef.current = window.setTimeout(() => {
+                if (!spikeHoverLockedRef.current) {
+                  setHoverSpike(null)
+                }
+              }, 150)
+            }}
+          />
+        </PageCard>
+      </div>
     </div>
   )
 }

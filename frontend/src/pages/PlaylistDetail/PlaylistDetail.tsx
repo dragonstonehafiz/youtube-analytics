@@ -13,28 +13,10 @@ import InsightsTab from './InsightsTab'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import { usePlaylistVideoIds } from '../../hooks/usePlaylistVideoIds'
+import type { PlaylistMeta, PlaylistAnalyticsTab, PlaylistViewMode } from './types'
+import { PLAYLIST_DETAIL_TABS, parsePlaylistDetailTab, VIEW_MODE_OPTIONS } from './utils'
 import '../shared.css'
 import './PlaylistDetail.css'
-
-type PlaylistMeta = {
-  id: string
-  title: string | null
-  description: string | null
-  published_at: string | null
-  privacy_status: string | null
-  item_count: number | null
-  thumbnail_url: string | null
-}
-
-export type PlaylistItemSummary = { video_id: string }
-
-type PlaylistViewMode = 'playlist_views' | 'views'
-type PlaylistAnalyticsTab = 'metrics' | 'engagement' | 'monetization' | 'discovery' | 'comments' | 'insights'
-
-const VIEW_MODE_OPTIONS = [
-  { label: 'Playlist Views', value: 'playlist_views' },
-  { label: 'Video Views', value: 'views' },
-]
 
 function PlaylistDetail() {
   const { playlistId } = useParams()
@@ -44,11 +26,7 @@ function PlaylistDetail() {
   const [errorMeta, setErrorMeta] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<PlaylistViewMode>(getStored('playlistDetailViewMode', 'playlist_views'))
   const initialTab = getStored('playlistDetailTab', 'metrics') as string
-  const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(
-    (['metrics', 'engagement', 'monetization', 'discovery', 'comments', 'insights'] as string[]).includes(initialTab)
-      ? initialTab as PlaylistAnalyticsTab
-      : 'metrics'
-  )
+  const [analyticsTab, setAnalyticsTab] = useState<PlaylistAnalyticsTab>(parsePlaylistDetailTab(initialTab))
   const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
   const [years, setYears] = useState<string[]>([])
   const videoIds = usePlaylistVideoIds(playlistId)
@@ -152,48 +130,16 @@ function PlaylistDetail() {
           </div>
         </div>
         <div className="analytics-tab-row">
-          <button
-            type="button"
-            className={analyticsTab === 'metrics' ? 'analytics-tab active' : 'analytics-tab'}
-            onClick={() => setAnalyticsTab('metrics')}
-          >
-            Metrics
-          </button>
-          <button
-            type="button"
-            className={analyticsTab === 'engagement' ? 'analytics-tab active' : 'analytics-tab'}
-            onClick={() => setAnalyticsTab('engagement')}
-          >
-            Engagement
-          </button>
-          <button
-            type="button"
-            className={analyticsTab === 'monetization' ? 'analytics-tab active' : 'analytics-tab'}
-            onClick={() => setAnalyticsTab('monetization')}
-          >
-            Monetization
-          </button>
-          <button
-            type="button"
-            className={analyticsTab === 'discovery' ? 'analytics-tab active' : 'analytics-tab'}
-            onClick={() => setAnalyticsTab('discovery')}
-          >
-            Discovery
-          </button>
-          <button
-            type="button"
-            className={analyticsTab === 'comments' ? 'analytics-tab active' : 'analytics-tab'}
-            onClick={() => setAnalyticsTab('comments')}
-          >
-            Comments
-          </button>
-          <button
-            type="button"
-            className={analyticsTab === 'insights' ? 'analytics-tab active' : 'analytics-tab'}
-            onClick={() => setAnalyticsTab('insights')}
-          >
-            Insights
-          </button>
+            {PLAYLIST_DETAIL_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                className={analyticsTab === tab.key ? 'analytics-tab active' : 'analytics-tab'}
+                onClick={() => setAnalyticsTab(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
         </div>
         {analyticsTab === 'comments' && (
           <CommentsTab playlistId={playlistId} />
