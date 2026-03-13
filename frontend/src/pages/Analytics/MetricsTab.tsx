@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard, type Granularity, type SeriesPoint, type MetricItem, type PublishedItem } from '../../components/charts'
+import { MetricChartCard, type Granularity, type MetricItem, type PublishedItem } from '../../components/charts'
 import { PageCard, VideoDetailListCard } from '../../components/cards'
 import { TopContentTable } from '../../components/tables'
 import { fillDayGaps, formatDisplayDate } from '../../utils/date'
@@ -38,6 +38,27 @@ type TopContentRow = {
   avg_view_duration: string
   avg_view_pct: string
   views: string
+}
+
+type TopContentResponseItem = {
+  video_id?: string
+  title?: string
+  published_at?: string
+  thumbnail_url?: string
+  avg_view_duration_seconds?: number
+  avg_view_pct?: number
+  views?: number
+}
+
+type LatestContentResponseItem = {
+  video_id?: string
+  title?: string
+  thumbnail_url?: string
+  published_at?: string
+  views?: number
+  watch_time_minutes?: number
+  avg_view_duration_seconds?: number
+  avg_view_pct?: number
 }
 
 type Props = {
@@ -89,12 +110,12 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
           `http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10${contentParam}`
         )
         const data = await response.json()
-        const items = Array.isArray(data.items) ? data.items : []
+        const items = Array.isArray(data.items) ? (data.items as TopContentResponseItem[]) : []
         setTopContent(
-          items.map((item: any, index: number) => ({
+          items.map((item, index) => ({
             video_id: String(item.video_id ?? ''),
             rank: index + 1,
-            title: item.title,
+            title: item.title ?? '',
             published_at: item.published_at ?? '',
             upload_date: formatDisplayDate(item.published_at),
             thumbnail_url: item.thumbnail_url ?? '',
@@ -103,8 +124,8 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
             views: Number(item.views ?? 0).toLocaleString(),
           }))
         )
-      } catch (error) {
-        console.error('Failed to load top content', error)
+      } catch {
+        // ignore — top content is non-critical
       }
     }
     loadTopContent()
@@ -127,8 +148,8 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
           ),
         ])
         const [longformData, shortData] = await Promise.all([longformRes.json(), shortRes.json()])
-        const mapItems = (payload: any): LatestContentItem[] =>
-          (Array.isArray(payload?.items) ? payload.items : []).map((item: any) => ({
+        const mapItems = (payload: { items?: LatestContentResponseItem[] }): LatestContentItem[] =>
+          (Array.isArray(payload?.items) ? payload.items : []).map((item) => ({
             video_id: String(item.video_id ?? ''),
             title: String(item.title ?? '(untitled)'),
             thumbnail_url: String(item.thumbnail_url ?? ''),
@@ -140,8 +161,7 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
           }))
         setLatestLongform(mapItems(longformData))
         setLatestShorts(mapItems(shortData))
-      } catch (error) {
-        console.error('Failed to load latest content cards', error)
+      } catch {
         setLatestLongform([])
         setLatestShorts([])
       }
@@ -251,7 +271,8 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
   return (
     <div className="analytics-main-layout">
       <div className="analytics-main-column">
-        <PageCard style={{ position: 'relative' }}>
+        <div className="analytics-chart-wrapper">
+          <PageCard>
           <MetricChartCard
             data={metricsData}
             granularity={granularity}
@@ -279,7 +300,8 @@ export default function MetricsTab({ range, previousRange, granularity, contentT
               }, 150)
             }}
           />
-        </PageCard>
+          </PageCard>
+        </div>
         <PageCard>
           <TopContentTable items={topContent} />
         </PageCard>

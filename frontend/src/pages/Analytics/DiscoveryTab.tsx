@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint, type PublishedItem } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity, type PublishedItem } from '../../components/charts'
 import {
   PageCard,
   SearchInsightsTopTermsCard,
@@ -13,8 +13,6 @@ import {
 import { buildTrafficSeries, type TrafficSourceRow } from '../../utils/trafficSeries'
 import { formatWholeNumber } from '../../utils/number'
 
-type DiscoveryMultiSeries = { key: string; label: string; color: string; points: SeriesPoint[] }
-
 type TopVideosBySourceResponseItem = {
   video_id: string
   title: string
@@ -22,6 +20,13 @@ type TopVideosBySourceResponseItem = {
   published_at: string
   views: number
   watch_time_minutes: number
+}
+
+type TrafficSourceResponseItem = {
+  day?: string
+  traffic_source?: string
+  views?: number
+  watch_time_minutes?: number
 }
 
 type TopSearchResponseItem = {
@@ -64,7 +69,7 @@ export default function DiscoveryTab({ range, previousRange, granularity, conten
             : `http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentType}`
         const [currentRes, previousRes] = await Promise.all([fetch(currentUrl), fetch(previousUrl)])
         const [currentPayload, previousPayload] = await Promise.all([currentRes.json(), previousRes.json()])
-        const toRows = (items: any[]): TrafficSourceRow[] =>
+        const toRows = (items: TrafficSourceResponseItem[]): TrafficSourceRow[] =>
           items.map((item) => ({
             day: String(item?.day ?? ''),
             traffic_source: String(item?.traffic_source ?? ''),
@@ -73,8 +78,7 @@ export default function DiscoveryTab({ range, previousRange, granularity, conten
           }))
         setDiscoveryTrafficRows(Array.isArray(currentPayload?.items) ? toRows(currentPayload.items) : [])
         setDiscoveryPreviousTrafficRows(Array.isArray(previousPayload?.items) ? toRows(previousPayload.items) : [])
-      } catch (error) {
-        console.error('Failed to load discovery traffic data', error)
+      } catch {
         setDiscoveryTrafficRows([])
         setDiscoveryPreviousTrafficRows([])
       }

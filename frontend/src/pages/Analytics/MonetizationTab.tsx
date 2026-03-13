@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type SeriesPoint, type Granularity, type PublishedItem } from '../../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity, type PublishedItem } from '../../components/charts'
 import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard } from '../../components/cards'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import { fillDayGaps } from '../../utils/date'
@@ -8,6 +8,10 @@ import { useSpikes } from '../../hooks/useSpikes'
 import { useSpikeHover } from '../../hooks/useSpikeHover'
 import { useChannelAnalytics } from '../../hooks/useChannelAnalytics'
 import type { MonetizationContentType, MonetizationPerformance, MonetizationMonthly } from '../../utils/monetization'
+
+type ContentSummaryPayload = { totals?: { views?: number; estimated_revenue?: number } }
+type ContentTopItem = { video_id?: string; title?: string; thumbnail_url?: string; estimated_revenue?: number }
+type ContentTopPayload = { items?: ContentTopItem[] }
 
 type Props = {
   range: { start: string; end: string }
@@ -68,7 +72,7 @@ export default function MonetizationTab({ range, previousRange, granularity, con
   useEffect(() => {
     async function loadContentPerformance() {
       try {
-        const mapPerformance = (summaryPayload: any, topPayload: any): MonetizationPerformance => {
+        const mapPerformance = (summaryPayload: ContentSummaryPayload, topPayload: ContentTopPayload): MonetizationPerformance => {
           const views = Number(summaryPayload?.totals?.views ?? 0)
           const estimatedRevenue = Number(summaryPayload?.totals?.estimated_revenue ?? 0)
           const rpm = views > 0 ? (estimatedRevenue / views) * 1000 : 0
@@ -77,7 +81,7 @@ export default function MonetizationTab({ range, previousRange, granularity, con
             views,
             estimated_revenue: estimatedRevenue,
             rpm,
-            items: topItems.map((item: any) => ({
+            items: topItems.map((item) => ({
               video_id: String(item?.video_id ?? ''),
               title: String(item?.title ?? '(untitled)'),
               thumbnail_url: String(item?.thumbnail_url ?? ''),
@@ -174,7 +178,8 @@ export default function MonetizationTab({ range, previousRange, granularity, con
 
   return (
     <div className="analytics-monetization-layout">
-      <PageCard style={{ position: 'relative' }}>
+      <div className="analytics-chart-wrapper">
+        <PageCard>
         <MetricChartCard
           data={metricsData}
           granularity={granularity}
@@ -202,7 +207,8 @@ export default function MonetizationTab({ range, previousRange, granularity, con
             }, 150)
           }}
         />
-      </PageCard>
+        </PageCard>
+      </div>
       <div className="analytics-monetization-cards-row">
         <PageCard>
           <MonetizationEarningsCard items={monthlyEarnings} />

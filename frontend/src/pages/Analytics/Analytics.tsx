@@ -38,16 +38,17 @@ function Analytics() {
 
   useEffect(() => {
     if (!rangeValue) return
+    const range = rangeValue
     async function loadPublished() {
       try {
         const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
         const response = await fetch(
-          `http://localhost:8000/videos/published?start_date=${rangeValue.range.start}&end_date=${rangeValue.range.end}${contentParam}`
+          `http://localhost:8000/videos/published?start_date=${range.range.start}&end_date=${range.range.end}${contentParam}`
         )
         const data = await response.json()
-        const items = Array.isArray(data.items) ? data.items : []
+        const items = Array.isArray(data.items) ? (data.items as Array<{ day: string; items: PublishedItem[] }>) : []
         const map: Record<string, PublishedItem[]> = {}
-        items.forEach((item: any) => {
+        items.forEach((item) => {
           if (item.day) map[item.day] = Array.isArray(item.items) ? item.items : []
         })
         setPublishedDatesDaily(map)
@@ -56,7 +57,7 @@ function Analytics() {
       }
     }
     loadPublished()
-  }, [rangeValue?.range.start, rangeValue?.range.end, contentSelection])
+  }, [rangeValue, contentSelection])
 
   useEffect(() => {
     setStored('analyticsContentSelection', contentSelection)

@@ -292,6 +292,10 @@
   gap: 16px;
 }
 
+.analytics-chart-wrapper {
+  position: relative;
+}
+
 @media (max-width: 1100px) {
   .analytics-main-layout {
     grid-template-columns: 1fr;

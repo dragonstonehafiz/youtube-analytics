@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, PageCard, type ContentInsights } from '../../components/cards'
-import { ScatterChart, type ScatterPoint } from '../../components/charts'
+import { ScatterChart, type ScatterPoint, type BarChartBarInfo } from '../../components/charts'
 import UploadPublishTooltip, { type UploadHoverState } from '../../components/charts/UploadPublishTooltip'
 import { formatWholeNumber, formatDuration } from '../../utils/number'
 
@@ -31,8 +31,7 @@ export default function InsightsTab({ range, contentType }: Props) {
         )
         const data = await response.json()
         setContentInsights(data)
-      } catch (error) {
-        console.error('Failed to load content insights', error)
+      } catch {
         setContentInsights(null)
       }
     }
@@ -179,7 +178,7 @@ export default function InsightsTab({ range, contentType }: Props) {
     scheduleHide()
   }
 
-  const handleBarChartMouseEnter = (_bar: any, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
+  const handleBarChartMouseEnter = (_bar: BarChartBarInfo, dataIndices: number[], event: React.MouseEvent<SVGRectElement>) => {
     const videos = contentInsights?.all_videos ?? []
     const views = contentInsights?.all_views ?? []
     const videosInBar = dataIndices
@@ -264,7 +263,7 @@ export default function InsightsTab({ range, contentType }: Props) {
           })()}
         </PageCard>
       </div>
-      <div ref={scatterContainerRef} style={{ position: 'relative' }}>
+      <div ref={scatterContainerRef} className="analytics-chart-wrapper">
         <PageCard title="Engagement Matrix: Views vs Watch %">
           <ScatterChart
             points={scatterPoints}
@@ -282,7 +281,7 @@ export default function InsightsTab({ range, contentType }: Props) {
         </PageCard>
         <UploadPublishTooltip hover={scatterHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
       </div>
-      <div ref={histogramContainerRef} style={{ position: 'relative' }}>
+      <div ref={histogramContainerRef} className="analytics-chart-wrapper">
         <PageCard title="Distribution of Average View Duration">
           <HistogramChartCard
             viewData={histogramAvgViewDurationData}
@@ -294,7 +293,7 @@ export default function InsightsTab({ range, contentType }: Props) {
         </PageCard>
         <UploadPublishTooltip hover={histogramHover} onMouseEnter={cancelHide} onMouseLeave={scheduleHide} statsOverride={[]} />
       </div>
-      <div ref={barChartContainerRef} style={{ position: 'relative' }}>
+      <div ref={barChartContainerRef} className="analytics-chart-wrapper">
         <PageCard title="Total Views by Percentile">
           <BarChartCard
             data={histogramViewData}

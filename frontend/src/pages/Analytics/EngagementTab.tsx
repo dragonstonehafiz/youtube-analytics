@@ -131,11 +131,12 @@ export default function EngagementTab({ range, previousRange, granularity, conte
       comparisonAggregation: 'avg',
       isDuration: true,
     },
-  ], [dailyData, previousDailyData, engagedViewsSpikes, subscribersSpikes])
+  ], [dailyData, previousDailyData, currentEngagedViews, currentSubscribersNet, engagedViewsSpikes, subscribersSpikes])
 
   return (
     <div className="page-row">
-      <PageCard style={{ position: 'relative' }}>
+      <div className="analytics-chart-wrapper">
+        <PageCard>
         <MetricChartCard
           data={metricsData}
           granularity={granularity}
@@ -163,7 +164,8 @@ export default function EngagementTab({ range, previousRange, granularity, conte
             }, 150)
           }}
         />
-      </PageCard>
+        </PageCard>
+      </div>
     </div>
   )
 }
