@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import pickle
-
 from fastapi import APIRouter, HTTPException, Query
 
 from src.database.db import get_connection, row_to_dict
-from src.utils.embeddings import get_embedding_model
 
 router = APIRouter()
 
@@ -57,43 +54,25 @@ def list_videos(
 
     with get_connection() as conn:
         query = f"""
-            SELECT id, title, title_embedding FROM videos
+            SELECT id, title, title_embedding, published_at, view_count, comment_count, like_count FROM videos
             {where_sql}
         """
         all_rows = conn.execute(query, tuple(params)).fetchall()
 
-    # If q is provided, use semantic similarity to filter and score
+    # If q is provided, filter by keyword match
     if q:
-        embedding_model = get_embedding_model()
-        query_embedding = embedding_model.embed(q)
         keywords = q.lower().split()
-        semantic_threshold = 0.5
-
-        scored_rows = []
+        filtered_rows = []
         for row in all_rows:
             title = (row["title"] or "").lower()
+            # Include if any keyword is present in title
+            if any(kw in title for kw in keywords):
+                filtered_rows.append(row)
+        all_rows = filtered_rows
 
-            # Check if any keywords are present
-            has_any_keyword = any(kw in title for kw in keywords)
-
-            # Calculate semantic similarity if embedding exists
-            similarity = 0.0
-            if row["title_embedding"]:
-                try:
-                    embedding = pickle.loads(row["title_embedding"])
-                    similarity = embedding_model.similarity_batch(
-                        query_embedding, [embedding]
-                    )[0]
-                except Exception:
-                    pass
-
-            # Include if has any keyword OR similarity above threshold
-            if has_any_keyword or similarity >= semantic_threshold:
-                scored_rows.append((row, similarity))
-
-        # Sort by semantic similarity (descending)
-        scored_rows.sort(key=lambda x: x[1], reverse=True)
-        all_rows = [r[0] for r in scored_rows]
+    # Sort by the requested column
+    sort_key_func = lambda row: row[sort_column] if row[sort_column] is not None else (float('-inf') if sort_dir == 'ASC' else float('inf'))
+    all_rows.sort(key=sort_key_func, reverse=(sort_dir == 'DESC'))
 
     # Fetch full rows for pagination
     with get_connection() as conn:

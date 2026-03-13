@@ -60,20 +60,20 @@ export default function CommentsTab({ videoId }: Props) {
       if (commentsSort === 'reply_count') return parseReplyCount(b.reply_count) - parseReplyCount(a.reply_count)
       return parseTime(b.published_at) - parseTime(a.published_at)
     }
-    return comments.sort(compareComments).map((comment) => ({
+    return [...comments].sort(compareComments).map((comment) => ({
       parent: comment,
       replies: [],
       repliesTotal: comment.reply_count ?? 0,
     }))
   }, [comments, commentsSort])
 
-  useEffect(() => { setCommentsPage(1) }, [videoId])
+  useEffect(() => { setCommentsPage(1) }, [videoId, setCommentsPage])
   useEffect(() => { resetSummary() }, [videoId, resetSummary])
   useEffect(() => { setStored('videoDetailCommentsSort', commentsSort) }, [commentsSort])
   useEffect(() => { setStored('videoDetailCommentsSearchText', commentsSearchText) }, [commentsSearchText])
   useEffect(() => { setStored('videoDetailCommentsPostedAfter', commentsPostedAfter) }, [commentsPostedAfter])
   useEffect(() => { setStored('videoDetailCommentsPostedBefore', commentsPostedBefore) }, [commentsPostedBefore])
-  useEffect(() => { setCommentsPage(1) }, [commentsSort, commentsSearchText, commentsPostedAfter, commentsPostedBefore])
+  useEffect(() => { setCommentsPage(1) }, [commentsSort, commentsSearchText, commentsPostedAfter, commentsPostedBefore, setCommentsPage])
 
   useEffect(() => {
     async function loadComments() {

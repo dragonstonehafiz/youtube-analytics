@@ -1,22 +1,20 @@
 import { useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity, type SeriesPoint } from '../../components/charts'
-import { PageCard } from '../../components/cards'
+import { type MetricItem, type Granularity } from '../../components/charts'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import { fillDayGaps } from '../../utils/date'
-import type { VideoDailyRow } from './VideoDetail'
-
-type DateRange = { start: string; end: string }
+import type { DateRange } from './types'
+import { useVideoDailyRows } from './useVideoDailyRows'
+import VideoDetailMetricPanel from './VideoDetailMetricPanel'
 
 type Props = {
-  loading: boolean
-  error: string | null
+  videoId: string | undefined
   granularity: Granularity
-  dailyRows: VideoDailyRow[]
   range: DateRange
   previousRange: DateRange
 }
 
-export default function MonetizationTab({ loading, error, granularity, dailyRows, range, previousRange }: Props) {
+export default function MonetizationTab({ videoId, granularity, range, previousRange }: Props) {
+  const { rows: dailyRows, loading, error } = useVideoDailyRows(videoId)
   const monetizationTotals = useMemo(() => {
     const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
     if (sorted.length === 0) return { estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 }
@@ -76,19 +74,6 @@ export default function MonetizationTab({ loading, error, granularity, dailyRows
   }, [dailyRows, range.start, range.end, previousRange.start, previousRange.end, monetizationTotals])
 
   return (
-    <div className="page-row">
-      <PageCard>
-        {loading ? (
-          <div className="video-detail-state">Loading video analytics...</div>
-        ) : error ? (
-          <div className="video-detail-state">{error}</div>
-        ) : (
-          <MetricChartCard
-            data={metricsData}
-            granularity={granularity}
-          />
-        )}
-      </PageCard>
-    </div>
+    <VideoDetailMetricPanel loading={loading} error={error} granularity={granularity} data={metricsData} />
   )
 }

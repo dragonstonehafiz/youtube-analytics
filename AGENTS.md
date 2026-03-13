@@ -203,7 +203,7 @@ frontend/
 - page structure → `frontend/src/pages/Videos/Videos.tsx`
 - reusable filter → `frontend/src/components/features/CommentFilter.tsx`
 - shared state with localStorage → `frontend/src/pages/Competitors/Competitors.tsx` (parent component managing thumbnails + tabs, synced to localStorage)
-- multi-tab component structure → `frontend/src/pages/Competitors/` (parent handles state, three tab components receive props)
+- multi-tab component structure → `frontend/src/pages/Competitors/` (parent manages shared state, tabs receive shared data as props; tabs manage their own isolated data)
 - file upload with preview → `frontend/src/pages/Competitors/ThumbnailUploader.tsx` (drag-drop, file validation, preview display)
 - DB helper → `backend/src/database/videos.py` (get/upsert pattern)
 - sync stage → any stage function in `backend/src/sync.py`
@@ -425,8 +425,8 @@ POST /llm/summarize-comments
 ### Adding a multi-tab page
 Multi-tab pages should centralize shared types, utilities, and components to reduce code repetition:
 
-1. `<PageName>.tsx` — parent component that manages state, handles tab switching, and passes data to tab components
-2. `<TabName>.tsx` — individual tab components (receive props, no parent state logic)
+1. `<PageName>.tsx` — parent component that manages **shared state** (data used by 2+ tabs), handles tab switching, and passes shared data to tabs as props
+2. `<TabName>.tsx` — individual tab components that receive shared data as props; if a tab needs data only it uses, it fetches and manages that data itself
 3. `types.ts` — shared TypeScript interfaces and models used across multiple tabs
 4. `utils.ts` — shared utility functions, constants, and helpers used across tabs
 5. `<SharedComponentName>.tsx` — reusable components used by 2+ tabs (avoid tab-specific logic)
