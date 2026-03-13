@@ -18,8 +18,11 @@ def get_connection() -> sqlite3.Connection:
 
 
 def row_to_dict(row: sqlite3.Row) -> dict:
-    """Convert a SQLite row to a plain dict."""
-    item = {key: row[key] for key in row.keys()}
+    """Convert a SQLite row to a plain dict, excluding BLOB columns."""
+    # BLOB columns to exclude from JSON serialization
+    blob_columns = {"title_embedding"}
+
+    item = {key: row[key] for key in row.keys() if key not in blob_columns}
     if "view_count" in item:
         item["views"] = item.pop("view_count")
     if "views" in item:
@@ -33,6 +36,8 @@ def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(schema_sql)
         _ensure_video_columns(conn)
+        _ensure_videos_competitors_columns(conn)
+        _ensure_playlists_columns(conn)
         _ensure_daily_analytics_columns(conn)
         _ensure_video_insights_tables(conn)
         _ensure_channel_daily_columns(conn)
@@ -40,20 +45,43 @@ def init_db() -> None:
         _ensure_comment_columns(conn)
         _ensure_playlist_daily_columns(conn)
         _ensure_playlist_items_schema(conn)
+        _ensure_audience_columns(conn)
+        _ensure_traffic_sources_daily_columns(conn)
 
 
 def _ensure_video_columns(conn: sqlite3.Connection) -> None:
-    """Add new columns to videos table if missing (idempotent)."""
+    """Add new columns to videos table if missing (idempotent) and remove deprecated ones."""
+    # Remove deprecated columns
+    try:
+        conn.execute("ALTER TABLE videos DROP COLUMN description_embedding")
+    except sqlite3.OperationalError:
+        pass
+
+    # All columns from schema.sql videos table
     columns = [
-        ("video_width", "INTEGER"),
-        ("video_height", "INTEGER"),
+        ("id", "TEXT PRIMARY KEY"),
+        ("title", "TEXT NOT NULL"),
+        ("description", "TEXT"),
+        ("published_at", "TEXT"),
+        ("channel_id", "TEXT"),
+        ("channel_title", "TEXT"),
+        ("privacy_status", "TEXT"),
+        ("made_for_kids", "INTEGER"),
+        ("duration_seconds", "INTEGER"),
+        ("view_count", "INTEGER"),
+        ("like_count", "INTEGER"),
+        ("comment_count", "INTEGER"),
+        ("favorite_count", "INTEGER"),
+        ("thumbnail_url", "TEXT"),
         ("content_type", "TEXT"),
+        ("title_embedding", "BLOB"),
     ]
     for name, col_type in columns:
         try:
             conn.execute(f"ALTER TABLE videos ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
+    conn.commit()
 
 
 def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
@@ -82,11 +110,17 @@ def _ensure_sync_run_columns(conn: sqlite3.Connection) -> None:
 
 def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
     """Add new columns to channel_analytics table if missing (idempotent)."""
+    # All columns from schema.sql channel_analytics table
     columns = [
+        ("date", "TEXT PRIMARY KEY"),
         ("engaged_views", "INTEGER"),
+        ("views", "INTEGER"),
+        ("watch_time_minutes", "REAL"),
+        ("estimated_revenue", "REAL"),
         ("estimated_ad_revenue", "REAL"),
         ("gross_revenue", "REAL"),
         ("estimated_red_partner_revenue", "REAL"),
+        ("average_view_duration_seconds", "REAL"),
         ("average_view_percentage", "REAL"),
         ("likes", "INTEGER"),
         ("dislikes", "INTEGER"),
@@ -108,16 +142,28 @@ def _ensure_channel_daily_columns(conn: sqlite3.Connection) -> None:
 
 def _ensure_daily_analytics_columns(conn: sqlite3.Connection) -> None:
     """Add new columns to video_analytics table if missing (idempotent)."""
+    # All columns from schema.sql video_analytics table
     columns = [
+        ("video_id", "TEXT NOT NULL"),
+        ("date", "TEXT NOT NULL"),
         ("engaged_views", "INTEGER"),
+        ("views", "INTEGER"),
+        ("watch_time_minutes", "REAL"),
+        ("estimated_revenue", "REAL"),
         ("estimated_ad_revenue", "REAL"),
         ("gross_revenue", "REAL"),
         ("estimated_red_partner_revenue", "REAL"),
+        ("average_view_duration_seconds", "REAL"),
         ("average_view_percentage", "REAL"),
+        ("likes", "INTEGER"),
+        ("comments", "INTEGER"),
+        ("shares", "INTEGER"),
         ("monetized_playbacks", "INTEGER"),
         ("playback_based_cpm", "REAL"),
         ("ad_impressions", "INTEGER"),
         ("cpm", "REAL"),
+        ("subscribers_gained", "INTEGER"),
+        ("subscribers_lost", "INTEGER"),
     ]
     for name, col_type in columns:
         try:
@@ -165,9 +211,17 @@ def _ensure_video_insights_tables(conn: sqlite3.Connection) -> None:
 
 def _ensure_comment_columns(conn: sqlite3.Connection) -> None:
     """Add new columns to comments table if missing (idempotent)."""
+    # All columns from schema.sql comments table
     columns = [
-        ("author_profile_image_url", "TEXT"),
+        ("id", "TEXT PRIMARY KEY"),
+        ("video_id", "TEXT NOT NULL"),
         ("reply_count", "INTEGER"),
+        ("author_name", "TEXT"),
+        ("author_channel_id", "TEXT"),
+        ("author_profile_image_url", "TEXT"),
+        ("text_display", "TEXT"),
+        ("like_count", "INTEGER"),
+        ("published_at", "TEXT"),
     ]
     for name, col_type in columns:
         try:
@@ -178,7 +232,11 @@ def _ensure_comment_columns(conn: sqlite3.Connection) -> None:
 
 def _ensure_playlist_daily_columns(conn: sqlite3.Connection) -> None:
     """Add new columns to playlist_daily_analytics table if missing (idempotent)."""
+    # All columns from schema.sql playlist_daily_analytics table
     columns = [
+        ("playlist_id", "TEXT NOT NULL"),
+        ("date", "TEXT NOT NULL"),
+        ("playlist_views", "INTEGER"),
         ("playlist_estimated_minutes_watched", "REAL"),
         ("playlist_average_view_duration_seconds", "REAL"),
         ("playlist_starts", "INTEGER"),
@@ -188,6 +246,98 @@ def _ensure_playlist_daily_columns(conn: sqlite3.Connection) -> None:
     for name, col_type in columns:
         try:
             conn.execute(f"ALTER TABLE playlist_daily_analytics ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_videos_competitors_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to videos_competitors table if missing (idempotent) and remove deprecated ones."""
+    # Remove deprecated columns
+    try:
+        conn.execute("ALTER TABLE videos_competitors DROP COLUMN description_embedding")
+    except sqlite3.OperationalError:
+        pass
+
+    # All columns from schema.sql videos_competitors table
+    columns = [
+        ("id", "TEXT PRIMARY KEY"),
+        ("title", "TEXT"),
+        ("description", "TEXT"),
+        ("published_at", "TEXT"),
+        ("channel_id", "TEXT"),
+        ("channel_title", "TEXT"),
+        ("privacy_status", "TEXT"),
+        ("made_for_kids", "INTEGER"),
+        ("duration_seconds", "INTEGER"),
+        ("view_count", "INTEGER"),
+        ("like_count", "INTEGER"),
+        ("comment_count", "INTEGER"),
+        ("favorite_count", "INTEGER"),
+        ("thumbnail_url", "TEXT"),
+        ("content_type", "TEXT"),
+        ("title_embedding", "BLOB"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE videos_competitors ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+    conn.commit()
+
+
+def _ensure_playlists_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to playlists table if missing (idempotent)."""
+    # All columns from schema.sql playlists table
+    columns = [
+        ("id", "TEXT PRIMARY KEY"),
+        ("title", "TEXT"),
+        ("description", "TEXT"),
+        ("published_at", "TEXT"),
+        ("channel_id", "TEXT"),
+        ("channel_title", "TEXT"),
+        ("privacy_status", "TEXT"),
+        ("item_count", "INTEGER"),
+        ("thumbnail_url", "TEXT"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE playlists ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_audience_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to audience table if missing (idempotent)."""
+    # All columns from schema.sql audience table
+    columns = [
+        ("channel_id", "TEXT PRIMARY KEY"),
+        ("display_name", "TEXT"),
+        ("profile_image_url", "TEXT"),
+        ("is_public_subscriber", "INTEGER NOT NULL DEFAULT 0"),
+        ("subscribed_at", "TEXT"),
+        ("first_commented_at", "TEXT"),
+        ("last_commented_at", "TEXT"),
+        ("comment_count", "INTEGER NOT NULL DEFAULT 0"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE audience ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+
+
+def _ensure_traffic_sources_daily_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to traffic_sources_daily table if missing (idempotent)."""
+    # All columns from schema.sql traffic_sources_daily table
+    columns = [
+        ("date", "TEXT NOT NULL"),
+        ("traffic_source", "TEXT NOT NULL"),
+        ("views", "INTEGER"),
+        ("watch_time_minutes", "REAL"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE traffic_sources_daily ADD COLUMN {name} {col_type}")
         except sqlite3.OperationalError:
             continue
 

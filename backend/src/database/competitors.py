@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import pickle
+
 from src.database.db import get_connection
 from src.youtube.videos import parse_duration_to_seconds
+from src.utils.embeddings import get_embedding_model
 
 
 def upsert_competitor_videos(items: list[dict], short_video_ids: set[str] | None = None) -> int:
@@ -9,6 +12,7 @@ def upsert_competitor_videos(items: list[dict], short_video_ids: set[str] | None
     if not items:
         return 0
     short_ids = short_video_ids or set()
+    embedding_model = get_embedding_model()
 
     rows = []
     for item in items:
@@ -18,11 +22,15 @@ def upsert_competitor_videos(items: list[dict], short_video_ids: set[str] | None
         status = item.get("status", {})
         duration_seconds = parse_duration_to_seconds(content.get("duration"))
         content_type = "short" if item.get("id") in short_ids else "video"
+        title = snippet.get("title", "")
+        description = snippet.get("description", "")
+
+        title_embedding = pickle.dumps(embedding_model.embed(title))
 
         rows.append((
             item["id"],
-            snippet.get("title"),
-            snippet.get("description"),
+            title,
+            description,
             snippet.get("publishedAt"),
             snippet.get("channelId"),
             snippet.get("channelTitle"),
@@ -35,6 +43,7 @@ def upsert_competitor_videos(items: list[dict], short_video_ids: set[str] | None
             int(stats["favoriteCount"]) if "favoriteCount" in stats else None,
             snippet.get("thumbnails", {}).get("high", {}).get("url"),
             content_type,
+            title_embedding,
         ))
 
     sql = """
@@ -42,9 +51,9 @@ def upsert_competitor_videos(items: list[dict], short_video_ids: set[str] | None
             id, title, description, published_at, channel_id, channel_title,
             privacy_status, made_for_kids, duration_seconds, view_count,
             like_count, comment_count, favorite_count, thumbnail_url,
-            content_type
+            content_type, title_embedding
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         ON CONFLICT(id) DO UPDATE SET
             title=excluded.title,
@@ -60,7 +69,8 @@ def upsert_competitor_videos(items: list[dict], short_video_ids: set[str] | None
             comment_count=excluded.comment_count,
             favorite_count=excluded.favorite_count,
             thumbnail_url=excluded.thumbnail_url,
-            content_type=excluded.content_type
+            content_type=excluded.content_type,
+            title_embedding=excluded.title_embedding
     """
 
     with get_connection() as conn:

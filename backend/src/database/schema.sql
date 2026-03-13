@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS videos (
     comment_count INTEGER,
     favorite_count INTEGER,
     thumbnail_url TEXT,
-    content_type TEXT
+    content_type TEXT,
+    title_embedding BLOB
 );
 
 CREATE TABLE IF NOT EXISTS videos_competitors (
@@ -33,7 +34,8 @@ CREATE TABLE IF NOT EXISTS videos_competitors (
     comment_count INTEGER,
     favorite_count INTEGER,
     thumbnail_url TEXT,
-    content_type TEXT
+    content_type TEXT,
+    title_embedding BLOB
 );
 
 CREATE TABLE IF NOT EXISTS playlists (

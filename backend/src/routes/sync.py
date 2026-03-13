@@ -220,9 +220,7 @@ def list_sync_runs(limit: int = 10, offset: int = 0) -> dict:
 
 @router.post("/sync/reset-table")
 def reset_table(body: dict) -> dict:
-    """Reset (drop and recreate) a table."""
-    from src.database.db import init_db
-
+    """Clear all rows from a table and its dependent tables."""
     table_name = body.get("table_name", "").strip()
 
     # Allowed tables that can be reset
@@ -244,15 +242,27 @@ def reset_table(body: dict) -> dict:
     if table_name not in allowed_tables:
         return {"error": f"Table '{table_name}' is not allowed to be reset"}, 400
 
+    # Tables that depend on each parent table
+    dependencies = {
+        "videos": [
+            "video_analytics",
+            "video_traffic_source",
+            "video_search_insights",
+            "comments",
+        ],
+        "playlists": ["playlist_items", "playlist_daily_analytics"],
+    }
+
     try:
         with get_connection() as conn:
-            # Drop the table
-            conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            # Clear dependent tables first (if any)
+            for dependent_table in dependencies.get(table_name, []):
+                conn.execute(f"DELETE FROM {dependent_table}")
+
+            # Clear the requested table
+            conn.execute(f"DELETE FROM {table_name}")
             conn.commit()
 
-        # Reinitialize the database to recreate the table
-        init_db()
-
-        return {"success": True, "message": f"Table '{table_name}' has been reset"}
+        return {"success": True, "message": f"Table '{table_name}' has been cleared"}
     except Exception as e:
         return {"error": str(e)}, 500

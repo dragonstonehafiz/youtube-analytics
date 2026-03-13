@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import pickle
+
 from fastapi import APIRouter, HTTPException, Query
 
 from src.database.db import get_connection, row_to_dict
+from src.utils.embeddings import get_embedding_model
 
 router = APIRouter()
 
@@ -21,13 +24,11 @@ def list_videos(
     sort: str | None = None,
     direction: str | None = None,
 ) -> dict:
-    """Return videos with optional filters and pagination."""
+    """Return videos with optional filters and pagination. Uses semantic similarity for text search."""
     where_clauses = []
     params: list[object] = []
 
-    if q:
-        where_clauses.append("(title LIKE ? OR id LIKE ?)")
-        params.extend([f"%{q}%", f"%{q}%"])
+    # Don't include q in where_clauses; handle it separately with semantic similarity
     if published_after:
         where_clauses.append("published_at >= ?")
         params.append(published_after)
@@ -56,15 +57,62 @@ def list_videos(
 
     with get_connection() as conn:
         query = f"""
-            SELECT * FROM videos
+            SELECT id, title, title_embedding FROM videos
             {where_sql}
-            ORDER BY {sort_column} {sort_dir}
-            LIMIT ? OFFSET ?
         """
-        rows = conn.execute(query, tuple(params + [limit, offset])).fetchall()
-        count_query = f"SELECT COUNT(*) AS total FROM videos {where_sql}"
-        total_row = conn.execute(count_query, tuple(params)).fetchone()
-        total = total_row["total"] if total_row and total_row["total"] is not None else 0
+        all_rows = conn.execute(query, tuple(params)).fetchall()
+
+    # If q is provided, use semantic similarity to filter and score
+    if q:
+        embedding_model = get_embedding_model()
+        query_embedding = embedding_model.embed(q)
+        keywords = q.lower().split()
+        semantic_threshold = 0.5
+
+        scored_rows = []
+        for row in all_rows:
+            title = (row["title"] or "").lower()
+
+            # Check if any keywords are present
+            has_any_keyword = any(kw in title for kw in keywords)
+
+            # Calculate semantic similarity if embedding exists
+            similarity = 0.0
+            if row["title_embedding"]:
+                try:
+                    embedding = pickle.loads(row["title_embedding"])
+                    similarity = embedding_model.similarity_batch(
+                        query_embedding, [embedding]
+                    )[0]
+                except Exception:
+                    pass
+
+            # Include if has any keyword OR similarity above threshold
+            if has_any_keyword or similarity >= semantic_threshold:
+                scored_rows.append((row, similarity))
+
+        # Sort by semantic similarity (descending)
+        scored_rows.sort(key=lambda x: x[1], reverse=True)
+        all_rows = [r[0] for r in scored_rows]
+
+    # Fetch full rows for pagination
+    with get_connection() as conn:
+        if all_rows:
+            # Get the IDs of videos after pagination
+            video_ids = [row["id"] for row in all_rows[offset : offset + limit]]
+            if video_ids:
+                placeholders = ",".join("?" * len(video_ids))
+                full_query = f"SELECT * FROM videos WHERE id IN ({placeholders})"
+                full_rows = conn.execute(full_query, video_ids).fetchall()
+                # Preserve the order from scored_rows
+                rows_by_id = {row["id"]: row for row in full_rows}
+                rows = [rows_by_id[vid] for vid in video_ids if vid in rows_by_id]
+            else:
+                rows = []
+        else:
+            rows = []
+
+    total = len(all_rows)
     return {"items": [row_to_dict(row) for row in rows], "total": total}
 
 

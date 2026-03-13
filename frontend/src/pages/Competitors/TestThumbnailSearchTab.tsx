@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import ThumbnailUploader from './ThumbnailUploader'
-import UserVideoSelector from './UserVideoSelector'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import useUserVideoState from './useUserVideoState'
 import { insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailSearchTab.css'
 
@@ -15,21 +13,6 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState('All')
-
-  const {
-    userVideoSource,
-    setUserVideoSource,
-    userVideoPlaylist,
-    setUserVideoPlaylist,
-    userVideoSelectionMode,
-    setUserVideoSelectionMode,
-    userVideoPercentileRange,
-    setUserVideoPercentileRange,
-    userVideoCount,
-    setUserVideoCount,
-    userVideos,
-    handleUserVideosSelected,
-  } = useUserVideoState()
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -55,20 +38,21 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
     }
   }, [thumbnails, thumbnailTitle])
 
-  useEffect(() => {
-    // Load initial videos on mount
-    fetchVideos('')
-  }, [fetchVideos])
 
   const handleGetVideos = useCallback(() => {
-    fetchVideos('')
-  }, [fetchVideos])
+    fetchVideos(thumbnailTitle)
+  }, [fetchVideos, thumbnailTitle])
 
-  // Combine videos with user selected videos
+  useEffect(() => {
+    // Load initial videos on mount using the stored title
+    fetchVideos(thumbnailTitle)
+  }, [])
+
+  // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
-    allVideosCombined: shuffleArray([...videos, ...userVideos]),
-    allShortsCombined: shuffleArray([...shorts, ...userVideos.filter((v) => v.content_type === 'short')]),
-  }), [videos, shorts, userVideos])
+    allVideosCombined: shuffleArray(videos),
+    allShortsCombined: shuffleArray(shorts),
+  }), [videos, shorts])
 
   const renderVideo = (video: CompetitorVideoRow) => (
     <div key={video.id} className="thumbnail-search-result">
@@ -118,22 +102,6 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
-        />
-      </div>
-      <div className="page-row">
-        <UserVideoSelector
-          selectedSource={userVideoSource}
-          setSelectedSource={setUserVideoSource}
-          selectedPlaylist={userVideoPlaylist}
-          setSelectedPlaylist={setUserVideoPlaylist}
-          selectionMode={userVideoSelectionMode}
-          setSelectionMode={setUserVideoSelectionMode}
-          percentileRange={userVideoPercentileRange}
-          setPercentileRange={setUserVideoPercentileRange}
-          videoCount={userVideoCount}
-          setVideoCount={setUserVideoCount}
-          selectedVideos={userVideos}
-          onVideosSelected={handleUserVideosSelected}
         />
       </div>
       <div className="page-row">

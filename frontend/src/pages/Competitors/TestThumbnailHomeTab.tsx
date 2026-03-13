@@ -3,9 +3,7 @@ import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
-import UserVideoSelector from './UserVideoSelector'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import useUserVideoState from './useUserVideoState'
 import { insertThumbnailsAtRandom, shuffleArray } from './utils'
 
 type Category = {
@@ -29,27 +27,12 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
   const [selectedCategory, setSelectedCategory] = useState(getStored('thumbnailTestCategory', 'all'))
   const [loading, setLoading] = useState(true)
 
-  const {
-    userVideoSource,
-    setUserVideoSource,
-    userVideoPlaylist,
-    setUserVideoPlaylist,
-    userVideoSelectionMode,
-    setUserVideoSelectionMode,
-    userVideoPercentileRange,
-    setUserVideoPercentileRange,
-    userVideoCount,
-    setUserVideoCount,
-    userVideos,
-    handleUserVideosSelected,
-  } = useUserVideoState()
-
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
       setLoading(true)
       // Fetch regular videos and shorts separately to ensure we always have both
-      const videoParams = new URLSearchParams({ title, limit: '20', content_type: 'video' })
-      const shortsParams = new URLSearchParams({ title, limit: '20', content_type: 'short' })
+      const videoParams = new URLSearchParams({ title, limit: '24', content_type: 'video' })
+      const shortsParams = new URLSearchParams({ title, limit: '10', content_type: 'short' })
 
       const [videoResponse, shortsResponse] = await Promise.all([
         fetch(`http://localhost:8000/competitors/related-videos?${videoParams.toString()}`),
@@ -59,9 +42,12 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
       const videoData = await videoResponse.json()
       const shortsData = await shortsResponse.json()
 
+      const videos = Array.isArray(videoData.items) ? videoData.items : []
+      const shorts = Array.isArray(shortsData.items) ? shortsData.items : []
+
       const allVideos = [
-        ...(Array.isArray(videoData.items) ? videoData.items : []),
-        ...(Array.isArray(shortsData.items) ? shortsData.items : []),
+        ...shuffleArray(videos),
+        ...shuffleArray(shorts),
       ]
 
       setAllVideos(allVideos)
@@ -72,37 +58,37 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
     }
   }, [])
 
-  useEffect(() => {
-    // Load initial videos on mount
-    fetchVideos('')
-  }, [fetchVideos])
 
   const handleGetVideos = useCallback(() => {
-    fetchVideos('')
-  }, [fetchVideos])
+    fetchVideos(thumbnailTitle)
+  }, [fetchVideos, thumbnailTitle])
+
+  useEffect(() => {
+    // Load initial videos on mount using the stored title
+    fetchVideos(thumbnailTitle)
+  }, [])
 
   useEffect(() => {
     setStored('thumbnailTestCategory', selectedCategory)
   }, [selectedCategory])
 
-  // Always use all available videos (competitor + user), arrange in home layout
+  // Arrange competitor videos in home layout
   const renderContent = useMemo(() => {
-    const combined = [...allVideos, ...userVideos]
-    const allRegularVideos = combined.filter((v) => v.content_type !== 'short')
-    const allShorts = combined.filter((v) => v.content_type !== 'short')
+    const allRegularVideos = allVideos.filter((v) => v.content_type !== 'short')
+    const allShorts = allVideos.filter((v) => v.content_type === 'short')
 
     const regularVideos = insertThumbnailsAtRandom(
-      shuffleArray(allRegularVideos),
+      allRegularVideos,
       thumbnails,
       thumbnailTitle,
     )
-    const shorts = shuffleArray(allShorts)
+    const shorts = allShorts
 
-    if (loading && combined.length === 0) {
+    if (loading && allVideos.length === 0) {
       return <div className="thumbnail-loading">Loading videos...</div>
     }
 
-    if (combined.length === 0) {
+    if (allVideos.length === 0) {
       return <div className="thumbnail-empty">No videos found.</div>
     }
 
@@ -149,7 +135,7 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
     }
 
     return content
-  }, [allVideos, userVideos, thumbnails, thumbnailTitle, loading])
+  }, [allVideos, thumbnails, loading])
 
   return (
     <div className="page-body">
@@ -160,22 +146,6 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
-        />
-      </div>
-      <div className="page-row">
-        <UserVideoSelector
-          selectedSource={userVideoSource}
-          setSelectedSource={setUserVideoSource}
-          selectedPlaylist={userVideoPlaylist}
-          setSelectedPlaylist={setUserVideoPlaylist}
-          selectionMode={userVideoSelectionMode}
-          setSelectionMode={setUserVideoSelectionMode}
-          percentileRange={userVideoPercentileRange}
-          setPercentileRange={setUserVideoPercentileRange}
-          videoCount={userVideoCount}
-          setVideoCount={setUserVideoCount}
-          selectedVideos={userVideos}
-          onVideosSelected={handleUserVideosSelected}
         />
       </div>
       <div className="page-row">
