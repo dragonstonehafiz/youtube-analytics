@@ -171,9 +171,26 @@ function SyncSettings() {
     }
   }
 
+  const handleStartSyncRequest = useCallback(async (message: string, request: () => Promise<void>) => {
+    setIsSyncing(true)
+    setProgress({
+      is_syncing: true,
+      current_step: 0,
+      max_steps: 0,
+      message,
+      stop_requested: false,
+    })
+    try {
+      await request()
+    } catch (error) {
+      console.error('Failed to start sync', error)
+    } finally {
+      setIsSyncing(false)
+    }
+  }, [])
+
   const handleResetTable = async (tableName: string) => {
     const dependents = TABLE_DEPENDENCIES[tableName] || []
-    const affectedTables = [tableName, ...dependents]
 
     let confirmMessage = `Are you sure you want to reset the "${tableName}" table? This will delete all data.`
     if (dependents.length > 0) {
@@ -235,8 +252,7 @@ function SyncSettings() {
     isSyncActive,
     isStopPending,
     onStopSync: handleStopSync,
-    onSetIsSyncing: setIsSyncing,
-    onSetProgress: setProgress,
+    onStartSyncRequest: handleStartSyncRequest,
   }
 
   return (

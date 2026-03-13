@@ -125,6 +125,26 @@
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
 }
 
+.sync-col-w-60 {
+  width: 60px;
+}
+
+.sync-col-w-100 {
+  width: 100px;
+}
+
+.sync-col-w-120 {
+  width: 120px;
+}
+
+.sync-col-w-200 {
+  width: 200px;
+}
+
+.sync-col-w-400 {
+  width: 400px;
+}
+
 .sync-table td {
   padding: 10px 12px 10px 0;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);

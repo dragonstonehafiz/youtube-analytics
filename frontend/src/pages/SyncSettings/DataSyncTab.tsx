@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ActionButton } from '../../components/ui'
-import { RatioBar } from '../../components/charts'
 import { formatWholeNumber } from '../../utils/number'
 import { getStored, setStored } from '../../utils/storage'
-import type { ProgressState } from './SyncSettings'
 import { buildApiCallRow } from './utils'
+import SyncEstimatePanel from './SyncEstimatePanel'
+import SyncTabHeader from './SyncTabHeader'
 
 const DATA_STAGES = ['videos', 'playlists', 'comments', 'audience']
 
@@ -26,8 +26,7 @@ type Props = {
   isSyncActive: boolean
   isStopPending: boolean
   onStopSync: () => void
-  onSetIsSyncing: (v: boolean) => void
-  onSetProgress: (p: ProgressState) => void
+  onStartSyncRequest: (message: string, request: () => Promise<void>) => Promise<void>
   tableRowCounts: Record<string, number>
   resettingTableName: string | null
   onResetTable: (name: string) => void
@@ -38,8 +37,7 @@ function DataSyncTab({
   isSyncActive,
   isStopPending,
   onStopSync,
-  onSetIsSyncing,
-  onSetProgress,
+  onStartSyncRequest,
   tableRowCounts,
   resettingTableName,
   onResetTable,
@@ -121,47 +119,33 @@ function DataSyncTab({
       stage: s,
     }))
     if (items.length === 0) return
-    onSetIsSyncing(true)
-    onSetProgress({
-      is_syncing: true,
-      current_step: 0,
-      max_steps: 0,
-      message: 'Starting data sync…',
-      stop_requested: false,
-    })
-    try {
+    await onStartSyncRequest('Starting data sync…', async () => {
       await fetch('http://localhost:8000/sync/data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
       })
-    } catch (error) {
-      console.error('Failed to start data sync', error)
-    } finally {
-      onSetIsSyncing(false)
-    }
+    })
   }
 
   return (
     <div className="sync-card">
-      <div className="sync-card-header-row">
-        <div className="sync-card-header">Data Sync</div>
-        <span className="sync-api-badge">YouTube Data API v3</span>
-        <ActionButton label="Refresh" onClick={onRefresh} variant="soft" />
-        <ActionButton
-          label={isSyncActive ? (isStopPending ? 'Stopping...' : 'Stop sync') : 'Start sync'}
-          onClick={isSyncActive ? onStopSync : handleSync}
-          disabled={isStopPending}
-          variant={isSyncActive ? 'danger' : 'primary'}
-        />
-      </div>
+      <SyncTabHeader
+        title="Data Sync"
+        apiBadge="YouTube Data API v3"
+        isSyncActive={isSyncActive}
+        isStopPending={isStopPending}
+        onStopSync={onStopSync}
+        onStartSync={handleSync}
+        onRefresh={onRefresh}
+      />
       <table className="sync-table">
         <thead>
           <tr>
-            <th style={{ width: 200 }}>Table Name</th>
-            <th style={{ width: 200 }}>Row Count</th>
-            <th style={{ width: 100 }}>Include</th>
-            <th style={{ width: 60 }}></th>
+            <th className="sync-col-w-200">Table Name</th>
+            <th className="sync-col-w-200">Row Count</th>
+            <th className="sync-col-w-100">Include</th>
+            <th className="sync-col-w-60"></th>
           </tr>
         </thead>
         <tbody>
@@ -191,30 +175,12 @@ function DataSyncTab({
           })}
         </tbody>
       </table>
-      <div className="sync-estimate-section">
-        {apiCallsLoading ? (
-          <div className="sync-estimate-meta">Loading...</div>
-        ) : apiCallsError ? (
-          <div className="sync-estimate-meta">{apiCallsError}</div>
-        ) : (
-          <div className="sync-estimate-bar-row">
-            <div className="sync-estimate-bar-header">
-              <span className="sync-estimate-api-label">Estimate YouTube Data API v3 API Calls</span>
-              <span>{`${apiCallRow.total.toLocaleString()} / ${apiCallRow.max.toLocaleString()}`}</span>
-            </div>
-            <RatioBar length="100%" ratio={100} color="#94a3b8" segments={apiCallRow.segments} />
-            <div className="sync-estimate-legend">
-              {apiCallRow.legendItems.map((item) => (
-                <div key={item.key} className="sync-estimate-legend-item">
-                  <span className="sync-estimate-legend-dot" style={{ backgroundColor: item.color }} />
-                  <span className="sync-estimate-legend-label">{item.label}</span>
-                  <span className="sync-estimate-legend-value">{item.value.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      <SyncEstimatePanel
+        loading={apiCallsLoading}
+        error={apiCallsError}
+        apiLabel="Estimate YouTube Data API v3 API Calls"
+        apiCallRow={apiCallRow}
+      />
     </div>
   )
 }
