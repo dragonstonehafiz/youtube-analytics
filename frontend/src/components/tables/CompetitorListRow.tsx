@@ -11,6 +11,7 @@ export type CompetitorVideoRow = {
   like_count: number | null
   comment_count: number | null
   thumbnail_url: string | null
+  content_type?: string | null
 }
 
 type CompetitorListRowProps = {

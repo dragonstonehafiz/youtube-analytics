@@ -1,15 +1,240 @@
+.competitors-tab-row {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.competitors-tab {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: #ffffff;
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.competitors-tab.active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
 .competitors-filter-grid {
   grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 1fr) minmax(160px, 1fr) minmax(320px, 1.2fr) auto;
+}
+
+/* Thumbnail Home Styles */
+.thumbnail-home-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.thumbnail-categories-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.thumbnail-categories {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  flex: 1;
+  padding: 4px 0;
+  scrollbar-width: none;
+}
+
+.thumbnail-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.thumbnail-category-button {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: transparent;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-ink);
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.thumbnail-category-button:hover {
+  background-color: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.thumbnail-category-button.active {
+  background-color: #0f172a;
+  color: white;
+  border-color: #0f172a;
+}
+
+.thumbnail-videos-content {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.thumbnail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.thumbnail-video-card {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.thumbnail-video-card:hover {
+  transform: translateY(-4px);
+}
+
+.thumbnail-image-wrapper {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #e2e8f0;
+}
+
+.thumbnail-image,
+.thumbnail-image-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbnail-image-placeholder {
+  background: #cbd5e1;
+}
+
+.thumbnail-video-info {
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.thumbnail-video-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.thumbnail-video-metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.thumbnail-channel-name {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thumbnail-video-stats {
+  font-size: 12px;
+  color: var(--color-muted);
+  display: flex;
+  gap: 6px;
+}
+
+.thumbnail-shorts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.thumbnail-shorts-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.thumbnail-shorts-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+}
+
+.thumbnail-short-card {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.thumbnail-short-card:hover {
+  transform: translateY(-4px);
+}
+
+.thumbnail-short-image-wrapper {
+  position: relative;
+  width: 100%;
+  padding-bottom: 177.78%;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #e2e8f0;
+}
+
+.thumbnail-loading,
+.thumbnail-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 14px;
 }
 
 @media (max-width: 1100px) {
   .competitors-filter-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
+
+  .thumbnail-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .thumbnail-shorts-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 @media (max-width: 720px) {
   .competitors-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .thumbnail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .thumbnail-shorts-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }

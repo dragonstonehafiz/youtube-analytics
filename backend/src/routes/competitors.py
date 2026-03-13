@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import random
 
 from fastapi import APIRouter, Query
 
@@ -99,6 +100,33 @@ def list_competitor_videos(
         ).fetchone()
         total = total_row["total"] if total_row and total_row["total"] is not None else 0
     return {"items": [row_to_dict(row) for row in rows], "total": total}
+
+
+@router.get("/competitors/related-videos")
+def get_related_videos(
+    title: str = Query(default="", description="Video title to find related videos for"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> dict:
+    """Return random competitor videos for thumbnail testing alongside a given video title."""
+    try:
+        with get_connection() as conn:
+            # Get total count of videos
+            total_row = conn.execute("SELECT COUNT(*) AS total FROM videos_competitors").fetchone()
+            total = total_row["total"] if total_row and total_row["total"] is not None else 0
+
+            if total == 0:
+                return {"items": [], "total": 0}
+
+            # For now, return random videos
+            # TODO: Implement semantic similarity search based on title
+            rows = conn.execute(
+                "SELECT * FROM videos_competitors ORDER BY RANDOM() LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+        return {"items": [row_to_dict(row) for row in rows], "total": total}
+    except Exception as exc:
+        return {"error": str(exc)}, 500
 
 
 @router.delete("/competitors/{channel_id}")

@@ -1,0 +1,124 @@
+.thumbnail-uploader {
+  background: white;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.thumbnail-uploader-header {
+  margin: 0 0 16px 0;
+}
+
+.thumbnail-uploader-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.thumbnail-uploader-content {
+  width: 100%;
+}
+
+.thumbnail-uploader-drop-zone {
+  border: 2px dashed rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(148, 163, 184, 0.05);
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.thumbnail-uploader-drop-zone:hover {
+  border-color: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.thumbnail-uploader-drop-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.thumbnail-uploader-drop-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.thumbnail-uploader-drop-or {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+
+.thumbnail-uploader-preview {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.thumbnail-uploader-preview img {
+  width: 120px;
+  height: 68px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.thumbnail-uploader-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.thumbnail-uploader-filename {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  word-break: break-all;
+}
+
+.thumbnail-uploader-title-row {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.thumbnail-uploader-title-input {
+  flex: 1;
+}
+
+.thumbnail-uploader-previews {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.thumbnail-uploader-preview-item {
+  position: relative;
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.thumbnail-uploader-preview-image {
+  width: 120px;
+  height: 68px;
+  object-fit: cover;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: block;
+}
