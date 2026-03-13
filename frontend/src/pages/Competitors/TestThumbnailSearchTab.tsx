@@ -3,12 +3,12 @@ import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import ThumbnailUploader from './ThumbnailUploader'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import { insertThumbnailsAtRandom, shuffleArray } from './utils'
+import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailSearchTab.css'
 
 const FILTER_BUTTONS = ['All', 'Shorts', 'Videos', 'Unwatched', 'Watched', 'Recently uploaded', 'Live']
 
-function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails }: ThumbnailTabProps) {
+function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails, includeShorts = false, setIncludeShorts }: ThumbnailTabProps) {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -17,26 +17,22 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({ title, limit: '20' })
-      const response = await fetch(`http://localhost:8000/competitors/related-videos?${params.toString()}`)
-      const data = await response.json()
-      const allVideos = Array.isArray(data.items) ? data.items : []
+      const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, 20, 10)
 
       const regularVideos = insertThumbnailsAtRandom(
-        allVideos.filter((v: CompetitorVideoRow) => v.content_type !== 'short').slice(0, 10),
+        allVideos.slice(0, 10),
         thumbnails,
         thumbnailTitle,
       )
-      const shortVideos = allVideos.filter((v: CompetitorVideoRow) => v.content_type === 'short').slice(0, 10)
 
       setVideos(regularVideos)
-      setShorts(shortVideos)
+      setShorts(shortVideos.slice(0, 10))
     } catch (error) {
       console.error('Failed to load videos', error)
     } finally {
       setLoading(false)
     }
-  }, [thumbnails, thumbnailTitle])
+  }, [thumbnails, thumbnailTitle, includeShorts])
 
 
   const handleGetVideos = useCallback(() => {
@@ -46,7 +42,7 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
   useEffect(() => {
     // Load initial videos on mount using the stored title
     fetchVideos(thumbnailTitle)
-  }, [])
+  }, [fetchVideos, thumbnailTitle])
 
   // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
@@ -102,6 +98,8 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
+          includeShorts={includeShorts}
+          setIncludeShorts={setIncludeShorts}
         />
       </div>
       <div className="page-row">

@@ -4,7 +4,7 @@ import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import { insertThumbnailsAtRandom, shuffleArray } from './utils'
+import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 
 type Category = {
   id: string
@@ -22,7 +22,7 @@ const CATEGORIES: Category[] = [
   { id: 'news', label: 'News' },
 ]
 
-function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails }: ThumbnailTabProps) {
+function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails, includeShorts = false, setIncludeShorts }: ThumbnailTabProps) {
   const [allVideos, setAllVideos] = useState<CompetitorVideoRow[]>([])
   const [selectedCategory, setSelectedCategory] = useState(getStored('thumbnailTestCategory', 'all'))
   const [loading, setLoading] = useState(true)
@@ -30,20 +30,7 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
       setLoading(true)
-      // Fetch regular videos and shorts separately to ensure we always have both
-      const videoParams = new URLSearchParams({ title, limit: '24', content_type: 'video' })
-      const shortsParams = new URLSearchParams({ title, limit: '10', content_type: 'short' })
-
-      const [videoResponse, shortsResponse] = await Promise.all([
-        fetch(`http://localhost:8000/competitors/related-videos?${videoParams.toString()}`),
-        fetch(`http://localhost:8000/competitors/related-videos?${shortsParams.toString()}`),
-      ])
-
-      const videoData = await videoResponse.json()
-      const shortsData = await shortsResponse.json()
-
-      const videos = Array.isArray(videoData.items) ? videoData.items : []
-      const shorts = Array.isArray(shortsData.items) ? shortsData.items : []
+      const { videos, shorts } = await fetchCompetitorVideoBuckets(title, includeShorts, 24, 10)
 
       const allVideos = [
         ...shuffleArray(videos),
@@ -56,7 +43,7 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [includeShorts])
 
 
   const handleGetVideos = useCallback(() => {
@@ -66,7 +53,7 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
   useEffect(() => {
     // Load initial videos on mount using the stored title
     fetchVideos(thumbnailTitle)
-  }, [])
+  }, [fetchVideos, thumbnailTitle])
 
   useEffect(() => {
     setStored('thumbnailTestCategory', selectedCategory)
@@ -135,7 +122,7 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
     }
 
     return content
-  }, [allVideos, thumbnails, loading])
+  }, [allVideos, thumbnails, thumbnailTitle, loading])
 
   return (
     <div className="page-body">
@@ -146,6 +133,8 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
+          includeShorts={includeShorts}
+          setIncludeShorts={setIncludeShorts}
         />
       </div>
       <div className="page-row">

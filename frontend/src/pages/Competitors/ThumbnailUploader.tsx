@@ -10,6 +10,8 @@ type ThumbnailUploaderProps = {
   thumbnails: Thumbnail[]
   setThumbnails: (thumbnails: Thumbnail[]) => void
   onReloadThumbnails?: () => void
+  includeShorts?: boolean
+  setIncludeShorts?: (includeShorts: boolean) => void
 }
 
 function ThumbnailUploader({
@@ -18,6 +20,8 @@ function ThumbnailUploader({
   thumbnails,
   setThumbnails,
   onReloadThumbnails,
+  includeShorts = false,
+  setIncludeShorts,
 }: ThumbnailUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -96,6 +100,16 @@ function ThumbnailUploader({
             placeholder="Enter video title"
           />
         </div>
+        {setIncludeShorts && (
+          <label className="thumbnail-uploader-checkbox">
+            <input
+              type="checkbox"
+              checked={includeShorts}
+              onChange={(e) => setIncludeShorts(e.target.checked)}
+            />
+            <span>Include Shorts</span>
+          </label>
+        )}
         {onReloadThumbnails && (
           <ActionButton label="Reload Thumbnails" onClick={onReloadThumbnails} variant="primary" />
         )}

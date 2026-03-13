@@ -9,6 +9,8 @@ export type ThumbnailTabProps = {
   setThumbnailTitle: (title: string) => void
   thumbnails: Thumbnail[]
   setThumbnails: (thumbnails: Thumbnail[]) => void
+  includeShorts?: boolean
+  setIncludeShorts?: (includeShorts: boolean) => void
 }
 
 export type UserVideoSource = 'uploads' | 'playlist'

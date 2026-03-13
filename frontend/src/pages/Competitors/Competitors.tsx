@@ -27,6 +27,7 @@ function Competitors() {
   )
   const [thumbnailTitle, setThumbnailTitle] = useState(getStored('thumbnailTitle', ''))
   const [thumbnails, setThumbnails] = useState<Thumbnail[]>(JSON.parse(getStored('thumbnails', '[]') as string))
+  const [includeShorts, setIncludeShorts] = useState(getStored<boolean>('includeShorts', false))
 
   const handleTabChange = (newTab: CompetitorsTab) => {
     setTab(newTab)
@@ -41,11 +42,17 @@ function Competitors() {
     setStored('thumbnails', JSON.stringify(thumbnails))
   }, [thumbnails])
 
+  useEffect(() => {
+    setStored('includeShorts', includeShorts)
+  }, [includeShorts])
+
   const sharedThumbnailTabProps = {
     thumbnailTitle,
     setThumbnailTitle,
     thumbnails,
     setThumbnails,
+    includeShorts,
+    setIncludeShorts,
   }
 
   return (

@@ -1,5 +1,38 @@
 import type { Thumbnail, CompetitorVideoRow } from './types'
 
+type RelatedVideosResponse = { items?: unknown }
+
+function toCompetitorVideos(payload: unknown): CompetitorVideoRow[] {
+  const data = payload as RelatedVideosResponse
+  return Array.isArray(data?.items) ? (data.items as CompetitorVideoRow[]) : []
+}
+
+export async function fetchCompetitorVideos(
+  title: string,
+  limit: number,
+  contentType?: 'video' | 'short',
+): Promise<CompetitorVideoRow[]> {
+  const params = new URLSearchParams({ title, limit: String(limit) })
+  if (contentType) params.set('content_type', contentType)
+  const response = await fetch(`http://localhost:8000/competitors/related-videos?${params.toString()}`)
+  const data = await response.json()
+  return toCompetitorVideos(data)
+}
+
+export async function fetchCompetitorVideoBuckets(
+  title: string,
+  includeShorts: boolean,
+  videoLimit: number,
+  shortLimit: number,
+): Promise<{ videos: CompetitorVideoRow[]; shorts: CompetitorVideoRow[] }> {
+  const videosPromise = fetchCompetitorVideos(title, videoLimit, 'video')
+  const shortsPromise = includeShorts
+    ? fetchCompetitorVideos(title, shortLimit, 'short')
+    : Promise.resolve([] as CompetitorVideoRow[])
+  const [videos, shorts] = await Promise.all([videosPromise, shortsPromise])
+  return { videos, shorts }
+}
+
 export function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr]
   for (let i = shuffled.length - 1; i > 0; i--) {

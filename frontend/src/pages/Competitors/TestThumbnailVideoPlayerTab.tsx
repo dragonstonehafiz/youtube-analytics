@@ -4,7 +4,7 @@ import { ProfileImage } from '../../components/ui'
 import { formatDisplayDate } from '../../utils/date'
 import ThumbnailUploader from './ThumbnailUploader'
 import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
-import { insertThumbnailsAtRandom, shuffleArray } from './utils'
+import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailVideoPlayerTab.css'
 
 const SAMPLE_COMMENT_TEXTS = [
@@ -34,7 +34,7 @@ const generateSampleComments = () => {
 
 const SAMPLE_COMMENTS = generateSampleComments()
 
-function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails }: ThumbnailTabProps) {
+function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails, includeShorts = false, setIncludeShorts }: ThumbnailTabProps) {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
   const [selectedVideo, setSelectedVideo] = useState<CompetitorVideoRow | null>(null)
@@ -44,10 +44,7 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({ title, limit: '100' })
-      const response = await fetch(`http://localhost:8000/competitors/related-videos?${params.toString()}`)
-      const data = await response.json()
-      const allVideos = Array.isArray(data.items) ? data.items : []
+      const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, 100, 3)
 
       // First, get user's most viewed video if not already loaded
       if (!selectedVideo) {
@@ -63,20 +60,19 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
       }
 
       const regularVideos = insertThumbnailsAtRandom(
-        allVideos.filter((v: CompetitorVideoRow) => v.content_type !== 'short').slice(0, 20),
+        allVideos.slice(0, 20),
         thumbnails,
         thumbnailTitle,
       )
-      const shortVideos = allVideos.filter((v: CompetitorVideoRow) => v.content_type === 'short').slice(0, 3)
 
       setVideos(regularVideos)
-      setShorts(shortVideos)
+      setShorts(shortVideos.slice(0, 3))
     } catch (error) {
       console.error('Failed to load videos', error)
     } finally {
       setLoading(false)
     }
-  }, [thumbnails, thumbnailTitle, selectedVideo])
+  }, [thumbnails, thumbnailTitle, selectedVideo, includeShorts])
 
 
   const handleGetVideos = useCallback(() => {
@@ -86,7 +82,7 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
   useEffect(() => {
     // Load initial videos on mount using the stored title
     fetchVideos(thumbnailTitle)
-  }, [])
+  }, [fetchVideos, thumbnailTitle])
 
   // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
@@ -126,6 +122,8 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
           thumbnails={thumbnails}
           setThumbnails={setThumbnails}
           onReloadThumbnails={handleGetVideos}
+          includeShorts={includeShorts}
+          setIncludeShorts={setIncludeShorts}
         />
       </div>
       {loading && (
