@@ -112,6 +112,7 @@ def get_related_videos(
 ) -> dict:
     """Return own and competitor videos semantically similar to a given title for thumbnail testing."""
     try:
+        print(title, content_type)
         with get_connection() as conn:
             where_clauses = []
             params: list[object] = []
@@ -120,70 +121,76 @@ def get_related_videos(
                 where_clauses.append("content_type = ?")
                 params.append(content_type)
 
-            where_sql = ""
-            if where_clauses:
-                where_sql = "WHERE " + " AND ".join(where_clauses)
+            where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-            # Fetch own videos and competitor videos
-            own_videos = conn.execute(
+            if not title or not title.strip():
+                # Get all my videos and competitor videos, group and return random
+                own_videos = conn.execute(
+                    f"SELECT * FROM videos {where_sql}",
+                    tuple(params),
+                ).fetchall()
+
+                competitor_videos = conn.execute(
+                    f"SELECT * FROM videos_competitors {where_sql}",
+                    tuple(params),
+                ).fetchall()
+
+                all_videos = list(own_videos) + list(competitor_videos)
+                selected_rows = random.sample(all_videos, min(limit, len(all_videos)))
+                return {"items": [row_to_dict(row) for row in selected_rows], "total": len(selected_rows)}
+
+            # Embed title and batch check embeddings of all videos
+            own_video_rows = conn.execute(
                 f"SELECT id, title, title_embedding FROM videos {where_sql}",
                 tuple(params),
             ).fetchall()
 
-            competitor_videos = conn.execute(
+            competitor_video_rows = conn.execute(
                 f"SELECT id, title, title_embedding FROM videos_competitors {where_sql}",
                 tuple(params),
             ).fetchall()
 
-            # Combine all rows
-            all_rows = list(own_videos) + list(competitor_videos)
+            all_rows = list(own_video_rows) + list(competitor_video_rows)
 
             if not all_rows:
                 return {"items": [], "total": 0}
 
-            # Use semantic similarity to score videos
-            if title:
-                embedding_model = get_embedding_model()
-                query_embedding = embedding_model.embed(title)
+            embedding_model = get_embedding_model()
+            query_embedding = embedding_model.embed(title)
 
-                # Batch decode title embeddings
-                embeddings = []
-                valid_rows = []
-                for row in all_rows:
-                    if row["title_embedding"]:
-                        title_emb = pickle.loads(row["title_embedding"])
-                        embeddings.append(title_emb)
-                        valid_rows.append(row)
+            # Batch unpickle embeddings
+            embeddings_data = [
+                (row, pickle.loads(row["title_embedding"]))
+                for row in all_rows
+                if row["title_embedding"]
+            ]
 
-                # Batch compute similarities
-                semantic_threshold = 0.5
-                if embeddings:
-                    similarities = embedding_model.similarity_batch(query_embedding, embeddings)
-                    scored_rows = [
-                        (valid_rows[i], similarities[i]) for i in range(len(valid_rows))
-                    ]
-                else:
-                    scored_rows = []
+            valid_rows = [r[0] for r in embeddings_data]
+            embeddings = [r[1] for r in embeddings_data]
 
-                # Filter by threshold and fill to limit
-                above_threshold = [r[0] for r in scored_rows if r[1] >= semantic_threshold]
-                below_threshold = [r[0] for r in scored_rows if r[1] < semantic_threshold]
-
-                # Randomly select from above threshold first, then fill from below threshold
-                selected_rows = random.sample(above_threshold, min(limit, len(above_threshold)))
-                if len(selected_rows) < limit and below_threshold:
-                    remaining = limit - len(selected_rows)
-                    selected_rows.extend(random.sample(below_threshold, min(remaining, len(below_threshold))))
+            # Batch compute similarities
+            semantic_threshold = 0.5
+            if embeddings:
+                similarities = embedding_model.similarity_batch(query_embedding, embeddings)
+                scored_rows = list(zip(valid_rows, similarities))
             else:
-                # If no title provided, just return first `limit` videos
-                selected_rows = all_rows[:limit]
+                scored_rows = []
+
+            # Filter by threshold
+            above_threshold = [r[0] for r in scored_rows if r[1] >= semantic_threshold]
+            below_threshold = [r[0] for r in scored_rows if r[1] < semantic_threshold]
+
+            # Return high similarity videos, fill rest with random from below threshold
+            selected_rows = random.sample(above_threshold, min(limit, len(above_threshold)))
+            if len(selected_rows) < limit and below_threshold:
+                remaining = limit - len(selected_rows)
+                selected_rows.extend(random.sample(below_threshold, min(remaining, len(below_threshold))))
 
             # Fetch full video data from both tables
             if selected_rows:
                 row_ids = [row["id"] for row in selected_rows]
                 placeholders = ",".join("?" * len(row_ids))
 
-                # Fetch from both tables
                 own_full_rows = conn.execute(
                     f"SELECT * FROM videos WHERE id IN ({placeholders})",
                     row_ids,
@@ -194,16 +201,16 @@ def get_related_videos(
                     row_ids,
                 ).fetchall()
 
-                # Combine and preserve order
                 rows_by_id = {row["id"]: row for row in own_full_rows}
                 rows_by_id.update({row["id"]: row for row in competitor_full_rows})
                 rows = [rows_by_id[rid] for rid in row_ids if rid in rows_by_id]
             else:
                 rows = []
 
-        return {"items": [row_to_dict(row) for row in rows], "total": len(rows)}
+            return {"items": [row_to_dict(row) for row in rows], "total": len(rows)}
     except Exception as exc:
         return {"error": str(exc)}, 500
+
 
 
 @router.delete("/competitors/{channel_id}")

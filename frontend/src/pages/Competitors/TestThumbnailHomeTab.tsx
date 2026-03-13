@@ -3,7 +3,7 @@ import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
-import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
+import type { CompetitorVideoRow } from './types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 
 type Category = {
@@ -22,15 +22,25 @@ const CATEGORIES: Category[] = [
   { id: 'news', label: 'News' },
 ]
 
-function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails, includeShorts = false, setIncludeShorts }: ThumbnailTabProps) {
+function TestThumbnailHome() {
   const [allVideos, setAllVideos] = useState<CompetitorVideoRow[]>([])
   const [selectedCategory, setSelectedCategory] = useState(getStored('thumbnailTestCategory', 'all'))
   const [loading, setLoading] = useState(true)
+  const thumbnailTitle = getStored('thumbnailTitle', '')
+  const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
+  const includeShorts = getStored<boolean>('includeShorts', false)
+  const numVideosToInclude = getStored('numVideosToInclude', '')
+  const numShortsToInclude = getStored('numShortsToInclude', '')
 
   const fetchVideos = useCallback(async (title: string = '') => {
+    if (!title.trim()) {
+      setAllVideos([])
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
-      const { videos, shorts } = await fetchCompetitorVideoBuckets(title, includeShorts, 24, 10)
+      const { videos, shorts } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 24, numShortsToInclude || 10)
 
       const allVideos = [
         ...shuffleArray(videos),
@@ -43,17 +53,18 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
     } finally {
       setLoading(false)
     }
-  }, [includeShorts])
+  }, [includeShorts, numVideosToInclude, numShortsToInclude])
 
 
   const handleGetVideos = useCallback(() => {
-    fetchVideos(thumbnailTitle)
-  }, [fetchVideos, thumbnailTitle])
+    const currentTitle = getStored('thumbnailTitle', '')
+    fetchVideos(currentTitle)
+  }, [fetchVideos])
 
   useEffect(() => {
-    // Load initial videos on mount using the stored title
+    // Load initial videos on mount only
     fetchVideos(thumbnailTitle)
-  }, [fetchVideos, thumbnailTitle])
+  }, [])
 
   useEffect(() => {
     setStored('thumbnailTestCategory', selectedCategory)
@@ -127,15 +138,7 @@ function TestThumbnailHome({ thumbnailTitle, setThumbnailTitle, thumbnails, setT
   return (
     <div className="page-body">
       <div className="page-row">
-        <ThumbnailUploader
-          title={thumbnailTitle}
-          setTitle={setThumbnailTitle}
-          thumbnails={thumbnails}
-          setThumbnails={setThumbnails}
-          onReloadThumbnails={handleGetVideos}
-          includeShorts={includeShorts}
-          setIncludeShorts={setIncludeShorts}
-        />
+        <ThumbnailUploader onReloadThumbnails={handleGetVideos} />
       </div>
       <div className="page-row">
         <PageCard>

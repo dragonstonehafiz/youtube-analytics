@@ -1,28 +1,40 @@
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import ActionButton from '../../components/ui/ActionButton'
 import TextInput from '../../components/ui/TextInput'
+import { getStored, setStored } from '../../utils/storage'
 import type { Thumbnail } from './types'
 import './ThumbnailUploader.css'
 
 type ThumbnailUploaderProps = {
-  title: string
-  setTitle: (title: string) => void
-  thumbnails: Thumbnail[]
-  setThumbnails: (thumbnails: Thumbnail[]) => void
   onReloadThumbnails?: () => void
-  includeShorts?: boolean
-  setIncludeShorts?: (includeShorts: boolean) => void
 }
 
-function ThumbnailUploader({
-  title,
-  setTitle,
-  thumbnails,
-  setThumbnails,
-  onReloadThumbnails,
-  includeShorts = false,
-  setIncludeShorts,
-}: ThumbnailUploaderProps) {
+function ThumbnailUploader({ onReloadThumbnails }: ThumbnailUploaderProps) {
+  const [title, setTitle] = useState(getStored('thumbnailTitle', ''))
+  const [thumbnails, setThumbnails] = useState<Thumbnail[]>(JSON.parse(getStored('thumbnails', '[]') as string))
+  const [includeShorts, setIncludeShorts] = useState(getStored<boolean>('includeShorts', false))
+  const [numVideosToInclude, setNumVideosToInclude] = useState(getStored('numVideosToInclude', ''))
+  const [numShortsToInclude, setNumShortsToInclude] = useState(getStored('numShortsToInclude', ''))
+
+  useEffect(() => {
+    setStored('thumbnailTitle', title)
+  }, [title])
+
+  useEffect(() => {
+    setStored('thumbnails', JSON.stringify(thumbnails))
+  }, [thumbnails])
+
+  useEffect(() => {
+    setStored('includeShorts', includeShorts)
+  }, [includeShorts])
+
+  useEffect(() => {
+    setStored('numVideosToInclude', numVideosToInclude)
+  }, [numVideosToInclude])
+
+  useEffect(() => {
+    setStored('numShortsToInclude', numShortsToInclude)
+  }, [numShortsToInclude])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,6 +112,24 @@ function ThumbnailUploader({
             placeholder="Enter video title"
           />
         </div>
+        {setNumVideosToInclude && (
+          <div className="thumbnail-uploader-include-input">
+            <TextInput
+              value={numVideosToInclude}
+              onChange={setNumVideosToInclude}
+              placeholder="# of videos"
+            />
+          </div>
+        )}
+        {setNumShortsToInclude && (
+          <div className="thumbnail-uploader-include-input">
+            <TextInput
+              value={numShortsToInclude}
+              onChange={setNumShortsToInclude}
+              placeholder="# of shorts"
+            />
+          </div>
+        )}
         {setIncludeShorts && (
           <label className="thumbnail-uploader-checkbox">
             <input

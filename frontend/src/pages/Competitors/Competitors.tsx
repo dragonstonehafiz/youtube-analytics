@@ -25,35 +25,12 @@ function Competitors() {
   const [tab, setTab] = useState<CompetitorsTab>(
     VALID_TABS.includes(initialTab as CompetitorsTab) ? (initialTab as CompetitorsTab) : 'videos',
   )
-  const [thumbnailTitle, setThumbnailTitle] = useState(getStored('thumbnailTitle', ''))
-  const [thumbnails, setThumbnails] = useState<Thumbnail[]>(JSON.parse(getStored('thumbnails', '[]') as string))
-  const [includeShorts, setIncludeShorts] = useState(getStored<boolean>('includeShorts', false))
 
   const handleTabChange = (newTab: CompetitorsTab) => {
     setTab(newTab)
     setStored('competitorsTab', newTab)
   }
 
-  useEffect(() => {
-    setStored('thumbnailTitle', thumbnailTitle)
-  }, [thumbnailTitle])
-
-  useEffect(() => {
-    setStored('thumbnails', JSON.stringify(thumbnails))
-  }, [thumbnails])
-
-  useEffect(() => {
-    setStored('includeShorts', includeShorts)
-  }, [includeShorts])
-
-  const sharedThumbnailTabProps = {
-    thumbnailTitle,
-    setThumbnailTitle,
-    thumbnails,
-    setThumbnails,
-    includeShorts,
-    setIncludeShorts,
-  }
 
   return (
     <section className="page">
@@ -73,9 +50,9 @@ function Competitors() {
         ))}
       </div>
       {tab === 'videos' && <CompetitorVideosTab />}
-      {tab === 'thumbnail-home' && <TestThumbnailHomeTab {...sharedThumbnailTabProps} />}
-      {tab === 'thumbnail-search' && <TestThumbnailSearchTab {...sharedThumbnailTabProps} />}
-      {tab === 'thumbnail-player' && <TestThumbnailVideoPlayerTab {...sharedThumbnailTabProps} />}
+      {tab === 'thumbnail-home' && <TestThumbnailHomeTab />}
+      {tab === 'thumbnail-search' && <TestThumbnailSearchTab />}
+      {tab === 'thumbnail-player' && <TestThumbnailVideoPlayerTab />}
     </section>
   )
 }

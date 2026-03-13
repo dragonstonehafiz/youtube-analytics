@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard } from '../../components/cards'
 import { ProfileImage } from '../../components/ui'
 import { formatDisplayDate } from '../../utils/date'
+import { getStored } from '../../utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
-import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
+import type { CompetitorVideoRow } from './types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailVideoPlayerTab.css'
 
@@ -34,17 +35,22 @@ const generateSampleComments = () => {
 
 const SAMPLE_COMMENTS = generateSampleComments()
 
-function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails, includeShorts = false, setIncludeShorts }: ThumbnailTabProps) {
+function TestThumbnailVideoPlayerTab() {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
   const [selectedVideo, setSelectedVideo] = useState<CompetitorVideoRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
+  const thumbnailTitle = getStored('thumbnailTitle', '')
+  const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
+  const includeShorts = getStored<boolean>('includeShorts', false)
+  const numVideosToInclude = getStored('numVideosToInclude', '')
+  const numShortsToInclude = getStored('numShortsToInclude', '')
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
       setLoading(true)
-      const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, 100, 3)
+      const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 100, numShortsToInclude || 3)
 
       // First, get user's most viewed video if not already loaded
       if (!selectedVideo) {
@@ -72,17 +78,18 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
     } finally {
       setLoading(false)
     }
-  }, [thumbnails, thumbnailTitle, selectedVideo, includeShorts])
+  }, [thumbnails, thumbnailTitle, selectedVideo, includeShorts, numVideosToInclude, numShortsToInclude])
 
 
   const handleGetVideos = useCallback(() => {
-    fetchVideos(thumbnailTitle)
-  }, [fetchVideos, thumbnailTitle])
+    const currentTitle = getStored('thumbnailTitle', '')
+    fetchVideos(currentTitle)
+  }, [fetchVideos])
 
   useEffect(() => {
-    // Load initial videos on mount using the stored title
+    // Load initial videos on mount only
     fetchVideos(thumbnailTitle)
-  }, [fetchVideos, thumbnailTitle])
+  }, [])
 
   // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
@@ -116,15 +123,7 @@ function TestThumbnailVideoPlayerTab({ thumbnailTitle, setThumbnailTitle, thumbn
   return (
     <div className="page-body">
       <div className="page-row">
-        <ThumbnailUploader
-          title={thumbnailTitle}
-          setTitle={setThumbnailTitle}
-          thumbnails={thumbnails}
-          setThumbnails={setThumbnails}
-          onReloadThumbnails={handleGetVideos}
-          includeShorts={includeShorts}
-          setIncludeShorts={setIncludeShorts}
-        />
+        <ThumbnailUploader onReloadThumbnails={handleGetVideos} />
       </div>
       {loading && (
         <div className="page-row">

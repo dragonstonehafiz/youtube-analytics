@@ -22,9 +22,12 @@ export async function fetchCompetitorVideos(
 export async function fetchCompetitorVideoBuckets(
   title: string,
   includeShorts: boolean,
-  videoLimit: number,
-  shortLimit: number,
+  numVideos: string | number = 24,
+  numShorts: string | number = 10,
 ): Promise<{ videos: CompetitorVideoRow[]; shorts: CompetitorVideoRow[] }> {
+  const videoLimit = typeof numVideos === 'string' ? parseInt(numVideos, 10) || 24 : numVideos
+  const shortLimit = typeof numShorts === 'string' ? parseInt(numShorts, 10) || 10 : numShorts
+
   const videosPromise = fetchCompetitorVideos(title, videoLimit, 'video')
   const shortsPromise = includeShorts
     ? fetchCompetitorVideos(title, shortLimit, 'short')

@@ -1,23 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
+import { getStored } from '../../utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
-import type { ThumbnailTabProps, CompetitorVideoRow } from './types'
+import type { CompetitorVideoRow } from './types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailSearchTab.css'
 
 const FILTER_BUTTONS = ['All', 'Shorts', 'Videos', 'Unwatched', 'Watched', 'Recently uploaded', 'Live']
 
-function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails, setThumbnails, includeShorts = false, setIncludeShorts }: ThumbnailTabProps) {
+function TestThumbnailSearchTab() {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState('All')
+  const thumbnailTitle = getStored('thumbnailTitle', '')
+  const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
+  const includeShorts = getStored<boolean>('includeShorts', false)
+  const numVideosToInclude = getStored('numVideosToInclude', '')
+  const numShortsToInclude = getStored('numShortsToInclude', '')
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
       setLoading(true)
-      const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, 20, 10)
+      const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 20, numShortsToInclude || 10)
 
       const regularVideos = insertThumbnailsAtRandom(
         allVideos.slice(0, 10),
@@ -32,17 +38,18 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
     } finally {
       setLoading(false)
     }
-  }, [thumbnails, thumbnailTitle, includeShorts])
+  }, [thumbnails, thumbnailTitle, includeShorts, numVideosToInclude, numShortsToInclude])
 
 
   const handleGetVideos = useCallback(() => {
-    fetchVideos(thumbnailTitle)
-  }, [fetchVideos, thumbnailTitle])
+    const currentTitle = getStored('thumbnailTitle', '')
+    fetchVideos(currentTitle)
+  }, [fetchVideos])
 
   useEffect(() => {
-    // Load initial videos on mount using the stored title
+    // Load initial videos on mount only
     fetchVideos(thumbnailTitle)
-  }, [fetchVideos, thumbnailTitle])
+  }, [])
 
   // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
@@ -92,15 +99,7 @@ function TestThumbnailSearchTab({ thumbnailTitle, setThumbnailTitle, thumbnails,
   return (
     <div className="page-body">
       <div className="page-row">
-        <ThumbnailUploader
-          title={thumbnailTitle}
-          setTitle={setThumbnailTitle}
-          thumbnails={thumbnails}
-          setThumbnails={setThumbnails}
-          onReloadThumbnails={handleGetVideos}
-          includeShorts={includeShorts}
-          setIncludeShorts={setIncludeShorts}
-        />
+        <ThumbnailUploader onReloadThumbnails={handleGetVideos} />
       </div>
       <div className="page-row">
         <PageCard>

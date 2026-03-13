@@ -4,15 +4,6 @@ export type Thumbnail = {
   fileName: string
 }
 
-export type ThumbnailTabProps = {
-  thumbnailTitle: string
-  setThumbnailTitle: (title: string) => void
-  thumbnails: Thumbnail[]
-  setThumbnails: (thumbnails: Thumbnail[]) => void
-  includeShorts?: boolean
-  setIncludeShorts?: (includeShorts: boolean) => void
-}
-
 export type UserVideoSource = 'uploads' | 'playlist'
 
 export type UserVideoSelectionMode = 'random' | 'percentile'
