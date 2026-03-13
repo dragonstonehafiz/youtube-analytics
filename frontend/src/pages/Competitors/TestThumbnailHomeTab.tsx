@@ -26,11 +26,6 @@ function TestThumbnailHome() {
   const [allVideos, setAllVideos] = useState<CompetitorVideoRow[]>([])
   const [selectedCategory, setSelectedCategory] = useState(getStored('thumbnailTestCategory', 'all'))
   const [loading, setLoading] = useState(true)
-  const thumbnailTitle = getStored('thumbnailTitle', '')
-  const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
-  const includeShorts = getStored<boolean>('includeShorts', false)
-  const numVideosToInclude = getStored('numVideosToInclude', '')
-  const numShortsToInclude = getStored('numShortsToInclude', '')
 
   const fetchVideos = useCallback(async (title: string = '') => {
     if (!title.trim()) {
@@ -40,6 +35,9 @@ function TestThumbnailHome() {
     }
     try {
       setLoading(true)
+      const includeShorts = getStored<boolean>('includeShorts', false)
+      const numVideosToInclude = getStored('numVideosToInclude', '')
+      const numShortsToInclude = getStored('numShortsToInclude', '')
       const { videos, shorts } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 24, numShortsToInclude || 10)
 
       const allVideos = [
@@ -53,7 +51,8 @@ function TestThumbnailHome() {
     } finally {
       setLoading(false)
     }
-  }, [includeShorts, numVideosToInclude, numShortsToInclude])
+     
+  }, [])
 
 
   const handleGetVideos = useCallback(() => {
@@ -63,8 +62,9 @@ function TestThumbnailHome() {
 
   useEffect(() => {
     // Load initial videos on mount only
-    fetchVideos(thumbnailTitle)
-  }, [])
+    const title = getStored('thumbnailTitle', '')
+    fetchVideos(title)
+  }, [fetchVideos])
 
   useEffect(() => {
     setStored('thumbnailTestCategory', selectedCategory)
@@ -72,6 +72,8 @@ function TestThumbnailHome() {
 
   // Arrange competitor videos in home layout
   const renderContent = useMemo(() => {
+    const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
+    const thumbnailTitle = getStored('thumbnailTitle', '')
     const allRegularVideos = allVideos.filter((v) => v.content_type !== 'short')
     const allShorts = allVideos.filter((v) => v.content_type === 'short')
 
@@ -133,7 +135,7 @@ function TestThumbnailHome() {
     }
 
     return content
-  }, [allVideos, thumbnails, thumbnailTitle, loading])
+  }, [allVideos, loading])
 
   return (
     <div className="page-body">

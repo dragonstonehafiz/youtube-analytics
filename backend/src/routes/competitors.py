@@ -112,7 +112,6 @@ def get_related_videos(
 ) -> dict:
     """Return own and competitor videos semantically similar to a given title for thumbnail testing."""
     try:
-        print(title, content_type)
         with get_connection() as conn:
             where_clauses = []
             params: list[object] = []

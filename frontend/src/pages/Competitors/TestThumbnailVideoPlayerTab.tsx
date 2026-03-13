@@ -41,15 +41,19 @@ function TestThumbnailVideoPlayerTab() {
   const [selectedVideo, setSelectedVideo] = useState<CompetitorVideoRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
-  const thumbnailTitle = getStored('thumbnailTitle', '')
-  const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
-  const includeShorts = getStored<boolean>('includeShorts', false)
-  const numVideosToInclude = getStored('numVideosToInclude', '')
-  const numShortsToInclude = getStored('numShortsToInclude', '')
 
   const fetchVideos = useCallback(async (title: string = '') => {
+    if (!title.trim()) {
+      setVideos([])
+      setShorts([])
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
+      const includeShorts = getStored<boolean>('includeShorts', false)
+      const numVideosToInclude = getStored('numVideosToInclude', '')
+      const numShortsToInclude = getStored('numShortsToInclude', '')
       const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 100, numShortsToInclude || 3)
 
       // First, get user's most viewed video if not already loaded
@@ -65,6 +69,8 @@ function TestThumbnailVideoPlayerTab() {
         }
       }
 
+      const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
+      const thumbnailTitle = getStored('thumbnailTitle', '')
       const regularVideos = insertThumbnailsAtRandom(
         allVideos.slice(0, 20),
         thumbnails,
@@ -78,7 +84,7 @@ function TestThumbnailVideoPlayerTab() {
     } finally {
       setLoading(false)
     }
-  }, [thumbnails, thumbnailTitle, selectedVideo, includeShorts, numVideosToInclude, numShortsToInclude])
+  }, [selectedVideo])
 
 
   const handleGetVideos = useCallback(() => {
@@ -88,8 +94,9 @@ function TestThumbnailVideoPlayerTab() {
 
   useEffect(() => {
     // Load initial videos on mount only
-    fetchVideos(thumbnailTitle)
-  }, [])
+    const title = getStored('thumbnailTitle', '')
+    fetchVideos(title)
+  }, [fetchVideos])
 
   // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
