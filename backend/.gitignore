@@ -11,6 +11,10 @@ secrets/
 data/
 outputs/
 
+#trainig
+checkpoints/
+tmp_trainer/
+
 # Distribution / packaging
 .Python
 build/

@@ -1,9 +1,12 @@
+accelerate>=1.1.0
+emoji
 fastapi
 google-api-python-client
 google-auth-oauthlib
 langchain-core
 langchain-openai
 pandas
+nltk
 pillow
 plotly
 pydantic-settings
@@ -12,3 +15,4 @@ sentence-transformers
 tqdm
 uvicorn
 wordcloud
+datasets

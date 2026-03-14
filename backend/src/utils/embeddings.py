@@ -24,7 +24,9 @@ class EmbeddingModel:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")
+            # self._model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")
+
+            self._model = SentenceTransformer("data/finetuned_embeddings")
 
     def embed(self, text: str) -> np.ndarray:
         """Embed a single text string."""

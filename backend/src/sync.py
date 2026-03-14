@@ -131,13 +131,13 @@ def sync_videos() -> None:
     try:
         api_calls = 1  # For get_uploads_playlist_id
         sync_progress.set_current(0)
-        sync_progress.format_message("Pulling videos [{current}/{total}] 0/3: loading uploads")
+        sync_progress.format_message("Pulling videos [{current}/{total}]: loading uploads")
         uploads_playlist_id = get_uploads_playlist_id()
         sync_progress.increment_api_calls(api_calls)
 
         # Fetch shorts upfront so we know which videos are shorts
         sync_progress.set_current(1)
-        sync_progress.format_message("Pulling videos [{current}/{total}] 1/3: finding all shorts")
+        sync_progress.format_message("Pulling videos [{current}/{total}]: finding all shorts")
         short_video_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
         sync_progress.increment_api_calls(fetch_api_calls)
 
@@ -146,7 +146,7 @@ def sync_videos() -> None:
             upsert_videos(batch_videos, short_video_ids=short_video_ids)
 
         sync_progress.set_current(2)
-        sync_progress.format_message("Pulling videos [{current}/{total}] 2/3: finding all videos and details")
+        sync_progress.format_message("Pulling videos [{current}/{total}]: finding all videos and details")
 
         videos, fetch_api_calls = get_all_videos(uploads_playlist_id, on_batch=on_batch)
         sync_progress.increment_api_calls(fetch_api_calls)
