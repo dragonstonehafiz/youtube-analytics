@@ -7,7 +7,7 @@ import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import DataSyncTab from './DataSyncTab'
 import AnalyticsSyncTab from './AnalyticsSyncTab'
-import CompetitorsSyncTab from './CompetitorsSyncTab'
+import ChannelsSyncTab from './ChannelsSyncTab'
 import '../shared.css'
 import './SyncSettings.css'
 
@@ -18,6 +18,8 @@ export type ProgressState = {
   message: string
   stop_requested?: boolean
 }
+
+type CompetitorConfig = { label: string; channel_id: string; enabled: boolean; row_count?: number }
 
 type SyncRun = {
   id: number
@@ -32,7 +34,7 @@ type SyncRun = {
   total_api_calls: number
 }
 
-type SyncTab = 'data' | 'analytics' | 'competitors'
+type SyncTab = 'data' | 'analytics' | 'channels'
 
 // Dependency map: parent table -> tables that depend on it
 const TABLE_DEPENDENCIES: Record<string, string[]> = {
@@ -43,7 +45,7 @@ const TABLE_DEPENDENCIES: Record<string, string[]> = {
 function SyncSettings() {
   const initialSyncTab = getStored('syncSettingsTab', 'data') as string
   const [syncTab, setSyncTab] = useState<SyncTab>(
-    (['data', 'analytics', 'competitors'] as string[]).includes(initialSyncTab)
+    (['data', 'analytics', 'channels'] as string[]).includes(initialSyncTab)
       ? (initialSyncTab as SyncTab)
       : 'data',
   )
@@ -70,6 +72,9 @@ function SyncSettings() {
   const [tableRowCounts, setTableRowCounts] = useState<Record<string, number>>({})
   const [tableStorage, setTableStorage] = useState<Array<{ table: string; bytes: number; percent: number }>>([])
   const [totalStorageBytes, setTotalStorageBytes] = useState(0)
+
+  // Channels config
+  const [channelsConfig, setChannelsConfig] = useState<Record<string, CompetitorConfig>>({})
 
   // Derived sync state
   const progressState: ProgressState | null =
@@ -124,6 +129,16 @@ function SyncSettings() {
     }
   }, [])
 
+  const loadChannels = useCallback(async () => {
+    try {
+      const response = await fetch('http://localhost:8000/channels')
+      const data = await response.json()
+      setChannelsConfig(data || {})
+    } catch (error) {
+      console.error('Failed to load channels', error)
+    }
+  }, [])
+
   useEffect(() => {
     loadRuns()
   }, [loadRuns])
@@ -131,6 +146,10 @@ function SyncSettings() {
   useEffect(() => {
     refreshTableData()
   }, [refreshTableData])
+
+  useEffect(() => {
+    loadChannels()
+  }, [loadChannels])
 
   const pollActiveRef = useRef(false)
   useEffect(() => {
@@ -300,10 +319,10 @@ function SyncSettings() {
         </button>
         <button
           type="button"
-          className={syncTab === 'competitors' ? 'sync-tab active' : 'sync-tab'}
-          onClick={() => setSyncTab('competitors')}
+          className={syncTab === 'channels' ? 'sync-tab active' : 'sync-tab'}
+          onClick={() => setSyncTab('channels')}
         >
-          Competitors
+          Channels
         </button>
       </div>
 
@@ -327,8 +346,8 @@ function SyncSettings() {
               onRefresh={refreshTableData}
             />
           )}
-          {syncTab === 'competitors' && (
-            <CompetitorsSyncTab {...sharedTabProps} />
+          {syncTab === 'channels' && (
+            <ChannelsSyncTab {...sharedTabProps} initialConfig={channelsConfig} />
           )}
         </div>
 

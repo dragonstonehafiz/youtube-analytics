@@ -243,3 +243,23 @@ CREATE TABLE IF NOT EXISTS audience (
 -- GET /audience — filter public subscribers only
 CREATE INDEX IF NOT EXISTS idx_audience_subscriber ON audience(is_public_subscriber);
 
+CREATE TABLE IF NOT EXISTS channels (
+    channel_id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    description TEXT,
+    custom_url TEXT,
+    thumbnail_url TEXT,
+    video_count INTEGER NOT NULL DEFAULT 0,
+    subscriber_count INTEGER,
+    hidden_subscriber_count INTEGER,
+    view_count INTEGER,
+    uploads_playlist_id TEXT,
+    topic_ids TEXT,
+    topic_categories TEXT,
+    privacy_status TEXT,
+    is_linked INTEGER,
+    long_uploads_status TEXT,
+    made_for_kids INTEGER,
+    is_own INTEGER NOT NULL DEFAULT 0
+);
+

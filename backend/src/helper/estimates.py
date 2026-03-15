@@ -353,3 +353,35 @@ def estimate_video_search_insights_api_calls(
             "(1 call per video-month, single page only: top 25 terms by views)"
         ),
     )
+
+
+def estimate_competitors_api_calls(video_counts: list[int]) -> EstimateResult:
+    """Estimate minimum calls for sync_channels.
+
+    Args:
+        video_counts: List of video counts for each enabled competitor
+
+    Returns:
+        EstimateResult with minimum API calls and basis
+    """
+    if not video_counts:
+        return EstimateResult(minimum_api_calls=0, basis="no competitors enabled")
+
+    total_calls = 0
+    total_videos = 0
+
+    for video_count in video_counts:
+        # Per competitor: 1 call for uploads ID, 1 call for shorts check,
+        # ceil(video_count/50) calls for playlist items pagination,
+        # ceil(video_count/50) calls for video detail batches
+        video_count = max(video_count, 1)
+        pagination_calls = ceil(video_count / 50)
+        calls_per_competitor = 2 + (2 * pagination_calls)
+        total_calls += calls_per_competitor
+        total_videos += video_count
+
+    competitor_count = len(video_counts)
+    return EstimateResult(
+        minimum_api_calls=total_calls,
+        basis=f"{competitor_count} competitors with {total_videos} videos (2 + 2×⌈video_count/50⌉ per competitor)",
+    )

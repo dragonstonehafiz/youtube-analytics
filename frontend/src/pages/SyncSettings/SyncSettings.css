@@ -145,6 +145,14 @@
   width: 400px;
 }
 
+/* Channels table column widths */
+.sync-table col:nth-child(1) { width: 36px; }
+.sync-table col:nth-child(2) { width: 200px; }
+.sync-table col:nth-child(3) { width: 200px; }
+.sync-table col:nth-child(4) { width: 120px; }
+.sync-table col:nth-child(5) { width: 60px; }
+.sync-table col:nth-child(6) { width: 60px; }
+
 .sync-table td {
   padding: 10px 12px 10px 0;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);

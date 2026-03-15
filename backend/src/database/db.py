@@ -47,6 +47,7 @@ def init_db() -> None:
         _ensure_playlist_items_schema(conn)
         _ensure_audience_columns(conn)
         _ensure_traffic_sources_daily_columns(conn)
+        _ensure_channels_columns(conn)
 
 
 def _ensure_video_columns(conn: sqlite3.Connection) -> None:
@@ -396,4 +397,51 @@ def _ensure_playlist_items_schema(conn: sqlite3.Connection) -> None:
         conn.commit()
     finally:
         conn.execute("PRAGMA foreign_keys = ON;")
+
+
+def _ensure_channels_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to channels table if missing (idempotent)."""
+    columns = [
+        ("channel_id", "TEXT PRIMARY KEY"),
+        ("label", "TEXT NOT NULL"),
+        ("description", "TEXT"),
+        ("custom_url", "TEXT"),
+        ("thumbnail_url", "TEXT"),
+        ("video_count", "INTEGER NOT NULL DEFAULT 0"),
+        ("subscriber_count", "INTEGER"),
+        ("hidden_subscriber_count", "INTEGER"),
+        ("view_count", "INTEGER"),
+        ("uploads_playlist_id", "TEXT"),
+        ("topic_ids", "TEXT"),
+        ("topic_categories", "TEXT"),
+        ("privacy_status", "TEXT"),
+        ("is_linked", "INTEGER"),
+        ("long_uploads_status", "TEXT"),
+        ("made_for_kids", "INTEGER"),
+        ("is_own", "INTEGER NOT NULL DEFAULT 0"),
+    ]
+    for name, col_type in columns:
+        try:
+            conn.execute(f"ALTER TABLE channels ADD COLUMN {name} {col_type}")
+        except sqlite3.OperationalError:
+            continue
+    conn.commit()
+
+
+def ensure_authenticated_channel_in_database() -> None:
+    """Ensure authenticated user's own channel is in the database with is_own=1."""
+    from src.youtube.channels import get_authenticated_channel_info
+    from src.database.channels import get_channel, upsert_channel
+    from src.utils.logger import get_logger
+
+    logger = get_logger("channels")
+    try:
+        channel_info = get_authenticated_channel_info()
+        with get_connection() as conn:
+            existing = get_channel(conn, channel_info["channel_id"])
+            if existing and existing.get("is_own") == 1:
+                return
+            upsert_channel(conn, channel_info)
+    except Exception as exc:
+        logger.error(f"Failed to ensure authenticated channel in database: {exc}")
 

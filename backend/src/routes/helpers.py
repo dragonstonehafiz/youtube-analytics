@@ -138,9 +138,12 @@ def estimate_min_api_calls_for_table(
     earliest_playlist_date = get_earliest_published_date(conn, "playlists")
 
     if table == "videos":
+        # Get video count from user's own channel in channels table
+        own_channel_row = conn.execute("SELECT video_count FROM channels WHERE is_own = 1").fetchone()
+        video_count = int(own_channel_row["video_count"] or 0) if own_channel_row else len(video_ids)
         shorts_row = conn.execute("SELECT COUNT(*) AS count FROM videos WHERE content_type = 'short'").fetchone()
         shorts_count = int(shorts_row["count"] or 0) if shorts_row else 0
-        result = estimate_videos_api_calls(video_count=len(video_ids), shorts_count=shorts_count)
+        result = estimate_videos_api_calls(video_count=video_count, shorts_count=shorts_count)
         return {"minimum_api_calls": result.minimum_api_calls, "basis": result.basis}
 
     if table in {"playlists", "playlist_items"}:

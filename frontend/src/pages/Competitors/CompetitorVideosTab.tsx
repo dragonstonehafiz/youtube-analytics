@@ -44,7 +44,7 @@ function CompetitorVideosTab() {
   useEffect(() => {
     async function loadChannels() {
       try {
-        const response = await fetch('http://localhost:8000/competitors')
+        const response = await fetch('http://localhost:8000/channels')
         const data = await response.json()
         const options: ChannelOption[] = Object.values(data as Record<string, { label?: string; channel_id?: string }>)
           .filter((c) => c.channel_id)
@@ -72,7 +72,7 @@ function CompetitorVideosTab() {
         if (filters.published_after) params.set('published_after', filters.published_after)
         if (filters.published_before) params.set('published_before', filters.published_before)
         if (filters.format) params.set('content_type', filters.format)
-        const response = await fetch(`http://localhost:8000/competitors/videos?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/channels/videos?${params.toString()}`)
         const data = await response.json()
         setRows(Array.isArray(data.items) ? data.items : [])
         setTotal(typeof data.total === 'number' ? data.total : 0)

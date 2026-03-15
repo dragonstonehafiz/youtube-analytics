@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from src.routes import analytics, audience, comments, competitors, llm, playlists, stats, sync, videos
+from src.routes import analytics, audience, channels, comments, llm, playlists, stats, sync, videos
 
 # Create main router
 router = APIRouter()
@@ -16,4 +16,4 @@ router.include_router(comments.router, tags=["comments"])
 router.include_router(analytics.router, tags=["analytics"])
 router.include_router(stats.router, tags=["stats"])
 router.include_router(llm.router, tags=["llm"])
-router.include_router(competitors.router, tags=["competitors"])
+router.include_router(channels.router, tags=["channels"])

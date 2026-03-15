@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
@@ -23,7 +22,7 @@ from src.database.audience import upsert_audience, upsert_commenters_from_commen
 from src.database.channel_daily import upsert_channel_daily
 from src.database.comments import upsert_comments
 from src.database.competitors import upsert_competitor_videos
-from src.database.db import get_connection
+from src.database.db import get_connection, ensure_authenticated_channel_in_database
 from src.database.playlist_daily import upsert_playlist_daily_analytics
 from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
 from src.database.traffic_sources import upsert_traffic_sources
@@ -155,17 +154,27 @@ def sync_videos() -> None:
     sync_progress.increment()
 
 
-def sync_competitors() -> None:
-    """Sync competitor channel videos into videos_competitors table."""
+def sync_channels(channel_ids: list[str] | None = None) -> None:
+    """Sync channel videos into videos_competitors table.
+
+    Args:
+        channel_ids: Optional list of specific channel IDs to sync. If None, syncs all channels.
+    """
+    # Ensure authenticated user's own channel is in database
+    ensure_authenticated_channel_in_database()
+
     # Create sync run to track this operation
     run_id = _create_sync_run("videos_competitors", None, None, False)
     api_calls_before = sync_progress.get_api_calls()
 
     try:
-        competitors_json_path = settings.data_dir / "competitors.json"
+        # Load competitors from database
+        from src.database.channels import get_all_channels
 
-        # Load competitors config
-        if not competitors_json_path.exists():
+        with get_connection() as conn:
+            channels = get_all_channels(conn)
+
+        if not channels:
             sync_progress.set_total(1)
             sync_progress.set_current(0)
             sync_progress.format_message("Syncing competitors [{current}/{total}] no competitors configured")
@@ -173,23 +182,18 @@ def sync_competitors() -> None:
             _finish_sync_run(run_id, "success", api_delta)
             return
 
-        try:
-            with open(competitors_json_path, "r") as f:
-                competitors_config = json.load(f)
-        except (json.JSONDecodeError, OSError) as exc:
-            raise RuntimeError(f"Failed to load competitors.json: {exc}") from exc
+        # Filter to requested channel_ids if provided
+        if channel_ids:
+            requested_ids = set(channel_ids)
+            channels = [ch for ch in channels if ch.get("channel_id") in requested_ids]
 
-        # Filter to enabled competitors
-        enabled_competitors = [
-            (config.get("label"), config.get("channel_id"))
-            for config in competitors_config.values()
-            if isinstance(config, dict) and config.get("enabled", False)
-        ]
+        # Channels to sync (enabled state managed by frontend)
+        enabled_competitors = [(ch.get("label"), ch.get("channel_id")) for ch in channels]
 
         if not enabled_competitors:
             sync_progress.set_total(1)
             sync_progress.set_current(0)
-            sync_progress.format_message("Syncing competitors [{current}/{total}] no competitors enabled")
+            sync_progress.format_message("Syncing competitors [{current}/{total}] no competitors configured")
             api_delta = sync_progress.get_api_calls() - api_calls_before
             _finish_sync_run(run_id, "success", api_delta)
             return
@@ -227,33 +231,6 @@ def sync_competitors() -> None:
             sync_progress.increment()
 
         sync_progress.format_message("Syncing competitors [{current}/{total}] complete")
-
-        # Update row counts and channel name in config
-        with get_connection() as conn:
-            for name, channel_id in enabled_competitors:
-                row_count = conn.execute(
-                    "SELECT COUNT(*) FROM videos_competitors WHERE channel_id = ?",
-                    (channel_id,)
-                ).fetchone()[0]
-                # Get the channel_title from one of the videos
-                channel_title_row = conn.execute(
-                    "SELECT channel_title FROM videos_competitors WHERE channel_id = ? LIMIT 1",
-                    (channel_id,)
-                ).fetchone()
-                channel_title = channel_title_row["channel_title"] if channel_title_row else name
-                # Find the config entry for this competitor and update row count and label
-                for key, config in competitors_config.items():
-                    if isinstance(config, dict) and config.get("channel_id") == channel_id:
-                        config["row_count"] = row_count
-                        config["label"] = channel_title
-                        break
-
-        # Save updated config back to file
-        try:
-            with open(competitors_json_path, "w") as f:
-                json.dump(competitors_config, f, indent=2)
-        except (OSError, IOError) as exc:
-            sync_logger.warning("Failed to update competitors.json with row counts: %s", exc)
 
         api_delta = sync_progress.get_api_calls() - api_calls_before
         _finish_sync_run(run_id, "success", api_delta)
@@ -850,7 +827,8 @@ def sync_data(items: list[SyncQueueItem]) -> None:
         sync_progress.mark_done("Data sync complete")
     except SyncStopRequested as exc:
         sync_progress.mark_stopped(str(exc))
-    except Exception:
+    except Exception as exc:
+        sync_logger.error(f"Data sync failed: {exc}", exc_info=True)
         sync_progress.mark_failed("Data sync failed unexpectedly")
         raise
 
@@ -886,7 +864,8 @@ def sync_analytics(items: list[SyncQueueItem]) -> None:
         sync_progress.mark_done("Analytics sync complete")
     except SyncStopRequested as exc:
         sync_progress.mark_stopped(str(exc))
-    except Exception:
+    except Exception as exc:
+        sync_logger.error(f"Analytics sync failed: {exc}", exc_info=True)
         sync_progress.mark_failed("Analytics sync failed unexpectedly")
         raise
 

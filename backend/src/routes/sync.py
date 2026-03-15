@@ -8,18 +8,21 @@ from pydantic import BaseModel
 
 from src.database.db import get_connection, row_to_dict
 from src.routes.helpers import estimate_analytics_pulls, estimate_data_pulls
+from src.helper.estimates import estimate_competitors_api_calls
 from src.sync import (
     ANALYTICS_STAGES,
     DATA_STAGES,
     SyncQueueItem,
     sync_analytics,
     sync_data,
-    sync_competitors,
+    sync_channels,
     sync_progress,
 )
+from src.utils.logger import get_logger
 from src.youtube.videos import get_channel_info
 
 router = APIRouter()
+_logger = get_logger("sync_routes")
 
 
 @router.get("/health")
@@ -63,6 +66,10 @@ class _AnalyticsSyncItem(BaseModel):
 
 class _AnalyticsSyncBody(BaseModel):
     items: list[_AnalyticsSyncItem]
+
+
+class _ChannelsSyncBody(BaseModel):
+    channel_ids: list[str] | None = None
 
 
 @router.post("/sync/data")
@@ -123,15 +130,22 @@ def sync_analytics_route(body: _AnalyticsSyncBody, background_tasks: BackgroundT
     return JSONResponse(content={"queued": True})
 
 
-@router.post("/sync/competitors")
-def sync_competitors_route(background_tasks: BackgroundTasks) -> JSONResponse:
-    """Trigger a competitor video sync.
+@router.post("/sync/channels")
+def sync_channels_route(body: _ChannelsSyncBody = None, background_tasks: BackgroundTasks = None) -> JSONResponse:
+    """Trigger a channel video sync.
 
-    Syncs all enabled competitors from competitors.json into videos_competitors table.
+    Syncs specified channels from the channels table into videos_competitors table.
+
+    Args:
+        body: Optional request body with 'channel_ids' list of channel IDs to sync.
+              If not provided or empty list, syncs all channels.
     """
     if not sync_progress.try_start():
         return JSONResponse(status_code=409, content={"error": "A sync is already running."})
-    background_tasks.add_task(sync_competitors)
+
+    channel_ids = body.channel_ids if body else None
+
+    background_tasks.add_task(sync_channels, channel_ids=channel_ids)
     return JSONResponse(content={"queued": True})
 
 
@@ -187,6 +201,37 @@ def get_analytics_estimate(
     with get_connection() as conn:
         by_pull = estimate_analytics_pulls(conn, pulls, start_date, end_date, deep_sync)
     return JSONResponse(content={"by_pull": by_pull, "total": sum(by_pull.values())})
+
+
+@router.get("/sync/channels/estimate")
+def get_channels_estimate(channel_ids: str | None = None) -> JSONResponse:
+    """Estimate minimum YouTube Data API v3 calls for channels sync.
+
+    Args:
+        channel_ids: Comma-separated list of channel IDs to estimate for.
+                    If not provided, estimates for all configured channels.
+    """
+    try:
+        from src.database.channels import get_all_channels
+        with get_connection() as conn:
+            all_channels = get_all_channels(conn)
+
+        # Filter to requested channel_ids if provided
+        if channel_ids:
+            requested_ids = set(ch.strip() for ch in channel_ids.split(",") if ch.strip())
+            channels = [ch for ch in all_channels if ch.get("channel_id") in requested_ids]
+        else:
+            channels = all_channels
+
+        video_counts = [int(ch.get("video_count", 0)) for ch in channels]
+
+        if not video_counts:
+            return JSONResponse(content={"total": 0, "basis": "no channels to estimate"})
+
+        result = estimate_competitors_api_calls(video_counts)
+        return JSONResponse(content={"total": result.minimum_api_calls, "basis": result.basis})
+    except Exception:
+        return JSONResponse(content={"total": 0, "basis": "error loading channels"})
 
 
 @router.post("/sync/stop")

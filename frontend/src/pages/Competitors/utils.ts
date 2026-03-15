@@ -14,7 +14,7 @@ export async function fetchCompetitorVideos(
 ): Promise<CompetitorVideoRow[]> {
   const params = new URLSearchParams({ title, limit: String(limit) })
   if (contentType) params.set('content_type', contentType)
-  const response = await fetch(`http://localhost:8000/competitors/related-videos?${params.toString()}`)
+  const response = await fetch(`http://localhost:8000/channels/related-videos?${params.toString()}`)
   const data = await response.json()
   return toCompetitorVideos(data)
 }
