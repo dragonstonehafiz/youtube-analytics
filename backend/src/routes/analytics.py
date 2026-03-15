@@ -1080,3 +1080,110 @@ def get_content_insights(
         "all_video_avg_view_durations": avg_view_duration_list,
         "all_videos": all_videos,
     }
+
+
+@router.get("/analytics/engagement-insights")
+def list_engagement_insights(
+    start_date: str,
+    end_date: str,
+    content_type: str | None = None,
+    video_ids: str | None = None,
+) -> dict:
+    """Return engagement insights: total comments, top commented videos, and top subscriber-gaining videos.
+
+    Optionally filter by specific video IDs (comma-separated) or content type.
+    """
+    # Parse video_ids if provided
+    video_id_list: list[str] = []
+    if video_ids:
+        video_id_list = [v.strip() for v in video_ids.split(',') if v.strip()]
+
+    with get_connection() as conn:
+        # Get top commented videos
+        where_sql = "c.published_at >= ? AND c.published_at <= ?"
+        params: list[object] = [start_date, end_date]
+        if content_type:
+            where_sql += " AND v.content_type = ?"
+            params.append(content_type)
+        if video_id_list:
+            placeholders = ','.join('?' * len(video_id_list))
+            where_sql += f" AND c.video_id IN ({placeholders})"
+            params.extend(video_id_list)
+
+        comment_rows = conn.execute(
+            f"""
+            SELECT
+                c.video_id,
+                v.title,
+                v.thumbnail_url,
+                v.published_at,
+                COUNT(c.id) AS comment_count
+            FROM comments c
+            JOIN videos v ON v.id = c.video_id
+            WHERE {where_sql}
+            GROUP BY c.video_id
+            ORDER BY comment_count DESC
+            LIMIT 10
+            """,
+            tuple(params),
+        ).fetchall()
+
+        # Get total comment count across all videos
+        total_comments_result = conn.execute(
+            f"""
+            SELECT COUNT(c.id) AS total
+            FROM comments c
+            JOIN videos v ON v.id = c.video_id
+            WHERE {where_sql}
+            """,
+            tuple(params),
+        ).fetchone()
+        total_comments = total_comments_result[0] if total_comments_result else 0
+
+        # Get top subscriber-gaining videos
+        where_sql = "va.date >= ? AND va.date <= ?"
+        params = [start_date, end_date]
+        if content_type:
+            where_sql += " AND v.content_type = ?"
+            params.append(content_type)
+        if video_id_list:
+            placeholders = ','.join('?' * len(video_id_list))
+            where_sql += f" AND va.video_id IN ({placeholders})"
+            params.extend(video_id_list)
+
+        subscriber_rows = conn.execute(
+            f"""
+            SELECT
+                va.video_id,
+                v.title,
+                v.thumbnail_url,
+                v.published_at,
+                SUM(COALESCE(va.subscribers_gained, 0)) AS subscribers_gained
+            FROM video_analytics va
+            JOIN videos v ON v.id = va.video_id
+            WHERE {where_sql}
+            GROUP BY va.video_id
+            ORDER BY subscribers_gained DESC
+            LIMIT 10
+            """,
+            tuple(params),
+        ).fetchall()
+
+        # Get total subscribers gained across all videos
+        total_subscribers_result = conn.execute(
+            f"""
+            SELECT SUM(COALESCE(va.subscribers_gained, 0)) AS total
+            FROM video_analytics va
+            JOIN videos v ON v.id = va.video_id
+            WHERE {where_sql}
+            """,
+            tuple(params),
+        ).fetchone()
+        total_subscribers_gained = int(total_subscribers_result[0]) if total_subscribers_result and total_subscribers_result[0] else 0
+
+    return {
+        "total_comments": total_comments,
+        "total_subscribers_gained": total_subscribers_gained,
+        "top_commented_videos": [row_to_dict(row) for row in comment_rows],
+        "top_subscriber_videos": [row_to_dict(row) for row in subscriber_rows],
+    }

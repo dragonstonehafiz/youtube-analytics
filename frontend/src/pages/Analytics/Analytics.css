@@ -296,6 +296,13 @@
   position: relative;
 }
 
+.engagement-insights-wrapper {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
 @media (max-width: 1100px) {
   .analytics-main-layout {
     grid-template-columns: 1fr;
@@ -308,6 +315,10 @@
 
 @media (max-width: 980px) {
   .analytics-traffic-row {
+    grid-template-columns: 1fr;
+  }
+
+  .engagement-insights-wrapper {
     grid-template-columns: 1fr;
   }
 }

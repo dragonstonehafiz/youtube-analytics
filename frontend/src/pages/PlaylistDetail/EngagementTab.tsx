@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '../../components/charts'
-import { PageCard } from '../../components/cards'
+import { PageCard, EngagementInsightCommentCard, EngagementInsightSubscriberCard, type CommentVideoItem, type SubscriberVideoItem } from '../../components/cards'
 import { formatDuration, formatWholeNumber } from '../../utils/number'
 import UploadPublishTooltip from '../../components/charts/UploadPublishTooltip'
 import { useSpikes } from '../../hooks/useSpikes'
@@ -13,12 +13,47 @@ type Props = {
   previousRange: { start: string; end: string }
   granularity: Granularity
   videoIds: string[]
+  onOpenVideo: (videoId: string) => void
 }
 
-export default function EngagementTab({ range, previousRange, granularity, videoIds }: Props) {
+export default function EngagementTab({ range, previousRange, granularity, videoIds, onOpenVideo }: Props) {
   const { rows: dailyData, previousRows: previousDailyData } = useVideoAnalyticsByIds(videoIds, range, previousRange)
   const { hoverSpike, hoverHandlers } = useSpikeHover()
   const { setHoverSpike, spikeTimeoutRef, spikeHoverLockedRef } = hoverHandlers
+
+  const [engagementInsights, setEngagementInsights] = useState<{
+    total_comments: number
+    total_subscribers_gained: number
+    top_commented_videos: CommentVideoItem[]
+    top_subscriber_videos: SubscriberVideoItem[]
+  } | null>(null)
+  const [engagementLoading, setEngagementLoading] = useState(false)
+
+  useEffect(() => {
+    async function loadEngagementInsights() {
+      if (videoIds.length === 0) {
+        setEngagementInsights(null)
+        return
+      }
+      setEngagementLoading(true)
+      try {
+        const params = new URLSearchParams({
+          start_date: range.start,
+          end_date: range.end,
+          video_ids: videoIds.join(','),
+        })
+        const response = await fetch(`http://localhost:8000/analytics/engagement-insights?${params.toString()}`)
+        if (!response.ok) throw new Error(`Failed to load engagement insights (${response.status})`)
+        const payload = await response.json()
+        setEngagementInsights(payload)
+      } catch {
+        setEngagementInsights(null)
+      } finally {
+        setEngagementLoading(false)
+      }
+    }
+    loadEngagementInsights()
+  }, [range.start, range.end, videoIds])
 
   const engagedViewsSpikes = useSpikes(range.start, range.end, 'engaged_views', granularity, hoverHandlers, videoIds)
   const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, videoIds)
@@ -161,6 +196,28 @@ export default function EngagementTab({ range, previousRange, granularity, video
               }, 150)
             }}
           />
+        </PageCard>
+      </div>
+      <div className="engagement-insights-wrapper">
+        <PageCard>
+          {engagementInsights && (
+            <EngagementInsightCommentCard
+              totalComments={engagementInsights.total_comments}
+              topCommentedVideos={engagementInsights.top_commented_videos}
+              loading={engagementLoading}
+              onOpenVideo={onOpenVideo}
+            />
+          )}
+        </PageCard>
+        <PageCard>
+          {engagementInsights && (
+            <EngagementInsightSubscriberCard
+              totalSubscribersGained={engagementInsights.total_subscribers_gained}
+              topSubscriberVideos={engagementInsights.top_subscriber_videos}
+              loading={engagementLoading}
+              onOpenVideo={onOpenVideo}
+            />
+          )}
         </PageCard>
       </div>
     </div>

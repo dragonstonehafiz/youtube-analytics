@@ -47,6 +47,11 @@
   gap: 16px;
 }
 
+.page-row {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
 /* Filter patterns (used by Videos, Comments, etc.) */
 

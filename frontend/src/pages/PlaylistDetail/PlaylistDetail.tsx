@@ -168,6 +168,7 @@ function PlaylistDetail() {
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
             videoIds={videoIds}
+            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
           />
         )}
         {rangeValue && analyticsTab === 'monetization' && (

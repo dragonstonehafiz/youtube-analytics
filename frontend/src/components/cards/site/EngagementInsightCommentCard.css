@@ -1,0 +1,108 @@
+.engagement-insight-comment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.engagement-insight-comment-stat {
+  margin-bottom: 8px;
+}
+
+.engagement-insight-comment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.engagement-insight-comment-header {
+  display: grid;
+  grid-template-columns: 26px 72px minmax(0, 1fr) 80px;
+  gap: 10px;
+  align-items: center;
+  min-height: 26px;
+  color: #64748b;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.engagement-insight-comment-rank {
+  text-align: center;
+}
+
+.engagement-insight-comment-video {
+  grid-column: 2 / 4;
+  text-align: left;
+}
+
+.engagement-insight-comment-metric {
+  text-align: center;
+}
+
+.engagement-insight-comment-row {
+  display: grid;
+  grid-template-columns: 26px 72px minmax(0, 1fr) 80px;
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+}
+
+.engagement-insight-comment-rank {
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.engagement-insight-comment-thumb {
+  width: 72px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #e2e8f0;
+}
+
+.engagement-insight-comment-title {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0;
+}
+
+.engagement-insight-comment-title:hover {
+  text-decoration: underline;
+}
+
+.engagement-insight-comment-metric {
+  color: #0f172a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.engagement-insight-comment-state {
+  color: #64748b;
+  font-size: 13px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .engagement-insight-comment-header {
+    grid-template-columns: 22px 64px minmax(0, 1fr) 70px;
+  }
+
+  .engagement-insight-comment-row {
+    grid-template-columns: 22px 64px minmax(0, 1fr) 70px;
+  }
+
+  .engagement-insight-comment-thumb {
+    width: 64px;
+    height: 36px;
+  }
+}
