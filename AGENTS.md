@@ -19,7 +19,7 @@ YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 - use `usePagination.ts` hook for shared page-size state
 - use local storage keys namespaced by page (e.g. `videoDetailGranularity`)
 - keep `.method()` on same line as object in Python — no chained calls starting on new lines
-- keep CSS in colocated `.css` files; no inline styles
+- keep CSS in colocated `.css` files
 - import `../shared.css` in every page component before the page-specific CSS
 - use `'../../components/...'` import paths from inside page subdirectories
 
@@ -109,9 +109,10 @@ frontend/
     ui/                          # primitives
     charts/                      # visualizations
     cards/primitives/            # generic card wrappers
-    cards/site/                  # domain-specific cards
+    cards/pages/                 # domain-specific cards
     tables/                      # table + list components
     features/                    # complex composite components
+    tabs/                        # shared tab components (Analytics + PlaylistDetail)
   src/hooks/                     # shared React hooks
   src/utils/                     # formatting helpers
 ```
@@ -141,13 +142,14 @@ frontend/
 - `ProgressBar` — progress indicator
 - `UploadPublishMarkers` — video upload markers overlaid on charts
 - `UploadPublishTooltip` — tooltip showing videos for a chart data point
+- `SpikeTooltipOverlay` — wraps UploadPublishTooltip with spike hover state; accepts `hoverSpike` + `hoverHandlers` from `useSpikeHover`
 
 **Card primitives** (`components/cards/primitives/`):
 - `PageCard` — generic card container
 - `DonutChartCard` — card wrapping a donut chart
 - `HistogramChartCard` — card wrapping a histogram
 
-**Site cards** (`components/cards/site/`):
+**Site cards** (`components/cards/pages/`):
 - `ChannelAnalyticsCard` — dashboard channel metrics summary
 - `CommentsPreviewCard` — dashboard recent comments preview
 - `CommentsWordCloudCard` — word-cloud PNG display with Word types multiselect and manual generate button
@@ -179,16 +181,30 @@ frontend/
 **Features** (`components/features/`):
 - `DataRangeControl` — analytics-style range row (granularity + presets/year/custom)
 - `CommentFilter` — reusable filter row (text search, date range, sort, reset)
-- `commentGroups.ts` (`buildCommentGroups()`) — helper to group comments by video
+
+**Shared tabs** (`components/tabs/`):
+- `MetricsTab` — chart shell (MetricChartCard + SpikeTooltipOverlay + children); used by page-level MetricsTab wrappers
+- `EngagementTab` — engagement metrics tab; Analytics context uses `contentType`/`publishedDates`, playlist context uses `videoIds`/`playlistId`
+- `MonetizationTab` — monetization tab with earnings card and content performance; same two-context discriminated union
+- `DiscoveryTab` — traffic sources and top videos tab; same two-context discriminated union
+- `InsightsTab` — content insights + LLM summary + search terms + word cloud; same two-context discriminated union
 
 **Hooks** (`hooks/`):
 - `useAnalyticsDateRange` — shared date range state for analytics pages
+- `useChannelAnalytics` — channel-level daily rows, previous rows, and totals for a date range
+- `useVideoAnalytics` — per-video daily rows for analytics (by content type or video IDs)
+- `usePlaylistAnalytics` — playlist-level daily rows, previous rows, and totals
+- `useSpikes` — fetches spike regions and top contributors for a metric; accepts `videoIds` array for filtering
+- `useSpikeHover` — shared hover state for SpikeTooltipOverlay; returns `{ hoverSpike, hoverHandlers }`
+- `usePlaylistVideoIds` — fetches all video IDs for a playlist (unpaginated)
 - `useLlmSummary` — LLM summary fetch + state management
 - `usePagination` — shared page-size persistence + page reset on size change
 - `usePrivacyMode` — toggle to hide sensitive numbers
 - `useWordCloud` — word cloud fetch + state management
 
 **Utils** (`utils/`):
+- `analytics.ts` — `buildMonthlyEarnings(rows, maxMonths)` — aggregates estimated revenue into monthly totals
+- `commentGroups.ts` — `buildCommentGroups()` — groups comments by video
 - `date.ts` — `formatDisplayDate()` and date helpers (`day month year` format)
 - `number.ts` — `X,XXX` whole numbers, `X,XX.000` decimals
 - `storage.ts` — local storage helpers
@@ -209,9 +225,6 @@ frontend/
 - sync stage → any stage function in `backend/src/sync.py`
 - API route → `backend/src/routes/analytics.py`
 
-### Don't copy
-- any inline `style={{}}` usage — use colocated CSS instead
-- direct `fetch()` in components — call from the page component and pass data down
 
 ---
 
@@ -437,7 +450,7 @@ Multi-tab pages should centralize shared types, utilities, and components to red
 Example: `Competitors/` page uses `types.ts` for image/thumbnail models, `utils.ts` for shared filter/layout logic, and `ThumbnailUploader.tsx` as a reusable component across test tabs.
 
 ### Adding a new reusable component
-1. Pick category: `ui/` primitives · `charts/` · `cards/primitives/` · `cards/site/` · `tables/` · `features/`
+1. Pick category: `ui/` primitives · `charts/` · `cards/primitives/` · `cards/pages/` · `tables/` · `features/` · `tabs/` (shared Analytics + PlaylistDetail tabs)
 2. Create `<ComponentName>.tsx` + colocated `<ComponentName>.css` if needed
 3. Export from the directory's `index.ts`
 

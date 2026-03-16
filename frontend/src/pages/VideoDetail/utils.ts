@@ -1,4 +1,4 @@
-import type { VideoDailyRow, VideoDetailTab } from './types'
+import type { VideoDailyRow, VideoDetailTab } from '../../types'
 
 export const VIDEO_DETAIL_TABS: Array<{ key: VideoDetailTab; label: string }> = [
   { key: 'metrics', label: 'Metrics' },
@@ -18,6 +18,6 @@ export function parseVideoDetailTab(value: string): VideoDetailTab {
 
 export function sortVideoDailyRows(rows: VideoDailyRow[]): VideoDailyRow[] {
   return [...rows]
-    .filter((item) => typeof item.date === 'string')
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .filter((item) => typeof item.day === 'string')
+    .sort((a, b) => a.day.localeCompare(b.day))
 }

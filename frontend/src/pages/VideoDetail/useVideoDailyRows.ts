@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { VideoDailyRow } from './types'
+import type { VideoDailyRow } from '../../types'
 import { sortVideoDailyRows } from './utils'
 
 type UseVideoDailyRowsResult = {
@@ -30,7 +30,11 @@ export function useVideoDailyRows(videoId: string | undefined): UseVideoDailyRow
         const response = await fetch(`http://localhost:8000/analytics/video-daily?${params}`)
         if (!response.ok) throw new Error(`Failed to load analytics (${response.status})`)
         const data = await response.json()
-        const items = (Array.isArray(data.items) ? data.items : []) as VideoDailyRow[]
+        const rawItems = Array.isArray(data.items) ? data.items : []
+        const items: VideoDailyRow[] = (rawItems as Array<Record<string, unknown>>).map((item) => ({
+          ...item,
+          day: typeof item.date === 'string' ? item.date : String(item.day ?? ''),
+        })) as VideoDailyRow[]
         if (!cancelled) setRows(sortVideoDailyRows(items))
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load analytics.')

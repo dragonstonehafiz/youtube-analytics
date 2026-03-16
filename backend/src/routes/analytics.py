@@ -709,8 +709,9 @@ def list_video_traffic_sources(
     end_date: str,
     content_type: str | None = None,
     video_id: str | None = None,
+    video_ids: str | None = None,
 ) -> dict:
-    """Return video-level daily traffic-source rows for a range, optionally filtered by content type."""
+    """Return video-level daily traffic-source rows for a range, optionally filtered by content type or video IDs."""
     where_sql = "vts.date >= ? AND vts.date <= ?"
     params: list[object] = [start_date, end_date]
     if content_type:
@@ -719,6 +720,12 @@ def list_video_traffic_sources(
     if video_id:
         where_sql += " AND vts.video_id = ?"
         params.append(video_id)
+    if video_ids:
+        ids = [v.strip() for v in video_ids.split(",") if v.strip()]
+        if ids:
+            placeholders = ",".join("?" * len(ids))
+            where_sql += f" AND vts.video_id IN ({placeholders})"
+            params.extend(ids)
     with get_connection() as conn:
         rows = conn.execute(
             f"""
@@ -830,10 +837,14 @@ def list_top_content(
     limit: int = 10,
     content_type: str | None = None,
     privacy_status: str | None = None,
+    video_ids: str | None = None,
     sort_by: str = Query(default="views"),
     direction: str = Query(default="desc"),
 ) -> dict:
-    """Return content in a date range, sorted by supported metric/date, optionally filtered by content type."""
+    """Return content in a date range, sorted by supported metric/date, optionally filtered by content type and/or video IDs."""
+    video_ids_list = []
+    if video_ids:
+        video_ids_list = [vid.strip() for vid in video_ids.split(',') if vid.strip()]
     where_sql = "a.date >= ? AND a.date <= ?"
     params: list[object] = [start_date, end_date]
     if content_type:
@@ -842,6 +853,10 @@ def list_top_content(
     if privacy_status:
         where_sql += " AND v.privacy_status = ?"
         params.append(privacy_status)
+    if video_ids_list:
+        placeholders = ','.join(['?' for _ in video_ids_list])
+        where_sql += f" AND v.id IN ({placeholders})"
+        params.extend(video_ids_list)
     sort_map = {
         "views": "views",
         "estimated_revenue": "estimated_revenue",
@@ -862,6 +877,10 @@ def list_top_content(
             if privacy_status:
                 video_where_clauses.append("privacy_status = ?")
                 video_params.append(privacy_status)
+            if video_ids_list:
+                placeholders = ','.join(['?' for _ in video_ids_list])
+                video_where_clauses.append(f"id IN ({placeholders})")
+                video_params.extend(video_ids_list)
             video_where_sql = ("WHERE " + " AND ".join(video_where_clauses)) if video_where_clauses else ""
             analytics_where_parts = []
             analytics_params: list[object] = []

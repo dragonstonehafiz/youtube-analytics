@@ -3,7 +3,7 @@ import { PageCard } from '../../components/cards'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored } from '../../utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
-import type { CompetitorVideoRow } from './types'
+import type { CompetitorVideoRow } from '../../types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailSearchTab.css'
 

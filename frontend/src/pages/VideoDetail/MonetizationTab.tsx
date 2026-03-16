@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { type MetricItem, type Granularity } from '../../components/charts'
 import { formatCurrency, formatWholeNumber } from '../../utils/number'
 import { fillDayGaps } from '../../utils/date'
-import type { DateRange } from './types'
+import type { DateRange } from '../../types'
 import { useVideoDailyRows } from './useVideoDailyRows'
 import VideoDetailMetricPanel from './VideoDetailMetricPanel'
 
@@ -16,7 +16,7 @@ type Props = {
 export default function MonetizationTab({ videoId, granularity, range, previousRange }: Props) {
   const { rows: dailyRows, loading, error } = useVideoDailyRows(videoId)
   const monetizationTotals = useMemo(() => {
-    const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
+    const sorted = dailyRows.filter((item) => item.day >= range.start && item.day <= range.end)
     if (sorted.length === 0) return { estimated_revenue: 0, ad_impressions: 0, monetized_playbacks: 0, cpm: 0 }
     const totalAdImpressions = sorted.reduce((sum, item) => sum + (item.ad_impressions ?? 0), 0)
     const totalCpmWeighted = sorted.reduce((sum, item) => sum + (item.cpm ?? 0) * (item.ad_impressions ?? 0), 0)

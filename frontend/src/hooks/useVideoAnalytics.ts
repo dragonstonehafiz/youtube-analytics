@@ -1,20 +1,7 @@
 import { useState, useEffect } from 'react'
+import type { DateRange, VideoDailyRow } from '../types'
 
-export type VideoDailyRow = {
-  day: string
-  views?: number | null
-  watch_time_minutes?: number | null
-  estimated_revenue?: number | null
-  ad_impressions?: number | null
-  monetized_playbacks?: number | null
-  cpm?: number | null
-  subscribers_gained?: number | null
-  subscribers_lost?: number | null
-  engaged_views?: number | null
-  average_view_duration_seconds?: number | null
-}
-
-type DateRange = { start: string; end: string }
+export type { VideoDailyRow }
 
 type Options = { skip?: boolean }
 
@@ -25,7 +12,7 @@ type UseVideoAnalyticsResult = {
   error: string | null
 }
 
-function normalizeItems(items: unknown[]): VideoDailyRow[] {
+export function normalizeVideoRows(items: unknown[]): VideoDailyRow[] {
   return (items as Array<Record<string, unknown>>).map((item) => ({
     ...item,
     day: typeof item.date === 'string' ? item.date : String(item.day ?? ''),
@@ -39,7 +26,7 @@ async function fetchVideoDaily(videoIds: string[], start: string, end: string): 
   )
   if (!res.ok) throw new Error(`Failed to load video analytics (${res.status})`)
   const data = await res.json()
-  return normalizeItems(Array.isArray(data.items) ? data.items : [])
+  return normalizeVideoRows(Array.isArray(data.items) ? data.items : [])
 }
 
 /**

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { type MetricItem, type Granularity } from '../../components/charts'
 import { formatDuration, formatWholeNumber } from '../../utils/number'
 import { fillDayGaps } from '../../utils/date'
-import type { DateRange } from './types'
+import type { DateRange } from '../../types'
 import { useVideoDailyRows } from './useVideoDailyRows'
 import VideoDetailMetricPanel from './VideoDetailMetricPanel'
 

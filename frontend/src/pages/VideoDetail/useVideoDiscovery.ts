@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SearchInsightsTopTerm } from '../../components/cards'
 import type { TrafficSourceRow } from '../../utils/trafficSeries'
-import type { DateRange } from './types'
+import type { DateRange } from '../../types'
 
 type TopSearchResponseItem = {
   search_term: string

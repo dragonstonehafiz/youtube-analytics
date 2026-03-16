@@ -1,31 +1,7 @@
 import { useState, useEffect } from 'react'
+import type { DateRange, ChannelDailyRow, ChannelTotals } from '../types'
 
-export type ChannelDailyRow = {
-  day: string
-  views?: number | null
-  watch_time_minutes?: number | null
-  estimated_revenue?: number | null
-  ad_impressions?: number | null
-  monetized_playbacks?: number | null
-  cpm?: number | null
-  subscribers_gained?: number | null
-  subscribers_lost?: number | null
-  engaged_views?: number | null
-  average_view_duration_seconds?: number | null
-}
-
-export type ChannelTotals = {
-  views?: number | null
-  watch_time_minutes?: number | null
-  estimated_revenue?: number | null
-  ad_impressions?: number | null
-  monetized_playbacks?: number | null
-  cpm?: number | null
-  subscribers_gained?: number | null
-  subscribers_lost?: number | null
-}
-
-type DateRange = { start: string; end: string }
+export type { ChannelDailyRow, ChannelTotals }
 
 type Options = { skip?: boolean }
 

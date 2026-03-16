@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { type UploadHoverState } from '../components/charts/UploadPublishTooltip'
 
-type SpikeHoverHandlers = {
+export type SpikeHoverHandlers = {
   setHoverSpike: (hover: UploadHoverState | null) => void
   spikeTimeoutRef: React.MutableRefObject<number | null>
   spikeHoverLockedRef: React.MutableRefObject<boolean>

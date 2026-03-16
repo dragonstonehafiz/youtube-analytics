@@ -2,7 +2,7 @@ import './TopContentTable.css'
 import { Link } from 'react-router-dom'
 import { useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
 
-type TopContentItem = {
+export type TopContentItem = {
   video_id: string
   rank: number
   title: string

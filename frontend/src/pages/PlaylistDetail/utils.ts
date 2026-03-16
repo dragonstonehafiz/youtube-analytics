@@ -1,4 +1,4 @@
-import type { PlaylistAnalyticsTab } from './types'
+import type { PlaylistAnalyticsTab } from '../../types'
 
 export const PLAYLIST_DETAIL_TABS: { key: PlaylistAnalyticsTab; label: string }[] = [
   { key: 'metrics', label: 'Metrics' },

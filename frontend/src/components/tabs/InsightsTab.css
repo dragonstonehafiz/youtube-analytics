@@ -1,0 +1,22 @@
+.insights-tab-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.insights-tab-cards-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.insights-tab-chart-wrapper {
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .insights-tab-cards-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,30 +1,11 @@
 import { useState, useEffect } from 'react'
-import type { VideoDailyRow } from './useVideoAnalytics'
+import type { DateRange, VideoDailyRow, PlaylistDailyRow, PlaylistTotals } from '../types'
+import { normalizeVideoRows } from './useVideoAnalytics'
 
-export type PlaylistDailyRow = {
-  day: string
-  views?: number | null
-  watch_time_minutes?: number | null
-  estimated_revenue?: number | null
-  ad_impressions?: number | null
-  monetized_playbacks?: number | null
-  cpm?: number | null
-  average_view_duration_seconds?: number | null
-  playlist_starts?: number | null
-  views_per_playlist_start?: number | null
-  average_time_in_playlist_seconds?: number | null
-  subscribers_gained?: number | null
-  subscribers_lost?: number | null
-}
+export type { PlaylistDailyRow, PlaylistTotals }
 
-export type PlaylistTotals = {
-  views?: number | null
-  watch_time_minutes?: number | null
-  estimated_revenue?: number | null
-  playlist_starts?: number | null
-}
-
-type DateRange = { start: string; end: string }
+type Options = { skip?: boolean }
+export type { Options as PlaylistAnalyticsOptions }
 
 type UsePlaylistAnalyticsResult = {
   playlistRows: PlaylistDailyRow[]
@@ -32,6 +13,7 @@ type UsePlaylistAnalyticsResult = {
   videoRows: VideoDailyRow[]
   previousVideoRows: VideoDailyRow[]
   playlistTotals: PlaylistTotals
+  videoTotals: PlaylistTotals
   loading: boolean
   error: string | null
 }
@@ -40,11 +22,15 @@ function sortByDay<T extends { day: string }>(rows: T[]): T[] {
   return [...rows].filter((r) => typeof r.day === 'string').sort((a, b) => a.day.localeCompare(b.day))
 }
 
-function normalizeVideoItems(items: unknown[]): VideoDailyRow[] {
-  return (items as Array<Record<string, unknown>>).map((item) => ({
-    ...item,
-    day: typeof item.date === 'string' ? item.date : String(item.day ?? ''),
-  })) as VideoDailyRow[]
+function computeVideoTotals(rows: VideoDailyRow[]): PlaylistTotals {
+  if (rows.length === 0) {
+    return {}
+  }
+  return {
+    views: rows.reduce((sum, r) => sum + (r.views ?? 0), 0),
+    watch_time_minutes: rows.reduce((sum, r) => sum + (r.watch_time_minutes ?? 0), 0),
+    estimated_revenue: rows.reduce((sum, r) => sum + (r.estimated_revenue ?? 0), 0),
+  }
 }
 
 /**
@@ -58,24 +44,28 @@ export function usePlaylistAnalytics(
   videoIds: string[],
   range: DateRange,
   previousRange: DateRange,
+  options: Options = {},
 ): UsePlaylistAnalyticsResult {
+  const { skip = false } = options
   const [playlistRows, setPlaylistRows] = useState<PlaylistDailyRow[]>([])
   const [previousPlaylistRows, setPreviousPlaylistRows] = useState<PlaylistDailyRow[]>([])
   const [videoRows, setVideoRows] = useState<VideoDailyRow[]>([])
   const [previousVideoRows, setPreviousVideoRows] = useState<VideoDailyRow[]>([])
   const [playlistTotals, setPlaylistTotals] = useState<PlaylistTotals>({})
+  const [videoTotals, setVideoTotals] = useState<PlaylistTotals>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const idsKey = videoIds.join(',')
 
   useEffect(() => {
-    if (!playlistId) {
+    if (!playlistId || skip) {
       setPlaylistRows([])
       setPreviousPlaylistRows([])
       setVideoRows([])
       setPreviousVideoRows([])
       setPlaylistTotals({})
+      setVideoTotals({})
       return
     }
     let cancelled = false
@@ -110,11 +100,15 @@ export function usePlaylistAnalytics(
           setPreviousPlaylistRows(sortByDay(Array.isArray(plPrevData.items) ? plPrevData.items : []))
           setPlaylistTotals(plData.totals ?? {})
           if (videoBase && videoResults.length >= 2) {
-            setVideoRows(sortByDay(normalizeVideoItems(Array.isArray(videoResults[0].items) ? videoResults[0].items : [])))
-            setPreviousVideoRows(sortByDay(normalizeVideoItems(Array.isArray(videoResults[1].items) ? videoResults[1].items : [])))
+            const normalized = sortByDay(normalizeVideoRows(Array.isArray(videoResults[0].items) ? videoResults[0].items : []))
+            const normalizedPrev = sortByDay(normalizeVideoRows(Array.isArray(videoResults[1].items) ? videoResults[1].items : []))
+            setVideoRows(normalized)
+            setPreviousVideoRows(normalizedPrev)
+            setVideoTotals(computeVideoTotals(normalized))
           } else {
             setVideoRows([])
             setPreviousVideoRows([])
+            setVideoTotals({})
           }
         }
       } catch (err) {
@@ -125,6 +119,7 @@ export function usePlaylistAnalytics(
           setVideoRows([])
           setPreviousVideoRows([])
           setPlaylistTotals({})
+          setVideoTotals({})
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -133,7 +128,7 @@ export function usePlaylistAnalytics(
     load()
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlistId, idsKey, range.start, range.end, previousRange.start, previousRange.end])
+  }, [playlistId, skip, idsKey, range.start, range.end, previousRange.start, previousRange.end])
 
-  return { playlistRows, previousPlaylistRows, videoRows, previousVideoRows, playlistTotals, loading, error }
+  return { playlistRows, previousPlaylistRows, videoRows, previousVideoRows, playlistTotals, videoTotals, loading, error }
 }

@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import ActionButton from '../../components/ui/ActionButton'
 import TextInput from '../../components/ui/TextInput'
 import { getStored, setStored } from '../../utils/storage'
-import type { Thumbnail } from './types'
+import type { Thumbnail } from '../../types'
 import './ThumbnailUploader.css'
 
 type ThumbnailUploaderProps = {

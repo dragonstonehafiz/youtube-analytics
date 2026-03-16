@@ -8,7 +8,7 @@ import {
 } from '../../components/cards'
 import { buildTrafficSeries } from '../../utils/trafficSeries'
 import { formatWholeNumber } from '../../utils/number'
-import type { DateRange } from './types'
+import type { DateRange } from '../../types'
 import VideoDetailMetricPanel from './VideoDetailMetricPanel'
 import { useVideoDiscovery } from './useVideoDiscovery'
 

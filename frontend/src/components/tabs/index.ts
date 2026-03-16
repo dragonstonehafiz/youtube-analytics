@@ -1,0 +1,5 @@
+export { default as InsightsTab } from './InsightsTab'
+export { default as EngagementTab } from './EngagementTab'
+export { default as MonetizationTab } from './MonetizationTab'
+export { default as DiscoveryTab } from './DiscoveryTab'
+export { default as MetricsTab } from './MetricsTab'

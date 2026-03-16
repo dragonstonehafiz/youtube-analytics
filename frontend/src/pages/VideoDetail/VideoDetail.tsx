@@ -13,7 +13,7 @@ import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import { formatDuration } from '../../utils/number'
 import { parseVideoDetailTab, VIDEO_DETAIL_TABS } from './utils'
-import type { VideoDetailTab, VideoMetadata } from './types'
+import type { VideoDetailTab, VideoMetadata } from '../../types'
 import '../shared.css'
 import './VideoDetail.css'
 
