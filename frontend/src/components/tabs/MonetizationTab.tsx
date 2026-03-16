@@ -51,9 +51,20 @@ export default function MonetizationTab({ range, granularity, onOpenVideo, dataS
   const [recentPerformingItems, setRecentPerformingItems] = useState<VideoDetailListItem[]>([])
 
   const { hoverSpike, hoverHandlers } = useSpikeHover()
-  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, videoIds)
-  const adImpressionsSpikes = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, videoIds)
-  const monetizedPlaybacksSpikes = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, videoIds)
+  const dataSourceLevel = selected?.dataSourceLevel ?? 'video'
+
+  // For Playlist Detail, only show spikes if videoIds are loaded
+  const isPlaylistDetail = !!playlistId
+  const hasLoadedVideoIds = videoIds.length > 0
+  const shouldShowSpikes = !isPlaylistDetail || hasLoadedVideoIds
+
+  const revenueSpikeRaw = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+  const adImpressionsSpikeRaw = useSpikes(range.start, range.end, 'ad_impressions', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+  const monetizedPlaybacksSpikeRaw = useSpikes(range.start, range.end, 'monetized_playbacks', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+
+  const revenueSpikes = shouldShowSpikes ? revenueSpikeRaw : []
+  const adImpressionsSpikes = shouldShowSpikes ? adImpressionsSpikeRaw : []
+  const monetizedPlaybacksSpikes = shouldShowSpikes ? monetizedPlaybacksSpikeRaw : []
 
   useEffect(() => {
     if (!contentType) return

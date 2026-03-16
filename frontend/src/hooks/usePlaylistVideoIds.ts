@@ -5,7 +5,7 @@ export function usePlaylistVideoIds(playlistId: string | undefined): string[] {
 
   useEffect(() => {
     if (!playlistId) {
-      setVideoIds([])
+      // Don't reset state synchronously; let the component handle undefined playlistId
       return
     }
     fetch(`http://localhost:8000/playlists/${playlistId}/video-ids`)

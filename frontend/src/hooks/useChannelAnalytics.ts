@@ -74,7 +74,7 @@ export function useChannelAnalytics(
     }
     load()
     return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [skip, contentType, range.start, range.end, previousRange.start, previousRange.end])
 
   return { rows, previousRows, totals, loading, error }

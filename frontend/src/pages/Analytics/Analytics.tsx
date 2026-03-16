@@ -70,6 +70,7 @@ function Analytics() {
     totals: i === selectedSourceIndex ? channelTotals as Record<string, number | null> : undefined,
     publishedDates: i === selectedSourceIndex ? publishedDatesDaily : undefined,
     contentType: opt.value,
+    dataSourceLevel: opt.value === 'all' ? 'channel' : 'video',
   })), [selectedSourceIndex, channelRows, channelPreviousRows, channelTotals, publishedDatesDaily])
 
   useEffect(() => {
@@ -168,10 +169,18 @@ function Analytics() {
       }))
     async function loadLatestContent() {
       try {
-        const [longformRes, shortRes] = await Promise.all([
-          fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc`),
-          fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc`),
-        ])
+        const requests: Promise<Response>[] = []
+        if (contentSelection === 'all' || contentSelection === 'video') {
+          requests.push(fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc`))
+        } else {
+          requests.push(Promise.resolve(new Response(JSON.stringify({ items: [] }))))
+        }
+        if (contentSelection === 'all' || contentSelection === 'short') {
+          requests.push(fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc`))
+        } else {
+          requests.push(Promise.resolve(new Response(JSON.stringify({ items: [] }))))
+        }
+        const [longformRes, shortRes] = await Promise.all(requests)
         const [longformData, shortData] = await Promise.all([longformRes.json(), shortRes.json()])
         setLatestLongform(mapItems(longformData))
         setLatestShorts(mapItems(shortData))
@@ -181,7 +190,7 @@ function Analytics() {
       }
     }
     loadLatestContent()
-  }, [])
+  }, [contentSelection])
 
   useEffect(() => { setStored('analyticsContentSelection', contentSelection) }, [contentSelection])
   useEffect(() => { setStored('analyticsTab', analyticsTab) }, [analyticsTab])
@@ -262,7 +271,7 @@ function Analytics() {
         {rangeValue && analyticsTab === 'insights' && (
           <InsightsTab
             range={rangeValue.range}
-            filterParam={{ content_type: contentSelection }}
+            filterParam={contentSelection === 'all' ? {} : { content_type: contentSelection }}
           />
         )}
       </div>

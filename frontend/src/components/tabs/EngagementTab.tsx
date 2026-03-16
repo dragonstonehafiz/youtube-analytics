@@ -34,9 +34,19 @@ export default function EngagementTab({ range, granularity, onOpenVideo, dataSou
     top_subscriber_videos: SubscriberVideoItem[]
   } | null>(null)
   const [engagementLoading, setEngagementLoading] = useState(false)
+  const playlistId = selected?.playlistId
+  const dataSourceLevel = selected?.dataSourceLevel ?? 'video'
 
-  const engagedViewsSpikes = useSpikes(range.start, range.end, 'engaged_views', granularity, hoverHandlers, videoIds)
-  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, videoIds)
+  // For Playlist Detail, only show spikes if videoIds are loaded
+  const isPlaylistDetail = !!playlistId
+  const hasLoadedVideoIds = videoIds.length > 0
+  const shouldShowSpikes = !isPlaylistDetail || hasLoadedVideoIds
+
+  const engagedViewsSpikesRaw = useSpikes(range.start, range.end, 'engaged_views', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+  const subscribersSpikeRaw = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+
+  const engagedViewsSpikes = shouldShowSpikes ? engagedViewsSpikesRaw : []
+  const subscribersSpikes = shouldShowSpikes ? subscribersSpikeRaw : []
 
   useEffect(() => {
     async function loadEngagementInsights() {

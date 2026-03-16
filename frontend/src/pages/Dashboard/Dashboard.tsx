@@ -48,8 +48,8 @@ function Dashboard() {
           shortResponse.json(),
           trafficResponse.json(),
         ])
-        const mapItems = (payload: any): VideoDetailListItem[] =>
-          (Array.isArray(payload?.items) ? payload.items : []).map((item: any) => ({
+        const mapItems = (payload: unknown): VideoDetailListItem[] =>
+          (Array.isArray((payload as Record<string, unknown>)?.items) ? (payload as Record<string, unknown>).items as unknown[] : []).map((item: unknown) => ({
             video_id: String(item.video_id ?? ''),
             title: String(item.title ?? '(untitled)'),
             thumbnail_url: String(item.thumbnail_url ?? ''),

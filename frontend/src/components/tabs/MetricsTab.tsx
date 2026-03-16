@@ -32,13 +32,26 @@ export default function MetricsTab({
   const totals = selected?.totals ?? {}
   const publishedDates = selected?.publishedDates ?? {}
   const videoIds = selected?.videoIds ?? []
+  const contentType = selected?.contentType || null
+  const playlistId = selected?.playlistId
+  const dataSourceLevel = selected?.dataSourceLevel ?? 'video'
 
   const { hoverSpike, hoverHandlers } = useSpikeHover()
 
-  const viewsSpikes = useSpikes(range.start, range.end, 'views', granularity, hoverHandlers, videoIds)
-  const watchTimeSpikes = useSpikes(range.start, range.end, 'watch_time_minutes', granularity, hoverHandlers, videoIds)
-  const subscribersSpikes = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, videoIds)
-  const revenueSpikes = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, videoIds)
+  // For Playlist Detail, only show spikes if videoIds are loaded. For Analytics, show spikes regardless
+  const isPlaylistDetail = !!playlistId
+  const hasLoadedVideoIds = videoIds.length > 0
+  const shouldShowSpikes = !isPlaylistDetail || hasLoadedVideoIds
+
+  const viewsSpikesRaw = useSpikes(range.start, range.end, 'views', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+  const watchTimeSpikeRaw = useSpikes(range.start, range.end, 'watch_time_minutes', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+  const subscribersSpikeRaw = useSpikes(range.start, range.end, 'subscribers_gained', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+  const revenueSpikeRaw = useSpikes(range.start, range.end, 'estimated_revenue', granularity, hoverHandlers, videoIds, contentType, dataSourceLevel)
+
+  const viewsSpikes = shouldShowSpikes ? viewsSpikesRaw : []
+  const watchTimeSpikes = shouldShowSpikes ? watchTimeSpikeRaw : []
+  const subscribersSpikes = shouldShowSpikes ? subscribersSpikeRaw : []
+  const revenueSpikes = shouldShowSpikes ? revenueSpikeRaw : []
 
   const metricsData = useMemo<MetricItem[]>(() => {
     const sorted = [...dailyRows].filter((r) => typeof r.day === 'string' && r.day >= range.start && r.day <= range.end).sort((a, b) => a.day.localeCompare(b.day))

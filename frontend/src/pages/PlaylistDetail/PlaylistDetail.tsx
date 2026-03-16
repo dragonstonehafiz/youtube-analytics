@@ -75,10 +75,11 @@ function PlaylistDetail() {
       label: 'Playlist Views',
       dailyRows: playlistRows,
       previousDailyRows: previousPlaylistRows,
-      videoIds,
+      videoIds: [],
       totals: playlistTotals as Record<string, number | null>,
       publishedDates: playlistPublishedDates,
       playlistId,
+      dataSourceLevel: 'playlist',
     },
     {
       label: 'Video Views',
@@ -88,6 +89,7 @@ function PlaylistDetail() {
       totals: videoTotals as Record<string, number | null>,
       publishedDates: playlistPublishedDates,
       playlistId,
+      dataSourceLevel: 'video',
     },
   ], [playlistRows, previousPlaylistRows, videoRows, previousVideoRows, videoIds, playlistTotals, videoTotals, playlistPublishedDates, playlistId])
 

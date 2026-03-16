@@ -88,7 +88,7 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
       start: prevStart.toISOString().split('T')[0],
       end: prevEnd.toISOString().split('T')[0],
     }
-  }, [range?.start, range?.end])
+  }, [range])
 
   useEffect(() => {
     async function loadPreviousData() {
@@ -156,6 +156,7 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
     })
   }
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const stats = useMemo(() => {
     if (!data) return null
 

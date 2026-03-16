@@ -4,7 +4,7 @@ import { CommentFilter, buildCommentGroups, type CommentSort } from '../../compo
 import { CommentsWordCloudCard, LlmSummaryCard, PageCard } from '../../components/cards'
 import { PageSizePicker, PageSwitcher } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
-import { useLlmSummary, type SummarySort } from '../../hooks/useLlmSummary'
+import { useLlmSummary } from '../../hooks/useLlmSummary'
 import { useWordCloud, WORD_TYPE_OPTIONS, DEFAULT_WORD_TYPES, type WordType } from '../../hooks/useWordCloud'
 import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
@@ -81,6 +81,7 @@ function Comments() {
 
   useEffect(() => {
     setPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, postedAfter, postedBefore, sortBy])
 
   useEffect(() => {
@@ -113,7 +114,7 @@ function Comments() {
         params.set('q', searchText.trim())
       }
       await generateWC(params)
-    } catch (err) {
+    } catch {
       /* errors handled by hook */
     }
   }

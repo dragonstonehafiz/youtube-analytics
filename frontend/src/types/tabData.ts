@@ -11,6 +11,7 @@ export type TabDataSource = {
   publishedDates?: Record<string, PublishedItem[]>
   contentType?: string
   playlistId?: string
+  dataSourceLevel?: 'channel' | 'video' | 'playlist'
 }
 
 export type DiscoveryDataSource = {

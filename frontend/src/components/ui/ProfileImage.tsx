@@ -45,6 +45,7 @@ function ProfileImage({
   }, [src, youtubeAvatarSize])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFailed(false)
   }, [resolvedSrc])
 

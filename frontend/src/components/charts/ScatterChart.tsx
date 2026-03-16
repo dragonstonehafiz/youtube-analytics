@@ -200,7 +200,7 @@ function ScatterChart({
             strokeWidth="1"
             style={{ cursor: 'pointer' }}
             onMouseEnter={(e) => onPointMouseEnter?.(index, e)}
-            onMouseLeave={(e) => onPointMouseLeave?.(index)}
+            onMouseLeave={() => onPointMouseLeave?.(index)}
           />
         ))}
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UploadPublishTooltip, type UploadHoverState } from '../../../../charts'
 import { formatWholeNumber } from '../../../../../utils/number'
 import './SearchInsightsTopTermsCard.css'
@@ -148,7 +148,7 @@ function SearchInsightsTopTermsCard({
     }
   }
 
-  const buildTooltipItems = (searchTerm: string): TooltipItem[] => {
+  const buildTooltipItems = useCallback((searchTerm: string): TooltipItem[] => {
     const videos = termVideos[searchTerm] ?? []
     const loadingTerm = termVideosLoading[searchTerm] === true
     const errorTerm = termVideosError[searchTerm]
@@ -169,7 +169,7 @@ function SearchInsightsTopTermsCard({
       published_at: '',
       detail: `${formatWholeNumber(video.views)} views from search`,
     }))
-  }
+  }, [termVideos, termVideosLoading, termVideosError])
 
   useEffect(() => {
     if (!hoverTerm) {
@@ -181,7 +181,7 @@ function SearchInsightsTopTermsCard({
       }
       return { ...prev, items: buildTooltipItems(hoverTerm) }
     })
-  }, [hoverTerm, termVideos, termVideosLoading, termVideosError])
+  }, [hoverTerm, buildTooltipItems])
 
   const openTooltip = (searchTerm: string, target: HTMLElement) => {
     if (!listRef.current) {

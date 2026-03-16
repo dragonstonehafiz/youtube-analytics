@@ -46,20 +46,22 @@ function DonutChart({
   const resolvedSegments = useMemo<DonutSegmentResolved[]>(() => {
     const filtered = segments.filter((segment) => segment.value > 0)
     const total = filtered.reduce((sum, segment) => sum + segment.value, 0)
-    let running = 0
-    return filtered.map((segment, index) => {
+    // Map segments with start positions computed from cumulative percentages
+    const result: DonutSegmentResolved[] = []
+    let cumulativePercent = 0
+    filtered.forEach((segment, index) => {
       const percent = total > 0 ? (segment.value / total) * 100 : 0
-      const resolved = {
+      result.push({
         key: segment.key,
         label: segment.label,
         value: segment.value,
         color: segment.color ?? DEFAULT_COLORS[index % DEFAULT_COLORS.length],
         percent,
-        start: running,
-      }
-      running += percent
-      return resolved
+        start: cumulativePercent,
+      })
+      cumulativePercent += percent
     })
+    return result
   }, [segments])
 
   return (

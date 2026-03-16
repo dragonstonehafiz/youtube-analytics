@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDecimalNumber, formatWholeNumber } from '../../utils/number'
 import { useHideMonetaryValues } from '../../hooks/usePrivacyMode'
 import UploadPublishMarkers, { type ClusteredPublishMarker, type PublishedItem } from './UploadPublishMarkers'
@@ -234,24 +234,34 @@ function MetricChartCard({
   publishedDates = {},
   showYearMarkers = true,
 }: MetricChartCardProps) {
-  const metrics = data.map(m => ({ key: m.key, label: m.label, value: m.value }))
-  const seriesByMetric: Record<string, LineSeries[]> = {}
-  const previousSeriesByMetric: Record<string, LineSeries[]> = {}
-  const comparisonAggregation: Record<string, 'sum' | 'avg'> = {}
-  const seriesAggregation: Record<string, 'sum' | 'avg' | 'last'> = {}
-  const durationMetrics: string[] = []
+  const metrics = useMemo(() => data.map(m => ({ key: m.key, label: m.label, value: m.value })), [data])
+  const { seriesByMetric, previousSeriesByMetric, comparisonAggregation, seriesAggregation, durationMetrics } = useMemo(() => {
+    const series: Record<string, LineSeries[]> = {}
+    const prevSeries: Record<string, LineSeries[]> = {}
+    const compAgg: Record<string, 'sum' | 'avg'> = {}
+    const seriesAgg: Record<string, 'sum' | 'avg' | 'last'> = {}
+    const duration: string[] = []
 
-  data.forEach(metric => {
-    if (metric.series) seriesByMetric[metric.key] = metric.series
-    if (metric.previousSeries) previousSeriesByMetric[metric.key] = metric.previousSeries
-    if (metric.comparisonAggregation) comparisonAggregation[metric.key] = metric.comparisonAggregation
-    if (metric.seriesAggregation) seriesAggregation[metric.key] = metric.seriesAggregation
-    if (metric.isDuration) durationMetrics.push(metric.key)
-  })
+    data.forEach(metric => {
+      if (metric.series) series[metric.key] = metric.series
+      if (metric.previousSeries) prevSeries[metric.key] = metric.previousSeries
+      if (metric.comparisonAggregation) compAgg[metric.key] = metric.comparisonAggregation
+      if (metric.seriesAggregation) seriesAgg[metric.key] = metric.seriesAggregation
+      if (metric.isDuration) duration.push(metric.key)
+    })
+
+    return {
+      seriesByMetric: series,
+      previousSeriesByMetric: prevSeries,
+      comparisonAggregation: compAgg,
+      seriesAggregation: seriesAgg,
+      durationMetrics: duration,
+    }
+  }, [data])
 
   const hideMonetaryValues = useHideMonetaryValues()
   const [activeMetric, setActiveMetric] = useState<string>(metrics[0]?.key ?? '')
-  const spikeRegions = data.find(m => m.key === activeMetric)?.spikeRegions ?? []
+  const spikeRegions = useMemo(() => data.find(m => m.key === activeMetric)?.spikeRegions ?? [], [data, activeMetric])
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [hoverPublish, setHoverPublish] = useState<UploadHoverState | null>(null)
   const [hoverLocked, setHoverLocked] = useState(false)
@@ -300,14 +310,22 @@ function MetricChartCard({
     return next
   }, [seriesByMetric, previousSeriesByMetric, metrics, granularity, comparisonAggregation, seriesAggregation])
 
-  const activeLines = aggregatedByMetric[activeMetric]?.lines ?? []
-  const isMulti = activeLines.length > 1
-  const points = activeLines[0]?.points ?? []
-  const singleLineColor = activeLines[0]?.color ?? '#0ea5e9'
-  const chartData = aggregatedByMetric[activeMetric]
-  const chartRawDays = chartData?.rawDays ?? []
-  const chartDayToBucket = chartData?.dayToBucket ?? new Map<string, string>()
-  const chartBucketMeta = chartData?.bucketMeta ?? {}
+  const { activeLines, points, isMulti, singleLineColor, chartRawDays, chartDayToBucket, chartBucketMeta } = useMemo(() => {
+    const data = aggregatedByMetric[activeMetric]
+    const lines = data?.lines ?? []
+    const multi = lines.length > 1
+    const pts = lines[0]?.points ?? []
+    const color = lines[0]?.color ?? '#0ea5e9'
+    return {
+      activeLines: lines,
+      points: pts,
+      isMulti: multi,
+      singleLineColor: color,
+      chartRawDays: data?.rawDays ?? [],
+      chartDayToBucket: data?.dayToBucket ?? new Map<string, string>(),
+      chartBucketMeta: data?.bucketMeta ?? {},
+    }
+  }, [aggregatedByMetric, activeMetric])
 
   const chartHeight = 350
   const padding = { top: 12, right: 0, bottom: 48, left: 56 }
@@ -390,20 +408,20 @@ function MetricChartCard({
     return { minValue: paddedMin, maxValue: paddedMax, ticks: tickValues }
   }, [isMulti, activeLines, points])
 
-  const xScale = (index: number) => {
+  const xScale = useCallback((index: number) => {
     if (displayDates.length <= 1) {
       return padding.left
     }
     return padding.left + (innerWidth * index) / (displayDates.length - 1)
-  }
+  }, [displayDates.length, padding.left, innerWidth])
 
-  const yScale = (value: number) => {
+  const yScale = useCallback((value: number) => {
     if (maxValue === minValue) {
       return padding.top + innerHeight / 2
     }
     const ratio = (value - minValue) / (maxValue - minValue)
     return padding.top + innerHeight - ratio * innerHeight
-  }
+  }, [maxValue, minValue, padding.top, innerHeight])
 
   const linePath = useMemo(() => {
     if (isMulti || !displayDates.length) {
@@ -416,7 +434,7 @@ function MetricChartCard({
         return `${index === 0 ? 'M' : 'L'}${x},${y}`
       })
       .join(' ')
-  }, [isMulti, displayDates, singleByDate, maxValue, minValue, innerWidth, innerHeight, padding.left, padding.top])
+  }, [isMulti, displayDates, singleByDate, xScale, yScale])
 
   const areaPath = useMemo(() => {
     if (!linePath || isMulti) {
@@ -426,7 +444,7 @@ function MetricChartCard({
     const lastX = xScale(lastIndex)
     const baseY = padding.top + innerHeight
     return `${linePath} L${lastX},${baseY} L${xScale(0)},${baseY} Z`
-  }, [linePath, isMulti, displayDates, maxValue, minValue, innerWidth, innerHeight, padding.left, padding.top])
+  }, [linePath, isMulti, xScale, padding])
 
   const multiLinePaths = useMemo(() => {
     if (!isMulti) {
@@ -443,7 +461,7 @@ function MetricChartCard({
         .join(' ')
       return { key: line.key, color: line.color, path }
     })
-  }, [isMulti, activeLines, valueByLine, displayDates, maxValue, minValue, innerWidth, innerHeight])
+  }, [isMulti, activeLines, valueByLine, displayDates, xScale, yScale])
 
   const activeDay = hoverIndex !== null && hoverIndex >= 0 && hoverIndex < displayDates.length ? displayDates[hoverIndex] : null
   const activeValue = activeDay ? singleByDate.get(activeDay) ?? 0 : null
@@ -604,7 +622,7 @@ function MetricChartCard({
       }
     })
     return markers.sort((a, b) => a.x - b.x)
-  }, [publishPoints, innerWidth, padding.left])
+  }, [publishPoints, innerWidth, padding.left, xScale])
 
   const handlePointerMove = (event: React.MouseEvent<SVGSVGElement>) => {
     if (!displayDates.length) {
@@ -678,7 +696,7 @@ function MetricChartCard({
     return Math.min(Math.max(value, minValue), maxValue)
   }
 
-  const getTooltipPosition = (
+  const getTooltipPosition = useCallback((
     anchorX: number,
     anchorY: number,
     tooltipWidth: number,
@@ -695,7 +713,7 @@ function MetricChartCard({
 
     const minLeftFromWrap = viewportMargin - wrapLeft
     const maxLeftFromWrap = viewportWidth - viewportMargin - wrapLeft - tooltipWidth
-    let left = clamp(anchorX - tooltipWidth / 2, minLeftFromWrap, maxLeftFromWrap)
+    const left = clamp(anchorX - tooltipWidth / 2, minLeftFromWrap, maxLeftFromWrap)
 
     const belowTop = anchorY + gap
     const aboveTop = anchorY - tooltipHeight - gap
@@ -713,22 +731,24 @@ function MetricChartCard({
     const maxTopFromWrap = viewportHeight - viewportMargin - wrapTop - tooltipHeight
     top = clamp(top, minTopFromWrap, maxTopFromWrap)
     return { left, top }
-  }
+  }, [chartWidth, chartHeight])
 
   const singleTooltipPosition = useMemo(() => {
     if (isMulti || activeX === null || activeY === null) {
       return null
     }
+    // eslint-disable-next-line react-hooks/refs
     return getTooltipPosition(activeX, activeY, 160, 54, true)
-  }, [isMulti, activeX, activeY, chartWidth, chartHeight])
+  }, [isMulti, activeX, activeY, getTooltipPosition])
 
   const multiTooltipPosition = useMemo(() => {
     if (!isMulti || activeX === null) {
       return null
     }
     const estimatedHeight = 34 + activeLines.length * 26
+    // eslint-disable-next-line react-hooks/refs
     return getTooltipPosition(activeX, padding.top + 12, 300, estimatedHeight, false)
-  }, [isMulti, activeX, activeLines.length, padding.top, chartWidth, chartHeight])
+  }, [isMulti, activeX, activeLines.length, padding.top, getTooltipPosition])
 
   return (
     <div className="metric-chart-card" ref={containerRef}>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import ActionButton from '../../../ui/ActionButton'
 import { useHideVideoTitles, useHideVideoThumbnails } from '../../../../hooks/usePrivacyMode'
 import './VideoDetailListCard.css'
@@ -114,11 +114,15 @@ function VideoDetailListCard({
   const hideVideoThumbnails = useHideVideoThumbnails()
   const [activeIndex, setActiveIndex] = useState(0)
 
-  useEffect(() => {
-    setActiveIndex(0)
-  }, [items])
+  // Compute valid index: clamp to bounds and reset to 0 when items list shrinks significantly
+  const effectiveIndex = useMemo(() => {
+    if (items.length === 0) return 0
+    // If activeIndex is out of bounds, clamp it
+    if (activeIndex >= items.length) return Math.max(0, items.length - 1)
+    return activeIndex
+  }, [activeIndex, items.length])
 
-  const activeItem = useMemo(() => items[activeIndex] ?? null, [items, activeIndex])
+  const activeItem = useMemo(() => items[effectiveIndex] ?? null, [items, effectiveIndex])
   const typicalRanges = useMemo(
     () => ({
       views: buildTypicalRange(items.map((item) => item.views)),
@@ -128,8 +132,8 @@ function VideoDetailListCard({
     [items]
   )
 
-  const canPrevious = activeIndex > 0
-  const canNext = activeIndex < items.length - 1
+  const canPrevious = effectiveIndex > 0
+  const canNext = effectiveIndex < items.length - 1
 
   return (
     <section className="video-detail-list-card">
@@ -225,7 +229,7 @@ function VideoDetailListCard({
             >
               {'<'}
             </button>
-            <span className="video-detail-list-position">{`${activeIndex + 1} of ${items.length}`}</span>
+            <span className="video-detail-list-position">{`${effectiveIndex + 1} of ${items.length}`}</span>
             <button
               type="button"
               className="video-detail-list-nav"

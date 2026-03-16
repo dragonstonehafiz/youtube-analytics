@@ -67,6 +67,7 @@ function Audience() {
 
   useEffect(() => {
     setPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageSize, q, subscriberOnly, sortKey, sortDir])
 
   useEffect(() => {

@@ -25,10 +25,12 @@ function usePagination({
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1)
   }, [pageSize])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage((previous) => Math.min(Math.max(1, previous), totalPages))
   }, [totalPages])
 

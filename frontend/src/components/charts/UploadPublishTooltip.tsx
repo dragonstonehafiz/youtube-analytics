@@ -80,6 +80,7 @@ function UploadPublishTooltip({
     const top = clamp(desiredTop, minTop, maxTop)
     const placement: 'above' | 'below' = top + tooltipHeight <= hover.y ? 'above' : 'below'
     const arrowLeft = clamp(hover.x - left, 12, tooltipWidth - 12)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPosition({ left, top, placement, arrowLeft })
   }, [hover])
   if (!hover) {
