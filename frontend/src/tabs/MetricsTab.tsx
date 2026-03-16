@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity } from '../charts'
-import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '../cards'
-import { TopContentTable, type TopContentItem } from '../tables'
-import { formatCurrency, formatWholeNumber } from '../../utils/number'
-import { fillDayGaps } from '../../utils/date'
-import SpikeTooltipOverlay from '../charts/SpikeTooltipOverlay'
-import { useSpikes } from '../../hooks/useSpikes'
-import { useSpikeHover } from '../../hooks/useSpikeHover'
-import type { TabDataSource } from '../../types'
+import { MetricChartCard, type MetricItem, type Granularity } from '../components/charts'
+import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '../components/cards'
+import { TopContentTable, type TopContentItem } from '../components/tables'
+import { formatCurrency, formatWholeNumber } from '../utils/number'
+import { fillDayGaps } from '../utils/date'
+import SpikeTooltipOverlay from '../components/charts/SpikeTooltipOverlay'
+import { useSpikes } from '../hooks/useSpikes'
+import { useSpikeHover } from '../hooks/useSpikeHover'
+import type { TabDataSource } from '../types'
 
 type Props = {
   range: { start: string; end: string }

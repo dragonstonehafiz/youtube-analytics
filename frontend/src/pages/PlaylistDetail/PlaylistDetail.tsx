@@ -7,7 +7,7 @@ import { PageCard, type VideoDetailListItem } from '../../components/cards'
 import type { TopContentItem } from '../../components/tables'
 import type { PublishedItem } from '../../components/charts'
 import CommentsTab from './CommentsTab'
-import { MetricsTab, EngagementTab, MonetizationTab, DiscoveryTab, InsightsTab } from '../../components/tabs'
+import { MetricsTab, EngagementTab, MonetizationTab, DiscoveryTab, InsightsTab } from '../../tabs'
 import { formatDisplayDate } from '../../utils/date'
 import { formatWholeNumber, formatDuration } from '../../utils/number'
 import { getStored, setStored } from '../../utils/storage'
@@ -16,6 +16,7 @@ import { usePlaylistAnalytics } from '../../hooks/usePlaylistAnalytics'
 import type { PlaylistMeta, PlaylistAnalyticsTab, PlaylistViewMode, TabDataSource, DiscoveryDataSource } from '../../types'
 import type { TrafficSourceRow } from '../../utils/trafficSeries'
 import { PLAYLIST_DETAIL_TABS, parsePlaylistDetailTab, VIEW_MODE_OPTIONS } from './utils'
+import ContentTab from './ContentTab'
 import '../shared.css'
 import './PlaylistDetail.css'
 
@@ -302,7 +303,7 @@ function PlaylistDetail() {
         </div>
         <div className="page-row">
           <div className="analytics-range-controls">
-            {analyticsTab !== 'comments' && (
+            {analyticsTab !== 'content' && analyticsTab !== 'comments' && (
               <DataRangeControl
                 storageKey="playlistDetailRange"
                 years={years}
@@ -330,6 +331,9 @@ function PlaylistDetail() {
               </button>
             ))}
         </div>
+        {analyticsTab === 'content' && (
+          <ContentTab playlistId={playlistId} />
+        )}
         {analyticsTab === 'comments' && (
           <CommentsTab playlistId={playlistId} />
         )}

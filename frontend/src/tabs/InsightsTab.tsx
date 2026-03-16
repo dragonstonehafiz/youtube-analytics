@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, PageCard, type ContentInsights } from '../cards'
-import { ScatterChart, type ScatterPoint, type BarChartBarInfo } from '../charts'
-import UploadPublishTooltip, { type UploadHoverState } from '../charts/UploadPublishTooltip'
-import { formatWholeNumber, formatDuration } from '../../utils/number'
+import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, PageCard, type ContentInsights } from '../components/cards'
+import { ScatterChart, type ScatterPoint, type BarChartBarInfo } from '../components/charts'
+import UploadPublishTooltip, { type UploadHoverState } from '../components/charts/UploadPublishTooltip'
+import { formatWholeNumber, formatDuration } from '../utils/number'
 import './InsightsTab.css'
 
 type Props = {

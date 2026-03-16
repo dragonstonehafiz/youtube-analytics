@@ -19,7 +19,7 @@ YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 - use `usePagination.ts` hook for shared page-size state
 - use local storage keys namespaced by page (e.g. `videoDetailGranularity`)
 - keep `.method()` on same line as object in Python — no chained calls starting on new lines
-- keep CSS in colocated `.css` files
+- keep CSS in colocated `.css` files; no inline styles
 - import `../shared.css` in every page component before the page-specific CSS
 - use `'../../components/...'` import paths from inside page subdirectories
 
@@ -105,14 +105,21 @@ frontend/
     Competitors/                 # thumbnail testing tabs
     Dashboard/, LLMSettings/, PlaylistDetail/, Playlists/
     Settings/, SyncSettings/, VideoDetail/, Videos/
+  src/types/                     # centralized data-shape types (analytics, monetization, etc.)
   src/components/
     ui/                          # primitives
     charts/                      # visualizations
     cards/primitives/            # generic card wrappers
-    cards/pages/                 # domain-specific cards
+    cards/pages/                 # domain-specific cards, grouped by page area
+      analytics/discovery/       # TrafficSourceShareCard, TrafficSourceTopVideosCard, SearchInsightsTopTermsCard
+      analytics/engagement/      # EngagementInsightCommentCard, EngagementInsightSubscriberCard
+      analytics/insights/        # ContentInsightsCard
+      analytics/monetization/    # MonetizationEarningsCard, MonetizationContentPerformanceCard
+      dashboard/                 # ChannelAnalyticsCard, VideoDetailListCard, CommentsPreviewCard, MostActiveAudienceCard
+      comments/                  # LlmSummaryCard, CommentsWordCloudCard
     tables/                      # table + list components
     features/                    # complex composite components
-    tabs/                        # shared tab components (Analytics + PlaylistDetail)
+  src/tabs/                      # shared tab components used by 2+ pages (Analytics, PlaylistDetail, VideoDetail)
   src/hooks/                     # shared React hooks
   src/utils/                     # formatting helpers
 ```
@@ -142,14 +149,14 @@ frontend/
 - `ProgressBar` — progress indicator
 - `UploadPublishMarkers` — video upload markers overlaid on charts
 - `UploadPublishTooltip` — tooltip showing videos for a chart data point
-- `SpikeTooltipOverlay` — wraps UploadPublishTooltip with spike hover state; accepts `hoverSpike` + `hoverHandlers` from `useSpikeHover`
+- `SpikeTooltipOverlay` — spike hover tooltip overlay; wrap after `MetricChartCard` in any tab using `useSpikes`
 
 **Card primitives** (`components/cards/primitives/`):
 - `PageCard` — generic card container
 - `DonutChartCard` — card wrapping a donut chart
 - `HistogramChartCard` — card wrapping a histogram
 
-**Site cards** (`components/cards/pages/`):
+**Page cards** (`components/cards/pages/`):
 - `ChannelAnalyticsCard` — dashboard channel metrics summary
 - `CommentsPreviewCard` — dashboard recent comments preview
 - `CommentsWordCloudCard` — word-cloud PNG display with Word types multiselect and manual generate button
@@ -162,6 +169,13 @@ frontend/
 - `TrafficSourceShareCard` — traffic source share breakdown
 - `TrafficSourceTopVideosCard` — top videos for a selected traffic source
 - `VideoDetailListCard` — top content with typical-range meters
+
+**Shared tabs** (`src/tabs/`):
+- `InsightsTab` — content insights + chart; accepts `filterParam: Record<string, string>` to unify `content_type` vs `playlist_id`
+- `EngagementTab` — engagement metrics chart + engagement insight cards
+- `MonetizationTab` — monetization chart + earnings + content performance cards
+- `DiscoveryTab` — traffic source chart + share breakdown + top videos by source + search terms
+- `MetricsTab` — shared chart section wrapper (accepts `metricsData`, `publishedDates`, `children` for bottom content)
 
 **Competitors page** (`pages/Competitors/`):
 - `ThumbnailUploader` — drag-and-drop thumbnail file upload (PNG/JPG, max 5MB) with preview row
@@ -182,33 +196,25 @@ frontend/
 - `DataRangeControl` — analytics-style range row (granularity + presets/year/custom)
 - `CommentFilter` — reusable filter row (text search, date range, sort, reset)
 
-**Shared tabs** (`components/tabs/`):
-- `MetricsTab` — chart shell (MetricChartCard + SpikeTooltipOverlay + children); used by page-level MetricsTab wrappers
-- `EngagementTab` — engagement metrics tab; Analytics context uses `contentType`/`publishedDates`, playlist context uses `videoIds`/`playlistId`
-- `MonetizationTab` — monetization tab with earnings card and content performance; same two-context discriminated union
-- `DiscoveryTab` — traffic sources and top videos tab; same two-context discriminated union
-- `InsightsTab` — content insights + LLM summary + search terms + word cloud; same two-context discriminated union
-
 **Hooks** (`hooks/`):
 - `useAnalyticsDateRange` — shared date range state for analytics pages
-- `useChannelAnalytics` — channel-level daily rows, previous rows, and totals for a date range
-- `useVideoAnalytics` — per-video daily rows for analytics (by content type or video IDs)
-- `usePlaylistAnalytics` — playlist-level daily rows, previous rows, and totals
-- `useSpikes` — fetches spike regions and top contributors for a metric; accepts `videoIds` array for filtering
-- `useSpikeHover` — shared hover state for SpikeTooltipOverlay; returns `{ hoverSpike, hoverHandlers }`
-- `usePlaylistVideoIds` — fetches all video IDs for a playlist (unpaginated)
-- `useLlmSummary` — LLM summary fetch + state management
+- `useChannelAnalytics` — channel-level daily rows, previous rows, and totals
+- `useVideoAnalytics` / `useVideoAnalyticsByIds` — video-level daily rows by content type or video ID list
+- `usePlaylistAnalytics` — playlist-level and video-level daily rows for a playlist
+- `useSpikes` — fetch spike regions + top contributors for a metric; accepts `videoIds` to scope to specific videos
+- `useSpikeHover` — shared spike hover state (`hoverSpike`, `hoverHandlers`) — one per component
 - `usePagination` — shared page-size persistence + page reset on size change
 - `usePrivacyMode` — toggle to hide sensitive numbers
+- `useLlmSummary` — LLM summary fetch + state management
 - `useWordCloud` — word cloud fetch + state management
 
 **Utils** (`utils/`):
-- `analytics.ts` — `buildMonthlyEarnings(rows, maxMonths)` — aggregates estimated revenue into monthly totals
-- `commentGroups.ts` — `buildCommentGroups()` — groups comments by video
 - `date.ts` — `formatDisplayDate()` and date helpers (`day month year` format)
 - `number.ts` — `X,XXX` whole numbers, `X,XX.000` decimals
 - `storage.ts` — local storage helpers
 - `trafficSeries.ts` — traffic source data transformation
+- `analytics.ts` — `buildMonthlyEarnings(rows, maxMonths)` — month-bucketed earnings from daily rows
+- `commentGroups.ts` — `buildCommentGroups()` — helper to group comments by video
 - `years.ts` — year range helpers
 
 ---
@@ -219,12 +225,15 @@ frontend/
 - page structure → `frontend/src/pages/Videos/Videos.tsx`
 - reusable filter → `frontend/src/components/features/CommentFilter.tsx`
 - shared state with localStorage → `frontend/src/pages/Competitors/Competitors.tsx` (parent component managing thumbnails + tabs, synced to localStorage)
-- multi-tab component structure → `frontend/src/pages/Competitors/` (parent manages shared state, tabs receive shared data as props; tabs manage their own isolated data)
+- multi-tab component structure → `frontend/src/pages/Competitors/` (parent handles state, three tab components receive props)
 - file upload with preview → `frontend/src/pages/Competitors/ThumbnailUploader.tsx` (drag-drop, file validation, preview display)
 - DB helper → `backend/src/database/videos.py` (get/upsert pattern)
 - sync stage → any stage function in `backend/src/sync.py`
 - API route → `backend/src/routes/analytics.py`
 
+### Don't copy
+- any inline `style={{}}` usage — use colocated CSS instead
+- direct `fetch()` in components — call from the page component and pass data down
 
 ---
 
@@ -438,8 +447,8 @@ POST /llm/summarize-comments
 ### Adding a multi-tab page
 Multi-tab pages should centralize shared types, utilities, and components to reduce code repetition:
 
-1. `<PageName>.tsx` — parent component that manages **shared state** (data used by 2+ tabs), handles tab switching, and passes shared data to tabs as props
-2. `<TabName>.tsx` — individual tab components that receive shared data as props; if a tab needs data only it uses, it fetches and manages that data itself
+1. `<PageName>.tsx` — parent component that manages state, handles tab switching, and passes data to tab components
+2. `<TabName>.tsx` — individual tab components (receive props, no parent state logic)
 3. `types.ts` — shared TypeScript interfaces and models used across multiple tabs
 4. `utils.ts` — shared utility functions, constants, and helpers used across tabs
 5. `<SharedComponentName>.tsx` — reusable components used by 2+ tabs (avoid tab-specific logic)
@@ -450,7 +459,7 @@ Multi-tab pages should centralize shared types, utilities, and components to red
 Example: `Competitors/` page uses `types.ts` for image/thumbnail models, `utils.ts` for shared filter/layout logic, and `ThumbnailUploader.tsx` as a reusable component across test tabs.
 
 ### Adding a new reusable component
-1. Pick category: `ui/` primitives · `charts/` · `cards/primitives/` · `cards/pages/` · `tables/` · `features/` · `tabs/` (shared Analytics + PlaylistDetail tabs)
+1. Pick category: `ui/` primitives · `charts/` · `cards/primitives/` · `cards/pages/<area>/` · `tables/` · `features/`
 2. Create `<ComponentName>.tsx` + colocated `<ComponentName>.css` if needed
 3. Export from the directory's `index.ts`
 

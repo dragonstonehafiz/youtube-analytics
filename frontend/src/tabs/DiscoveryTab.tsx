@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity } from '../charts'
+import { MetricChartCard, type MetricItem, type Granularity } from '../components/charts'
 import {
   PageCard,
   SearchInsightsTopTermsCard,
@@ -9,10 +9,10 @@ import {
   type TopTrafficVideo,
   type TrafficSourceShareItem,
   type TrafficSourceOption,
-} from '../cards'
-import { buildTrafficSeries } from '../../utils/trafficSeries'
-import { formatWholeNumber } from '../../utils/number'
-import type { DiscoveryDataSource } from '../../types'
+} from '../components/cards'
+import { buildTrafficSeries } from '../utils/trafficSeries'
+import { formatWholeNumber } from '../utils/number'
+import type { DiscoveryDataSource } from '../types'
 
 type TopVideosBySourceResponseItem = { video_id: string; title: string; thumbnail_url: string; published_at: string; views: number; watch_time_minutes: number }
 type TopSearchResponseItem = { search_term: string; views: number; watch_time_minutes: number; video_count: number }
@@ -53,7 +53,7 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
       try {
         let url: string
         if (playlistId) {
-          const params = new URLSearchParams({ playlist_id: playlistId, start_date: range.start, end_date: range.end, traffic_source: trafficTopSource, limit: '5' })
+          const params = new URLSearchParams({ playlist_id: playlistId, start_date: range.start, end_date: range.end, traffic_source: trafficTopSource, limit: '10' })
           url = `http://localhost:8000/analytics/playlist-video-traffic-source-top-videos?${params.toString()}`
         } else {
           const params = new URLSearchParams({ start_date: range.start, end_date: range.end, traffic_source: trafficTopSource, limit: '10' })

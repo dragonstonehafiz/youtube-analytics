@@ -1,11 +1,11 @@
 import { useMemo, useState, useEffect } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity } from '../charts'
-import { PageCard, EngagementInsightCommentCard, EngagementInsightSubscriberCard, type CommentVideoItem, type SubscriberVideoItem } from '../cards'
-import { formatDuration, formatWholeNumber } from '../../utils/number'
-import SpikeTooltipOverlay from '../charts/SpikeTooltipOverlay'
-import { useSpikes } from '../../hooks/useSpikes'
-import { useSpikeHover } from '../../hooks/useSpikeHover'
-import type { TabDataSource } from '../../types'
+import { MetricChartCard, type MetricItem, type Granularity } from '../components/charts'
+import { PageCard, EngagementInsightCommentCard, EngagementInsightSubscriberCard, type CommentVideoItem, type SubscriberVideoItem } from '../components/cards'
+import { formatDuration, formatWholeNumber } from '../utils/number'
+import SpikeTooltipOverlay from '../components/charts/SpikeTooltipOverlay'
+import { useSpikes } from '../hooks/useSpikes'
+import { useSpikeHover } from '../hooks/useSpikeHover'
+import type { TabDataSource } from '../types'
 
 type Props = {
   range: { start: string; end: string }

@@ -32,13 +32,13 @@ export default function MonetizationTab({ videoId, granularity, range, previousR
   }, [dailyRows, range.start, range.end])
 
   const metricsData = useMemo<MetricItem[]>(() => {
-    const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
-    const byDay = new Map(sorted.map((item) => [item.date, item]))
-    const days = sorted.length > 0 ? fillDayGaps(sorted.map((item) => item.date)) : []
+    const sorted = dailyRows.filter((item) => item.day >= range.start && item.day <= range.end)
+    const byDay = new Map(sorted.map((item) => [item.day, item]))
+    const days = sorted.length > 0 ? fillDayGaps(sorted.map((item) => item.day)) : []
 
-    const previousSorted = dailyRows.filter((item) => item.date >= previousRange.start && item.date <= previousRange.end)
-    const previousByDay = new Map(previousSorted.map((item) => [item.date, item]))
-    const previousDays = previousSorted.length > 0 ? fillDayGaps(previousSorted.map((item) => item.date)) : []
+    const previousSorted = dailyRows.filter((item) => item.day >= previousRange.start && item.day <= previousRange.end)
+    const previousByDay = new Map(previousSorted.map((item) => [item.day, item]))
+    const previousDays = previousSorted.length > 0 ? fillDayGaps(previousSorted.map((item) => item.day)) : []
 
     return [
       {

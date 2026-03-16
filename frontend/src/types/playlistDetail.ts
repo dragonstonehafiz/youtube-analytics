@@ -8,7 +8,7 @@ export type PlaylistMeta = {
   thumbnail_url: string | null
 }
 
-export type PlaylistAnalyticsTab = 'metrics' | 'engagement' | 'monetization' | 'discovery' | 'comments' | 'insights'
+export type PlaylistAnalyticsTab = 'content' | 'comments' | 'metrics' | 'engagement' | 'monetization' | 'discovery' | 'insights'
 
 export type PlaylistViewMode = 'playlist_views' | 'views'
 

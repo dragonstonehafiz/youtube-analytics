@@ -117,9 +117,9 @@ frontend/
       analytics/monetization/    # MonetizationEarningsCard, MonetizationContentPerformanceCard
       dashboard/                 # ChannelAnalyticsCard, VideoDetailListCard, CommentsPreviewCard, MostActiveAudienceCard
       comments/                  # LlmSummaryCard, CommentsWordCloudCard
-    tabs/                        # shared tab components used by 2+ pages (Analytics, PlaylistDetail, VideoDetail)
     tables/                      # table + list components
     features/                    # complex composite components
+  src/tabs/                      # shared tab components used by 2+ pages (Analytics, PlaylistDetail, VideoDetail)
   src/hooks/                     # shared React hooks
   src/utils/                     # formatting helpers
 ```
@@ -170,7 +170,7 @@ frontend/
 - `TrafficSourceTopVideosCard` — top videos for a selected traffic source
 - `VideoDetailListCard` — top content with typical-range meters
 
-**Shared tabs** (`components/tabs/`):
+**Shared tabs** (`src/tabs/`):
 - `InsightsTab` — content insights + chart; accepts `filterParam: Record<string, string>` to unify `content_type` vs `playlist_id`
 - `EngagementTab` — engagement metrics chart + engagement insight cards
 - `MonetizationTab` — monetization chart + earnings + content performance cards

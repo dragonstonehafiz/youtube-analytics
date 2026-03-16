@@ -16,7 +16,7 @@ type Props = {
 export default function EngagementTab({ videoId, granularity, range, previousRange }: Props) {
   const { rows: dailyRows, loading, error } = useVideoDailyRows(videoId)
   const metricsData = useMemo<MetricItem[]>(() => {
-    const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
+    const sorted = dailyRows.filter((item) => item.day >= range.start && item.day <= range.end)
     if (sorted.length === 0) {
       return [
         {
@@ -45,11 +45,11 @@ export default function EngagementTab({ videoId, granularity, range, previousRan
       ]
     }
 
-    const byDay = new Map(sorted.map((item) => [item.date, item]))
-    const days = fillDayGaps(sorted.map((item) => item.date))
-    const previousSorted = dailyRows.filter((item) => item.date >= previousRange.start && item.date <= previousRange.end)
-    const previousByDay = new Map(previousSorted.map((item) => [item.date, item]))
-    const previousDays = fillDayGaps(previousSorted.map((item) => item.date))
+    const byDay = new Map(sorted.map((item) => [item.day, item]))
+    const days = fillDayGaps(sorted.map((item) => item.day))
+    const previousSorted = dailyRows.filter((item) => item.day >= previousRange.start && item.day <= previousRange.end)
+    const previousByDay = new Map(previousSorted.map((item) => [item.day, item]))
+    const previousDays = fillDayGaps(previousSorted.map((item) => item.day))
 
     const currentEngagedViews = sorted.reduce((sum, item) => sum + (item.engaged_views ?? 0), 0)
     const currentSubscribersNet = sorted.reduce(

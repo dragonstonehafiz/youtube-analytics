@@ -16,7 +16,7 @@ type Props = {
 export default function AnalyticsTab({ videoId, granularity, range, previousRange }: Props) {
   const { rows: dailyRows, loading, error } = useVideoDailyRows(videoId)
   const totals = useMemo(() => {
-    const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
+    const sorted = dailyRows.filter((item) => item.day >= range.start && item.day <= range.end)
     if (sorted.length === 0) return { views: 0, watch_time_minutes: 0, subscribers_net: 0, estimated_revenue: 0 }
     return {
       views: sorted.reduce((sum, item) => sum + (item.views ?? 0), 0),
@@ -27,13 +27,13 @@ export default function AnalyticsTab({ videoId, granularity, range, previousRang
   }, [dailyRows, range.start, range.end])
 
   const metricsData = useMemo<MetricItem[]>(() => {
-    const sorted = dailyRows.filter((item) => item.date >= range.start && item.date <= range.end)
-    const byDay = new Map(sorted.map((item) => [item.date, item]))
-    const days = sorted.length > 0 ? fillDayGaps(sorted.map((item) => item.date)) : []
+    const sorted = dailyRows.filter((item) => item.day >= range.start && item.day <= range.end)
+    const byDay = new Map(sorted.map((item) => [item.day, item]))
+    const days = sorted.length > 0 ? fillDayGaps(sorted.map((item) => item.day)) : []
 
-    const previousSorted = dailyRows.filter((item) => item.date >= previousRange.start && item.date <= previousRange.end)
-    const previousByDay = new Map(previousSorted.map((item) => [item.date, item]))
-    const previousDays = previousSorted.length > 0 ? fillDayGaps(previousSorted.map((item) => item.date)) : []
+    const previousSorted = dailyRows.filter((item) => item.day >= previousRange.start && item.day <= previousRange.end)
+    const previousByDay = new Map(previousSorted.map((item) => [item.day, item]))
+    const previousDays = previousSorted.length > 0 ? fillDayGaps(previousSorted.map((item) => item.day)) : []
 
     return [
       {
