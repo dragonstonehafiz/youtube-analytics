@@ -5,6 +5,7 @@ import { PageCard } from '../../components/cards'
 import usePagination from '../../hooks/usePagination'
 import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
+import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
 import '../shared.css'
 import './Playlists.css'
 
@@ -44,6 +45,9 @@ function Playlists() {
   })
   const navigate = useNavigate()
   const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total, defaultPageSize: 10 })
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+  const hideDescription = useHideDescription()
 
   useEffect(() => {
     async function loadPlaylists() {
@@ -187,7 +191,9 @@ function Playlists() {
                 rows.map((playlist) => (
                   <div key={playlist.id} className="playlist-table-row">
                     <div className="video-cell">
-                      {playlist.thumbnail_url ? (
+                      {hideVideoThumbnails ? (
+                        <div className="video-thumb" />
+                      ) : playlist.thumbnail_url ? (
                         <img className="video-thumb" src={playlist.thumbnail_url} alt={playlist.title ?? 'Playlist'} />
                       ) : (
                         <div className="video-thumb" />
@@ -198,9 +204,9 @@ function Playlists() {
                           className="video-title-button"
                           onClick={() => navigate(`/playlists/${playlist.id}`)}
                         >
-                          {playlist.title || '(untitled)'}
+                          {hideVideoTitles ? '••••••' : (playlist.title || '(untitled)')}
                         </button>
-                        <div className="video-muted playlist-desc">{playlist.description || '-'}</div>
+                        <div className="video-muted playlist-desc">{hideDescription ? '-' : (playlist.description || '-')}</div>
                       </div>
                     </div>
                     <span className="video-muted">{playlist.privacy_status ?? '-'}</span>

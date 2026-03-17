@@ -1,5 +1,6 @@
 import { StatCard } from '../../../../ui'
 import { formatWholeNumber } from '../../../../../utils/number'
+import { useHideVideoTitles, useHideVideoThumbnails } from '../../../../../hooks/usePrivacyMode'
 import './EngagementInsightSubscriberCard.css'
 
 type SubscriberVideoItem = {
@@ -23,6 +24,9 @@ function EngagementInsightSubscriberCard({
   loading,
   onOpenVideo,
 }: EngagementInsightSubscriberCardProps) {
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+
   return (
     <div className="engagement-insight-subscriber-card">
       <div className="engagement-insight-subscriber-stat">
@@ -42,13 +46,17 @@ function EngagementInsightSubscriberCard({
           {topSubscriberVideos.map((item, index) => (
             <div key={`${item.video_id}-${index}`} className="engagement-insight-subscriber-row">
               <span className="engagement-insight-subscriber-rank">{index + 1}</span>
-              <img className="engagement-insight-subscriber-thumb" src={item.thumbnail_url || ''} alt="" />
+              {hideVideoThumbnails ? (
+                <div className="engagement-insight-subscriber-thumb" />
+              ) : (
+                <img className="engagement-insight-subscriber-thumb" src={item.thumbnail_url || ''} alt="" />
+              )}
               <button
                 type="button"
                 className="engagement-insight-subscriber-title"
                 onClick={() => onOpenVideo(item.video_id)}
               >
-                {item.title || '(untitled)'}
+                {hideVideoTitles ? '••••••' : (item.title || '(untitled)')}
               </button>
               <span className="engagement-insight-subscriber-metric">{formatWholeNumber(item.subscribers_gained)}</span>
             </div>

@@ -13,6 +13,7 @@ import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import { formatDuration } from '../../utils/number'
 import { parseVideoDetailTab, VIDEO_DETAIL_TABS } from './utils'
+import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
 import type { VideoDetailTab, VideoMetadata } from '../../types'
 import '../shared.css'
 import './VideoDetail.css'
@@ -27,6 +28,9 @@ function VideoDetail() {
   const [error, setError] = useState<string | null>(null)
   const [derivedYears, setDerivedYears] = useState<string[]>([])
   const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+  const hideDescription = useHideDescription()
 
   useEffect(() => {
     async function loadVideo() {
@@ -117,14 +121,16 @@ function VideoDetail() {
             ) : video ? (
               <div className="video-detail-layout">
                 <div className="video-detail-meta">
-                  {video.thumbnail_url ? (
+                  {hideVideoThumbnails ? (
+                    <div className="video-detail-thumb" />
+                  ) : video.thumbnail_url ? (
                     <img className="video-detail-thumb" src={video.thumbnail_url} alt={video.title} />
                   ) : (
                     <div className="video-detail-thumb" />
                   )}
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title">{video.title || '(untitled)'}</div>
-                    <Textbox value={video.description || ''} placeholder="This video does not have a description" height="250px"/>
+                    <div className="video-detail-title">{hideVideoTitles ? '••••••' : (video.title || '(untitled)')}</div>
+                    <Textbox value={hideDescription ? '' : (video.description || '')} placeholder="This video does not have a description" height="250px"/>
                   </div>
                 </div>
                 <div className="video-detail-grid">

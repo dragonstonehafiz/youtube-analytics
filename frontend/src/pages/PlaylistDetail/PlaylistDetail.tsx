@@ -13,6 +13,7 @@ import { formatWholeNumber, formatDuration } from '../../utils/number'
 import { getStored, setStored } from '../../utils/storage'
 import { usePlaylistVideoIds } from '../../hooks/usePlaylistVideoIds'
 import { usePlaylistAnalytics } from '../../hooks/usePlaylistAnalytics'
+import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
 import type { PlaylistMeta, PlaylistAnalyticsTab, PlaylistViewMode, TabDataSource, DiscoveryDataSource } from '../../types'
 import type { TrafficSourceRow } from '../../utils/trafficSeries'
 import { PLAYLIST_DETAIL_TABS, parsePlaylistDetailTab, VIEW_MODE_OPTIONS } from './utils'
@@ -42,6 +43,9 @@ function PlaylistDetail() {
   const [videoTrafficRows, setVideoTrafficRows] = useState<TrafficSourceRow[]>([])
   const [previousVideoTrafficRows, setPreviousVideoTrafficRows] = useState<TrafficSourceRow[]>([])
   const videoIds = usePlaylistVideoIds(playlistId)
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+  const hideDescription = useHideDescription()
 
   const range = rangeValue?.range ?? EMPTY_RANGE
   const previousRange = rangeValue?.previousRange ?? EMPTY_RANGE
@@ -277,14 +281,16 @@ function PlaylistDetail() {
             ) : meta ? (
               <div className="video-detail-layout">
                 <div className="video-detail-meta">
-                  {meta.thumbnail_url ? (
+                  {hideVideoThumbnails ? (
+                    <div className="video-detail-thumb" />
+                  ) : meta.thumbnail_url ? (
                     <img className="video-detail-thumb" src={meta.thumbnail_url} alt={meta.title ?? 'Playlist'} />
                   ) : (
                     <div className="video-detail-thumb" />
                   )}
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title">{meta.title || '(untitled)'}</div>
-                    <Textbox value={meta.description || ''} placeholder="This playlist does not have a description" />
+                    <div className="video-detail-title">{hideVideoTitles ? '••••••' : (meta.title || '(untitled)')}</div>
+                    <Textbox value={hideDescription ? '' : (meta.description || '')} placeholder="This playlist does not have a description" />
                   </div>
                 </div>
                 <div className="video-detail-grid">

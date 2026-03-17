@@ -6,6 +6,7 @@ import { fillDayGaps } from '../utils/date'
 import SpikeTooltipOverlay from '../components/charts/SpikeTooltipOverlay'
 import { useSpikes } from '../hooks/useSpikes'
 import { useSpikeHover } from '../hooks/useSpikeHover'
+import { useHideMonetaryValues } from '../hooks/usePrivacyMode'
 import { buildMonthlyEarnings } from '../utils/analytics'
 import type { MonetizationContentType, MonetizationPerformance, MonetizationTopItem } from '../types'
 import type { TabDataSource } from '../types'
@@ -37,6 +38,8 @@ type Props = {
 }
 
 export default function MonetizationTab({ range, granularity, onOpenVideo, dataSources, selectedSourceIndex }: Props) {
+  const hideMonetaryValues = useHideMonetaryValues()
+
   const selected = dataSources[selectedSourceIndex]
   const dailyRows = selected?.dailyRows ?? []
   const previousDailyRows = selected?.previousDailyRows ?? []
@@ -185,12 +188,11 @@ export default function MonetizationTab({ range, granularity, onOpenVideo, dataS
   }
 
   const metricsData = useMemo<MetricItem[]>(() => [
-    { key: 'estimated_revenue', label: 'Estimated revenue', value: formatCurrency(monetizationTotals.estimated_revenue), series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: getSeries(dailyRows, 'estimated_revenue') }], previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: getSeries(previousDailyRows, 'estimated_revenue') }], spikeRegions: revenueSpikes },
+    { key: 'estimated_revenue', label: 'Estimated revenue', value: hideMonetaryValues ? '••••••' : formatCurrency(monetizationTotals.estimated_revenue), series: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: getSeries(dailyRows, 'estimated_revenue') }], previousSeries: [{ key: 'estimated_revenue', label: '', color: '#0ea5e9', points: getSeries(previousDailyRows, 'estimated_revenue') }], spikeRegions: revenueSpikes },
     { key: 'ad_impressions', label: 'Ad impressions', value: formatWholeNumber(monetizationTotals.ad_impressions), series: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: getSeries(dailyRows, 'ad_impressions') }], previousSeries: [{ key: 'ad_impressions', label: '', color: '#0ea5e9', points: getSeries(previousDailyRows, 'ad_impressions') }], spikeRegions: adImpressionsSpikes },
     { key: 'monetized_playbacks', label: 'Monetized playbacks', value: formatWholeNumber(monetizationTotals.monetized_playbacks), series: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: getSeries(dailyRows, 'monetized_playbacks') }], previousSeries: [{ key: 'monetized_playbacks', label: '', color: '#0ea5e9', points: getSeries(previousDailyRows, 'monetized_playbacks') }], spikeRegions: monetizedPlaybacksSpikes },
-    { key: 'cpm', label: 'CPM', value: formatCurrency(monetizationTotals.cpm), series: [{ key: 'cpm', label: '', color: '#0ea5e9', points: getSeries(dailyRows, 'cpm') }], previousSeries: [{ key: 'cpm', label: '', color: '#0ea5e9', points: getSeries(previousDailyRows, 'cpm') }], comparisonAggregation: 'avg' },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [monetizationTotals, dailyRows, previousDailyRows, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes])
+    { key: 'cpm', label: 'CPM', value: hideMonetaryValues ? '••••••' : formatCurrency(monetizationTotals.cpm), series: [{ key: 'cpm', label: '', color: '#0ea5e9', points: getSeries(dailyRows, 'cpm') }], previousSeries: [{ key: 'cpm', label: '', color: '#0ea5e9', points: getSeries(previousDailyRows, 'cpm') }], comparisonAggregation: 'avg' },
+  ], [hideMonetaryValues, monetizationTotals, dailyRows, previousDailyRows, revenueSpikes, adImpressionsSpikes, monetizedPlaybacksSpikes])
 
   const sidePerformance = playlistId ? playlistSidePerformance : contentPerformance
 

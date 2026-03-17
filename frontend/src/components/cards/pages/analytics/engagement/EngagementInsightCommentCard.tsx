@@ -1,5 +1,6 @@
 import { StatCard } from '../../../../ui'
 import { formatWholeNumber } from '../../../../../utils/number'
+import { useHideVideoTitles, useHideVideoThumbnails } from '../../../../../hooks/usePrivacyMode'
 import './EngagementInsightCommentCard.css'
 
 type CommentVideoItem = {
@@ -23,6 +24,9 @@ function EngagementInsightCommentCard({
   loading,
   onOpenVideo,
 }: EngagementInsightCommentCardProps) {
+  const hideVideoTitles = useHideVideoTitles()
+  const hideVideoThumbnails = useHideVideoThumbnails()
+
   return (
     <div className="engagement-insight-comment-card">
       <div className="engagement-insight-comment-stat">
@@ -42,13 +46,17 @@ function EngagementInsightCommentCard({
           {topCommentedVideos.map((item, index) => (
             <div key={`${item.video_id}-${index}`} className="engagement-insight-comment-row">
               <span className="engagement-insight-comment-rank">{index + 1}</span>
-              <img className="engagement-insight-comment-thumb" src={item.thumbnail_url || ''} alt="" />
+              {hideVideoThumbnails ? (
+                <div className="engagement-insight-comment-thumb" />
+              ) : (
+                <img className="engagement-insight-comment-thumb" src={item.thumbnail_url || ''} alt="" />
+              )}
               <button
                 type="button"
                 className="engagement-insight-comment-title"
                 onClick={() => onOpenVideo(item.video_id)}
               >
-                {item.title || '(untitled)'}
+                {hideVideoTitles ? '••••••' : (item.title || '(untitled)')}
               </button>
               <span className="engagement-insight-comment-metric">{formatWholeNumber(item.comment_count)}</span>
             </div>
