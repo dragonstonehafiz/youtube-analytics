@@ -1,8 +1,8 @@
 """
-Fine-tune embedding model using TSDAE + AI-generated pairs.
+Fine-tune embedding model using SimCSE + AI-generated pairs.
 
 Process:
-1. TSDAE: Adapt base model to domain using unlabeled training corpus
+1. SimCSE: Adapt base model to domain using unlabeled training corpus
 2. Supervised: Fine-tune with CosineSimilarityLoss on AI-generated pairs from ai_pairs.csv
 """
 
@@ -90,7 +90,7 @@ def finetune_with_pairs(
     Fine-tune model using AI-generated similar/dissimilar pairs.
 
     Args:
-        model: Base or TSDAE-trained model
+        model: Base or SimCSE-trained model
         pairs: List of (sentence1, sentence2, label) tuples
         output_dir: Output directory for fine-tuned model
     """
@@ -147,7 +147,7 @@ def main() -> None:
     if len(sentences) < 100:
         print("WARNING: Very few training sentences. Consider gathering more data.")
 
-    # TSDAE fine-tuning
+    # SimCSE fine-tuning
     model = finetune_with_simcse(sentences, output_dir)
 
     # Load AI pairs
