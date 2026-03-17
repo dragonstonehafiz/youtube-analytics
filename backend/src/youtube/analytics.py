@@ -114,7 +114,10 @@ def fetch_video_traffic_source_metrics(
     publish_date: str | None = None,
     max_results: int = 200,
 ) -> tuple[list[dict[str, Any]], int]:
-    """Fetch daily per-source traffic rows for one video across a date range.
+    """Fetch daily per-source traffic rows for one video across a date range (14-day chunks due to 200-row API limit).
+
+    YouTube Analytics API has a hard 200-row limit per request. We chunk by two-week periods to get all data.
+    With max 14 sources/day observed (day × traffic source types), we can safely fit 14 days per request.
 
     Returns:
         Tuple of (rows list, api_calls made)
@@ -126,18 +129,30 @@ def fetch_video_traffic_source_metrics(
             return [], 0
         if publish_date > start_date:
             effective_start = publish_date
-    base_request_params = {
-        "ids": "channel==MINE",
-        "startDate": effective_start,
-        "endDate": end_date,
-        "metrics": "views,estimatedMinutesWatched",
-        "dimensions": "day,insightTrafficSourceType",
-        "filters": f"video=={video_id}",
-        "maxResults": max_results,
-        "startIndex": 1,
-    }
-    rows, page_count = _fetch_report_rows(yt_analytics, base_request_params, max_results)
-    return rows, page_count
+
+    all_rows: list[dict[str, Any]] = []
+    total_api_calls = 0
+    current = date.fromisoformat(effective_start)
+    end = date.fromisoformat(end_date)
+
+    while current <= end:
+        week_end = min(current + timedelta(days=13), end)
+        request_params = {
+            "ids": "channel==MINE",
+            "startDate": current.isoformat(),
+            "endDate": week_end.isoformat(),
+            "metrics": "views,estimatedMinutesWatched",
+            "dimensions": "day,insightTrafficSourceType",
+            "filters": f"video=={video_id}",
+            "maxResults": max_results,
+            "startIndex": 1,
+        }
+        rows, page_count = _fetch_report_rows(yt_analytics, request_params, max_results)
+        all_rows.extend(rows)
+        total_api_calls += page_count
+        current = week_end + timedelta(days=1)
+
+    return all_rows, total_api_calls
 
 
 def fetch_video_search_insight_metrics(
@@ -219,9 +234,9 @@ def fetch_channel_analytics(start_date: str, end_date: str) -> tuple[list[dict[s
 
 
 def fetch_traffic_sources(start_date: str, end_date: str) -> tuple[list[dict[str, Any]], int]:
-    """Fetch traffic sources by day for a date range (7-day chunks due to 200-row API limit).
+    """Fetch traffic sources by day for a date range (14-day chunks due to 200-row API limit).
 
-    YouTube Analytics API has a hard 200-row limit per request. We chunk by week to get all data.
+    YouTube Analytics API has a hard 200-row limit per request. We chunk by two-week periods to get all data.
     See: https://developers.google.com/youtube/analytics/reference/reports/query
     """
     yt_analytics = get_analytics_client()
@@ -232,7 +247,7 @@ def fetch_traffic_sources(start_date: str, end_date: str) -> tuple[list[dict[str
     end = date.fromisoformat(end_date)
 
     while current <= end:
-        week_end = min(current + timedelta(days=6), end)
+        week_end = min(current + timedelta(days=13), end)
         request_params = {
             "ids": "channel==MINE",
             "startDate": current.isoformat(),

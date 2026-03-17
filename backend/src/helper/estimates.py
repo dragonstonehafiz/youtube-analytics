@@ -209,7 +209,7 @@ def estimate_traffic_sources_api_calls(
     end_date: str | None,
     deep_sync: bool,
 ) -> EstimateResult:
-    """Estimate minimum calls for sync_traffic_sources (with 7-day chunking for API limit)."""
+    """Estimate minimum calls for sync_traffic_sources (with 14-day chunking for API limit)."""
     resolved = build_estimate_date_range(earliest_video_date, start_date, end_date)
     if not resolved:
         return EstimateResult(minimum_api_calls=0, basis="no videos/date range")
@@ -222,18 +222,18 @@ def estimate_traffic_sources_api_calls(
                 start = next_date
     if _to_date(start) and _to_date(end) and _to_date(start) > _to_date(end):
         return EstimateResult(minimum_api_calls=0, basis="up to date")
-    # Count 7-day chunks (YouTube Analytics API has 200-row limit, ~30 rows/day with multiple sources)
+    # Count 14-day chunks (YouTube Analytics API has 200-row limit, max 14 sources/day observed)
     start_date_obj = _to_date(start)
     end_date_obj = _to_date(end)
     if not start_date_obj or not end_date_obj:
         return EstimateResult(minimum_api_calls=0, basis="invalid date range")
     day_count = (end_date_obj - start_date_obj).days + 1
-    week_count = ceil(day_count / 7)
+    week_count = ceil(day_count / 14)
     # Account for pagination (200-row limit) with 1.5x multiplier
     estimated_api_calls = ceil(week_count * 1.5)
     return EstimateResult(
         minimum_api_calls=estimated_api_calls,
-        basis=f"~{day_count} days across {week_count} 7-day chunks (×1.5 for pagination, API 200-row limit)",
+        basis=f"~{day_count} days across {week_count} 14-day chunks (×1.5 for pagination, API 200-row limit)",
     )
 
 
@@ -304,23 +304,42 @@ def estimate_video_traffic_source_api_calls(
     end_date: str | None,
     deep_sync: bool,
 ) -> EstimateResult:
-    """Estimate minimum calls for sync_video_traffic_source."""
+    """Estimate minimum calls for sync_video_traffic_source (14-day chunks per video)."""
     resolved = build_estimate_date_range(earliest_video_date, start_date, end_date)
     if not resolved:
         return EstimateResult(minimum_api_calls=0, basis="no videos/date range")
     start, end = resolved
-    calls, video_count, segment_count = _count_segmented_entity_api_calls(
-        entity_ids=video_ids,
-        published_by_id=published_by_video,
-        latest_by_id=latest_by_video,
-        start=start,
-        end=end,
-        months_per_chunk=4,
-        deep_sync=deep_sync,
-    )
+
+    total_week_chunks = 0
+    video_count = 0
+    for video_id in video_ids:
+        publish_date = published_by_video.get(video_id)
+        effective_start = start
+        if publish_date and publish_date > start:
+            effective_start = publish_date
+        if effective_start > end:
+            continue
+        if not deep_sync:
+            latest = latest_by_video.get(video_id)
+            if latest:
+                latest_d = _to_date(latest)
+                if latest_d:
+                    next_date = (latest_d + timedelta(days=1)).isoformat()
+                    if next_date > effective_start:
+                        effective_start = next_date
+        if effective_start > end:
+            continue
+        start_obj = _to_date(effective_start)
+        end_obj = _to_date(end)
+        if start_obj and end_obj:
+            day_count = (end_obj - start_obj).days + 1
+            total_week_chunks += ceil(day_count / 14)
+            video_count += 1
+
+    estimated_api_calls = ceil(total_week_chunks * 1.5)
     return EstimateResult(
-        minimum_api_calls=calls,
-        basis=f"{video_count} videos over {segment_count} segments (1 call per video per 4-month segment)",
+        minimum_api_calls=estimated_api_calls,
+        basis=f"{video_count} videos, 14-day chunks (×1.5 for pagination, API 200-row limit)",
     )
 
 
