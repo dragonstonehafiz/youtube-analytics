@@ -49,11 +49,11 @@ export function useSpikes(
       try {
         let outliersUrl: string
         if (dataSourceLevel === 'channel') {
-          outliersUrl = `http://localhost:8000/analytics/channel-daily/outliers?start_date=${start}&end_date=${end}&metric=${metric}&granularity=${granularity}`
+          outliersUrl = `http://localhost:8000/analytics/channel-analytics/outliers?start_date=${start}&end_date=${end}&metric=${metric}&granularity=${granularity}`
         } else {
           const videoIdsParam = videoIds.length > 0 ? `&video_ids=${videoIds.join(',')}` : ''
           const contentTypeParam = contentType ? `&content_type=${contentType}` : ''
-          outliersUrl = `http://localhost:8000/analytics/video-daily/outliers?start_date=${start}&end_date=${end}&metric=${metric}&granularity=${granularity}${videoIdsParam}${contentTypeParam}`
+          outliersUrl = `http://localhost:8000/analytics/video-analytics/outliers?start_date=${start}&end_date=${end}&metric=${metric}&granularity=${granularity}${videoIdsParam}${contentTypeParam}`
         }
         const outliersRes = await fetch(outliersUrl, { signal: abortController.signal })
         const outliersData = await outliersRes.json()
@@ -68,7 +68,7 @@ export function useSpikes(
           regions.map(async (region) => {
             const videoIdsParam = videoIds.length > 0 ? `&video_ids=${videoIds.join(',')}` : ''
             const contributorsRes = await fetch(
-              `http://localhost:8000/analytics/video-daily/top-contributors?start_date=${region.start_date}&end_date=${region.end_date}&metric=${metric}${videoIdsParam}`,
+              `http://localhost:8000/analytics/video-analytics/top-contributors?start_date=${region.start_date}&end_date=${region.end_date}&metric=${metric}${videoIdsParam}`,
               { signal: abortController.signal }
             )
             const contributorsData = await contributorsRes.json()

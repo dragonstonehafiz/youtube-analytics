@@ -27,7 +27,7 @@ export function useVideoDailyRows(videoId: string | undefined): UseVideoDailyRow
       const currentVideoId = videoId as string
       try {
         const params = new URLSearchParams({ video_id: currentVideoId, limit: '10000' })
-        const response = await fetch(`http://localhost:8000/analytics/video-daily?${params}`)
+        const response = await fetch(`http://localhost:8000/analytics/video-analytics?${params}`)
         if (!response.ok) throw new Error(`Failed to load analytics (${response.status})`)
         const data = await response.json()
         const rawItems = Array.isArray(data.items) ? data.items : []

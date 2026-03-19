@@ -62,8 +62,8 @@ def get_channel_card_summary(
     }
 
 
-@router.get("/analytics/channel-daily")
-def list_channel_daily(
+@router.get("/analytics/channel-analytics")
+def list_channel_analytics(
     start_date: str,
     end_date: str,
 ) -> dict:
@@ -124,8 +124,8 @@ def list_channel_daily(
     return {"items": items, "totals": totals}
 
 
-@router.get("/analytics/channel-daily/outliers")
-def list_channel_daily_outliers(
+@router.get("/analytics/channel-analytics/outliers")
+def list_channel_analytics_outliers(
     start_date: str,
     end_date: str,
     metric: str = Query(default="views"),
@@ -220,7 +220,7 @@ def list_channel_daily_outliers(
     return {"items": merged}
 
 
-@router.get("/analytics/traffic-sources")
+@router.get("/analytics/channel-traffic-sources")
 def list_channel_traffic_sources(start_date: str, end_date: str) -> dict:
     """Return channel-level daily traffic-source rows for a range."""
     with get_connection() as conn:

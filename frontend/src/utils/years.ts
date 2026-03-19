@@ -14,7 +14,7 @@ export async function fetchChannelYears(): Promise<string[]> {
  */
 export async function fetchVideoYears(videoId: string): Promise<string[]> {
   const response = await fetch(
-    `http://localhost:8000/analytics/video-daily?video_id=${videoId}&limit=10000`
+    `http://localhost:8000/analytics/video-analytics?video_id=${videoId}&limit=10000`
   )
   const data = await response.json()
   const items = Array.isArray(data.items) ? (data.items as { date?: string }[]) : []

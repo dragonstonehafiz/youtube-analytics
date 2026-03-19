@@ -258,10 +258,10 @@ GET  /videos/{id}
 GET  /videos/published
   -> { items: [{ day: string, count: number, items: [{ video_id, title, published_at, thumbnail_url, content_type }] }] }
 
-GET  /analytics/channel-daily
+GET  /analytics/channel-analytics
   -> { items: ChannelDailyRow[], totals: { views, watch_time_minutes, subscribers_gained, subscribers_lost, estimated_revenue, ... } }
 
-GET  /analytics/channel-daily/outliers
+GET  /analytics/channel-analytics/outliers
   -> { items: [{ start_date: string, end_date: string }] }
 
 GET  /analytics/channel-card-summary
@@ -270,10 +270,10 @@ GET  /analytics/channel-card-summary
 GET  /analytics/content-insights
   -> { total_videos, in_period_views, in_period_pct, catalog_views, catalog_pct, in_period_videos, shortform_views, shortform_pct, longform_views, longform_pct, shortform_video_count, longform_video_count, median_views, mean_views, p90_threshold, outlier_count, outlier_videos, outlier_share_pct, all_views, all_video_avg_view_durations, all_videos }
 
-GET  /analytics/daily/summary
+GET  /analytics/video-analytics/summary
   -> { items: DailySummaryRow[], totals: { views, watch_time_minutes, estimated_revenue, ... } }
 
-GET  /analytics/video-daily
+GET  /analytics/video-analytics
   -> { items: VideoDailyRow[] }
 
 GET  /analytics/top-content
@@ -285,7 +285,7 @@ GET  /analytics/playlist-traffic-sources
 GET  /analytics/playlist-video-traffic-source-top-videos
   -> { items: [{ video_id: string, title: string, thumbnail_url: string, published_at: string, views: number, watch_time_minutes: number }] }
 
-GET  /analytics/traffic-sources
+GET  /analytics/channel-traffic-sources
   -> { items: [{ traffic_source: string, views: number, watch_time_minutes: number }] }
 
 GET  /analytics/video-traffic-sources
@@ -300,7 +300,10 @@ GET  /analytics/video-search-insights
 GET  /analytics/video-search-insights/videos
   -> { items: [{ video_id: string, title: string, thumbnail_url: string, views: number, watch_time_minutes: number }] }
 
-GET  /analytics/video-daily/top-contributors
+GET  /analytics/video-analytics/outliers
+  -> { items: [{ start_date: string, end_date: string }] }
+
+GET  /analytics/video-analytics/top-contributors
   -> { items: [{ video_id: string, title: string, thumbnail_url: string, content_type: string, published_at: string, metric_value: number }] }
 
 GET  /analytics/years
@@ -318,10 +321,10 @@ GET  /playlists/{id}/video-ids
 GET  /playlists/{id}/items
   -> { items: [{ ...playlist_item_fields, video_views, video_comment_count, video_like_count, video_recent_views, video_watch_time_minutes, video_average_view_duration_seconds }], total: number }
 
-GET  /analytics/playlist-daily
+GET  /analytics/playlist-analytics
   -> { items: PlaylistDailyRow[], totals: { views, watch_time_minutes, estimated_revenue, ... } }
 
-GET  /analytics/playlist-video-daily
+GET  /analytics/playlist-video-analytics
   -> { items: PlaylistVideoDailyRow[], totals: { views, watch_time_minutes, estimated_revenue, ... } }
 
 GET  /audience

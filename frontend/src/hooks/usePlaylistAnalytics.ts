@@ -73,10 +73,10 @@ export function usePlaylistAnalytics(
       setLoading(true)
       setError(null)
       try {
-        const plBase = `http://localhost:8000/analytics/playlist-daily?playlist_id=${playlistId}`
+        const plBase = `http://localhost:8000/analytics/playlist-analytics?playlist_id=${playlistId}`
         const videoBase =
           videoIds.length > 0
-            ? `http://localhost:8000/analytics/video-daily?video_ids=${encodeURIComponent(videoIds.join(','))}`
+            ? `http://localhost:8000/analytics/video-analytics?video_ids=${encodeURIComponent(videoIds.join(','))}`
             : null
 
         const requests: Promise<Response>[] = [

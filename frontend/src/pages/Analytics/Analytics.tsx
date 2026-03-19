@@ -104,8 +104,8 @@ function Analytics() {
           items.map((item) => ({ day: String(item?.day ?? ''), traffic_source: String(item?.traffic_source ?? ''), views: Number(item?.views ?? 0), watch_time_minutes: Number(item?.watch_time_minutes ?? 0) }))
         let currentUrl: string, previousUrl: string
         if (contentSelection === 'all') {
-          currentUrl = `http://localhost:8000/analytics/traffic-sources?start_date=${range.start}&end_date=${range.end}`
-          previousUrl = `http://localhost:8000/analytics/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}`
+          currentUrl = `http://localhost:8000/analytics/channel-traffic-sources?start_date=${range.start}&end_date=${range.end}`
+          previousUrl = `http://localhost:8000/analytics/channel-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}`
         } else {
           currentUrl = `http://localhost:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
           previousUrl = `http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentSelection}`

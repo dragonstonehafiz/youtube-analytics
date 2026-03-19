@@ -5,8 +5,8 @@ from src.database.db import get_connection, row_to_dict
 router = APIRouter()
 
 
-@router.get("/analytics/playlist-daily")
-def list_playlist_daily(playlist_id: str, start_date: str, end_date: str) -> dict:
+@router.get("/analytics/playlist-analytics")
+def list_playlist_analytics(playlist_id: str, start_date: str, end_date: str) -> dict:
     """Return daily playlist-view analytics rows for one playlist and date range."""
     with get_connection() as conn:
         exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()
@@ -62,8 +62,8 @@ def list_playlist_daily(playlist_id: str, start_date: str, end_date: str) -> dic
     return {"items": items, "totals": totals}
 
 
-@router.get("/analytics/playlist-video-daily")
-def list_playlist_video_daily(playlist_id: str, start_date: str, end_date: str) -> dict:
+@router.get("/analytics/playlist-video-analytics")
+def list_playlist_video_analytics(playlist_id: str, start_date: str, end_date: str) -> dict:
     """Return daily video analytics summed across videos that are in a playlist."""
     with get_connection() as conn:
         exists = conn.execute("SELECT 1 FROM playlists WHERE id = ? LIMIT 1", (playlist_id,)).fetchone()

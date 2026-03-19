@@ -41,7 +41,7 @@ function Dashboard() {
           fetch(
             `http://localhost:8000/analytics/top-content?start_date=2000-01-01&end_date=${today}&limit=10&content_type=short&sort_by=published_at&direction=desc&privacy_status=public`
           ),
-          fetch(`http://localhost:8000/analytics/traffic-sources?start_date=${ninetyDaysAgo}&end_date=${today}`),
+          fetch(`http://localhost:8000/analytics/channel-traffic-sources?start_date=${ninetyDaysAgo}&end_date=${today}`),
         ])
         const [longformData, shortData, trafficData] = await Promise.all([
           longformResponse.json(),

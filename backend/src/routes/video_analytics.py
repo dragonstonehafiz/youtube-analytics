@@ -9,8 +9,8 @@ from src.database.video_search_insights import get_search_term_videos, get_top_s
 router = APIRouter()
 
 
-@router.get("/analytics/video-daily")
-def list_video_daily_analytics(
+@router.get("/analytics/video-analytics")
+def list_video_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
     video_id: str | None = None,
@@ -119,8 +119,8 @@ def list_video_daily_analytics(
     return {"items": [row_to_dict(row) for row in rows]}
 
 
-@router.get("/analytics/daily/summary")
-def list_daily_summary(start_date: str, end_date: str, content_type: str | None = None) -> dict:
+@router.get("/analytics/video-analytics/summary")
+def list_video_analytics_summary(start_date: str, end_date: str, content_type: str | None = None) -> dict:
     """Return per-day totals and range KPIs, optionally filtered by video content type."""
     where_sql = "a.date >= ? AND a.date <= ?"
     params: list[object] = [start_date, end_date]
@@ -178,8 +178,8 @@ def list_daily_summary(start_date: str, end_date: str, content_type: str | None 
     return {"items": items, "totals": totals}
 
 
-@router.get("/analytics/video-daily/outliers")
-def list_video_daily_outliers(
+@router.get("/analytics/video-analytics/outliers")
+def list_video_analytics_outliers(
     start_date: str,
     end_date: str,
     metric: str = Query(default="views"),
@@ -309,8 +309,8 @@ def list_video_daily_outliers(
     return {"items": merged}
 
 
-@router.get("/analytics/video-daily/top-contributors")
-def list_video_daily_top_contributors(
+@router.get("/analytics/video-analytics/top-contributors")
+def list_video_analytics_top_contributors(
     start_date: str,
     end_date: str,
     metric: str = Query(default="views"),
