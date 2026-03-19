@@ -84,7 +84,7 @@ backend/
   src/database/                  # DB helpers per table
     schema.sql, db.py
     videos.py, playlists.py, comments.py, audience.py
-    analytics.py, channel_daily.py, playlist_daily.py
+    video_analytics.py, channel_analytics.py, playlist_daily.py
     traffic_sources.py, video_traffic_source.py, video_search_insights.py
   src/youtube/                   # YouTube API clients
     auth.py, client.py, videos.py, playlists.py

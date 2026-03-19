@@ -3,7 +3,7 @@ from __future__ import annotations
 from src.database.db import get_connection
 
 
-def upsert_traffic_sources(rows: list[dict]) -> int:
+def upsert_channel_traffic_sources(rows: list[dict]) -> int:
     """Insert or update traffic source rows by day."""
     if not rows:
         return 0
