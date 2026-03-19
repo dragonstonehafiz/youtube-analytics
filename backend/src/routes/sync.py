@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from src.database.db import get_connection, row_to_dict
 from src.routes.helpers import estimate_analytics_pulls, estimate_data_pulls
-from src.helper.estimates import estimate_competitors_api_calls
+from src.utils.estimates import estimate_competitors_api_calls
 from src.sync import (
     ANALYTICS_STAGES,
     DATA_STAGES,

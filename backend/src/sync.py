@@ -7,7 +7,7 @@ from pathlib import Path
 
 from googleapiclient.errors import HttpError
 
-from src.helper.sync_dates import (
+from src.utils.sync_dates import (
     build_sync_date_range,
     get_earliest_date,
     find_next_sync_date,
@@ -16,7 +16,7 @@ from src.helper.sync_dates import (
     next_day,
     normalize_iso_datetime_to_date,
 )
-from src.helper.sync_progress import SyncProgress, SyncStopRequested
+from src.utils.sync_progress import SyncProgress, SyncStopRequested
 from src.database.analytics import upsert_daily_analytics
 from src.database.audience import upsert_audience, upsert_commenters_from_comments
 from src.database.channel_daily import upsert_channel_daily
