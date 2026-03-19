@@ -3,7 +3,6 @@ from __future__ import annotations
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 from googleapiclient.errors import HttpError
 
@@ -25,7 +24,7 @@ from src.database.competitors import upsert_competitor_videos
 from src.database.db import get_connection, ensure_authenticated_channel_in_database
 from src.database.playlist_daily import upsert_playlist_daily_analytics
 from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
-from backend.src.database.channel_traffic_sources import upsert_channel_traffic_sources
+from src.database.channel_traffic_sources import upsert_channel_traffic_sources
 from src.database.video_search_insights import upsert_video_search_insights
 from src.database.video_traffic_source import upsert_video_traffic_source
 from src.database.videos import list_playlist_video_ids_missing_video_rows, upsert_videos
