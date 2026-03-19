@@ -1,5 +1,5 @@
-import { ActionButton, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
-import { useHideDescription } from '@hooks/usePrivacyMode'
+import { ActionButton, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
+import { useHideDescription, useHideVideoTitles } from '@hooks/usePrivacyMode'
 
 export type PlaylistItemRowData = {
   id: string
@@ -32,6 +32,7 @@ type PlaylistItemRowProps = {
 
 function PlaylistItemRow({ item }: PlaylistItemRowProps) {
   const hideDescription = useHideDescription()
+  const hideVideoTitles = useHideVideoTitles()
   const title = item.video_title || item.title || '(untitled)'
   const description = hideDescription ? '-' : (item.video_description || item.description || '-')
   const thumb = item.video_thumbnail_url || item.thumbnail_url
@@ -44,9 +45,9 @@ function PlaylistItemRow({ item }: PlaylistItemRowProps) {
         <VideoThumbnail url={thumb} title={title} className="video-thumb" />
         <div className="video-meta">
           {hasVideo ? (
-            <DisplayVideoTitle title={title} videoId={item.video_id} className="video-title-button" />
+            <TextLink text={title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="video-title-button" />
           ) : (
-            <DisplayVideoTitle title={title} className="video-title" />
+            <TextLink text={title} hideText={hideVideoTitles} />
           )}
           {hasVideo ? (
             <div className="video-detail-sub">

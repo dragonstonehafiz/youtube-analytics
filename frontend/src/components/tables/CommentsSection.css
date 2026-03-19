@@ -37,19 +37,6 @@
   flex-shrink: 0;
 }
 
-.comments-group-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-ink);
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.comments-group-title:hover {
-  text-decoration: underline;
-}
 
 .comments-group-count {
   font-size: 12px;

@@ -11,12 +11,11 @@ type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string; daySpan?: number }
   granularity: Granularity
-  onOpenVideo: (videoId: string) => void
   dataSources: TabDataSource[]
   selectedSourceIndex: number
 }
 
-export default function EngagementTab({ range, granularity, onOpenVideo, dataSources, selectedSourceIndex }: Props) {
+export default function EngagementTab({ range, granularity, dataSources, selectedSourceIndex }: Props) {
   const selected = dataSources[selectedSourceIndex]
   const dailyData = selected?.dailyRows ?? []
   const previousDailyData = selected?.previousDailyRows ?? []
@@ -117,7 +116,6 @@ export default function EngagementTab({ range, granularity, onOpenVideo, dataSou
               totalComments={engagementInsights.total_comments}
               topCommentedVideos={engagementInsights.top_commented_videos}
               loading={engagementLoading}
-              onOpenVideo={onOpenVideo}
             />
           )}
         </PageCard>
@@ -127,7 +125,6 @@ export default function EngagementTab({ range, granularity, onOpenVideo, dataSou
               totalSubscribersGained={engagementInsights.total_subscribers_gained}
               topSubscriberVideos={engagementInsights.top_subscriber_videos}
               loading={engagementLoading}
-              onOpenVideo={onOpenVideo}
             />
           )}
         </PageCard>

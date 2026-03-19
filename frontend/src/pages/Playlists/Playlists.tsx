@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
 import { PageCard } from '@components/cards'
 import usePagination from '@hooks/usePagination'
 import { getStored, setStored } from '@utils/storage'
@@ -188,13 +188,7 @@ function Playlists() {
                     <div className="video-cell">
                       <VideoThumbnail url={playlist.thumbnail_url} title={playlist.title} className="video-thumb" />
                       <div className="video-meta">
-                        <button
-                          type="button"
-                          className="video-title-button"
-                          onClick={() => navigate(`/playlists/${playlist.id}`)}
-                        >
-                          <DisplayVideoTitle title={playlist.title} />
-                        </button>
+                        <TextLink text={playlist.title} to={`/playlists/${playlist.id}`} className="video-title-button" />
                         <div className="video-muted playlist-desc">{playlist.description || '-'}</div>
                       </div>
                     </div>

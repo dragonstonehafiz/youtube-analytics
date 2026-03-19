@@ -1,5 +1,5 @@
-import { ActionButton, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
-import { useHideDescription } from '@hooks/usePrivacyMode'
+import { ActionButton, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
+import { useHideDescription, useHideVideoTitles } from '@hooks/usePrivacyMode'
 
 export type VideoRow = {
   id: string
@@ -20,13 +20,14 @@ type VideoListRowProps = {
 
 function VideoListRow({ video }: VideoListRowProps) {
   const hideDescription = useHideDescription()
+  const hideVideoTitles = useHideVideoTitles()
 
   return (
     <div className="video-table-row">
       <div className="video-cell">
         <VideoThumbnail url={video.thumbnail_url} title={video.title} className="video-thumb" />
         <div className="video-meta">
-          <DisplayVideoTitle title={video.title} videoId={video.id} className="video-title-button" />
+          <TextLink text={video.title} to={`/videos/${video.id}`} hideText={hideVideoTitles} className="video-title-button" />
           <div className="video-detail-sub">
             <div className="video-desc">{hideDescription ? '-' : (video.description ? video.description : '-')}</div>
             <div className="video-actions">

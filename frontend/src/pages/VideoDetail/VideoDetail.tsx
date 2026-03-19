@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, StatCard, Textbox, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
+import { ActionButton, StatCard, Textbox, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
 import { DataRangeControl, type DateRangeValue } from '@components/features'
 import { fetchVideoYears } from '@utils/years'
 import { PageCard } from '@components/cards'
@@ -118,7 +118,7 @@ function VideoDetail() {
                 <div className="video-detail-meta">
                   <VideoThumbnail url={video.thumbnail_url} title={video.title} className="video-detail-thumb" />
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title"><DisplayVideoTitle title={video.title} /></div>
+                    <div className="video-detail-title"><TextLink text={video.title} /></div>
                     <Textbox value={video.description || ''} placeholder="This video does not have a description" height="250px"/>
                   </div>
                 </div>

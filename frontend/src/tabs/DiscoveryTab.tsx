@@ -21,12 +21,11 @@ type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string; daySpan?: number }
   granularity: Granularity
-  onOpenVideo: (videoId: string) => void
   dataSources: DiscoveryDataSource[]
   selectedSourceIndex: number
 }
 
-export default function DiscoveryTab({ range, previousRange, granularity, onOpenVideo, dataSources, selectedSourceIndex }: Props) {
+export default function DiscoveryTab({ range, previousRange, granularity, dataSources, selectedSourceIndex }: Props) {
   const selected = dataSources[selectedSourceIndex]
   const trafficRows = selected?.trafficRows ?? []
   const previousTrafficRows = selected?.previousTrafficRows ?? []
@@ -163,7 +162,6 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
             loading={trafficTopLoading}
             error={trafficTopError}
             onSourceChange={setTrafficTopSource}
-            onOpenVideo={onOpenVideo}
           />
         </PageCard>
       </div>

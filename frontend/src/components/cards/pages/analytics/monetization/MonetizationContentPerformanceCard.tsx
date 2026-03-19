@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
-import { useHideMonetaryValues } from '@hooks/usePrivacyMode'
+import { VideoThumbnail, TextLink } from '@components/ui'
+import { useHideMonetaryValues, useHideVideoTitles } from '@hooks/usePrivacyMode'
 import type { MonetizationContentType, MonetizationPerformance } from '@types/monetization'
 export type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance } from '@types/monetization'
 
@@ -9,7 +9,6 @@ type MonetizationContentPerformanceCardProps = {
   onContentTypeChange: (value: MonetizationContentType) => void
   performance: Record<MonetizationContentType, MonetizationPerformance>
   itemCount?: number
-  onOpenVideo: (videoId: string) => void
 }
 
 function formatCurrency(value: number): string {
@@ -25,11 +24,11 @@ function MonetizationContentPerformanceCard({
   onContentTypeChange,
   performance,
   itemCount = 5,
-  onOpenVideo,
 }: MonetizationContentPerformanceCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [cardWidth, setCardWidth] = useState(0)
   const hideMonetaryValues = useHideMonetaryValues()
+  const hideVideoTitles = useHideVideoTitles()
   const active = performance[contentType]
   const visibleItems = active.items.slice(0, itemCount)
   const revenueValues = visibleItems.map((entry) => entry.revenue)
@@ -101,13 +100,7 @@ function MonetizationContentPerformanceCard({
             <div key={item.video_id} className={showBar ? 'analytics-content-top-row' : 'analytics-content-top-row compact'}>
               <div className="analytics-content-video">
                 <VideoThumbnail url={item.thumbnail_url} title={item.title} className="analytics-content-video-fallback" />
-                <button
-                  type="button"
-                  className="analytics-content-video-title"
-                  onClick={() => onOpenVideo(item.video_id)}
-                >
-                  <DisplayVideoTitle title={item.title} />
-                </button>
+                <TextLink text={item.title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="analytics-content-video-title" />
               </div>
               <div className={showBar ? 'analytics-content-revenue' : 'analytics-content-revenue compact'}>
                 {showBar ? (

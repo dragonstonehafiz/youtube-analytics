@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, ProfileAvatar, VideoThumbnail, DisplayCommentAccountName } from '@components/ui'
+import { ActionButton, ProfileAvatar, VideoThumbnail, TextLink } from '@components/ui'
 import { useHideDescription } from '@hooks/usePrivacyMode'
+import { formatHandle } from '@utils/handle'
 import './CommentsPreviewCard.css'
 
 type CommentPreview = {
@@ -98,15 +99,9 @@ function CommentsPreviewCard() {
                 <div className="dashboard-comment-content">
                   <div className="dashboard-comment-meta">
                     {item.author_channel_id ? (
-                      <button
-                        type="button"
-                        className="video-title-button"
-                        onClick={() => handleOpenAudience(item.author_channel_id)}
-                      >
-                        <DisplayCommentAccountName name={item.author_name} />
-                      </button>
+                      <TextLink text={formatHandle(item.author_name)} to={`/audience/${item.author_channel_id}`} className="video-title-button" />
                     ) : (
-                      <span className="video-title"><DisplayCommentAccountName name={item.author_name} /></span>
+                      <span className="video-title">{formatHandle(item.author_name)}</span>
                     )}
                     <span className="dashboard-comment-sep">-</span>
                     <span className="dashboard-comment-time">{formatRelativeTime(item.published_at)}</span>

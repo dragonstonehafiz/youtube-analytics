@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ActionButton, VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { ActionButton, VideoThumbnail, TextLink } from '@components/ui'
 import './VideoDetailListCard.css'
 
 export type VideoDetailListItem = {
@@ -139,7 +139,7 @@ function VideoDetailListCard({
         <>
           <div className="video-detail-list-thumb-wrap">
             <VideoThumbnail url={activeItem.thumbnail_url} title={activeItem.title} className="video-detail-list-thumb" />
-            <div className="video-detail-list-thumb-title"><DisplayVideoTitle title={activeItem.title} /></div>
+            <div className="video-detail-list-thumb-title"><TextLink text={activeItem.title} /></div>
           </div>
           <div className="video-detail-list-metrics">
             {[

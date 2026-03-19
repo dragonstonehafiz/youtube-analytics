@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { VideoThumbnail } from '@components/ui'
 
 export type UploadPublishTooltipItem = {
   video_id?: string
@@ -121,10 +121,10 @@ function UploadPublishTooltip({
             <div>
               {item.video_id ? (
                 <Link className="publish-title publish-title-link" to={`/videos/${item.video_id}`}>
-                  <DisplayVideoTitle title={item.title} />
+                  {item.title}
                 </Link>
               ) : (
-                <div className="publish-title"><DisplayVideoTitle title={item.title} /></div>
+                <div className="publish-title">{item.title}</div>
               )}
               <div className="publish-date">{item.detail ?? (item.published_at?.split('T')[0] || '')}</div>
             </div>

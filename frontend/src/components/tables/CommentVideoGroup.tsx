@@ -1,4 +1,5 @@
-import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { VideoThumbnail, TextLink } from '@components/ui'
+import { useHideVideoTitles } from '@hooks/usePrivacyMode'
 import CommentThreadItem, { type CommentThread } from './CommentThreadItem'
 
 type CommentVideoGroupProps = {
@@ -9,12 +10,13 @@ type CommentVideoGroupProps = {
 }
 
 function CommentVideoGroup({ videoId, videoTitle, videoThumbnailUrl, comments }: CommentVideoGroupProps) {
+  const hideVideoTitles = useHideVideoTitles()
   return (
     <section className="comments-group">
       <header className="comments-group-header">
         <div className="comments-group-video">
           <VideoThumbnail url={videoThumbnailUrl} title={videoTitle} className="comments-group-thumb" />
-          <DisplayVideoTitle title={videoTitle} videoId={videoId} className="comments-group-title" />
+          <TextLink text={videoTitle} to={`/videos/${videoId}`} hideText={hideVideoTitles} className="comments-group-title" />
         </div>
         <span className="comments-group-count">{comments.length.toLocaleString()} threads</span>
       </header>

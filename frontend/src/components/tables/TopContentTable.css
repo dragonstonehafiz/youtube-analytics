@@ -62,17 +62,9 @@
   gap: 2px;
 }
 
-.title {
-  font-weight: 600;
-}
-
 .top-content-link {
   color: inherit;
   text-decoration: none;
-}
-
-.top-content-link:hover {
-  text-decoration: underline;
 }
 
 .date {

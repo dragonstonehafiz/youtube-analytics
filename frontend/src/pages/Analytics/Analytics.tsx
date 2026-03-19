@@ -243,7 +243,6 @@ function Analytics() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -253,7 +252,6 @@ function Analytics() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -263,7 +261,6 @@ function Analytics() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={discoveryDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />

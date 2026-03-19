@@ -1,4 +1,4 @@
-import { VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
+import { VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
 
 export type CompetitorVideoRow = {
   id: string
@@ -24,13 +24,7 @@ function CompetitorListRow({ video }: CompetitorListRowProps) {
       <div className="video-cell">
         <VideoThumbnail url={video.thumbnail_url} title={video.title} className="video-thumb" />
         <div className="video-meta">
-          <button
-            type="button"
-            className="video-title-button"
-            onClick={() => window.open(`https://www.youtube.com/watch?v=${video.id}`, '_blank')}
-          >
-            <DisplayVideoTitle title={video.title} />
-          </button>
+          <TextLink text={video.title} href={`https://www.youtube.com/watch?v=${video.id}`} className="video-title-button" />
           <div className="video-detail-sub">
             <div style={{
               position: 'absolute',

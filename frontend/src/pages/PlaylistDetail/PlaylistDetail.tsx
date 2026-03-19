@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, StatCard, Textbox, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
+import { ActionButton, StatCard, Textbox, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
 import { DataRangeControl, type DateRangeValue } from '@components/features'
 import { fetchChannelYears } from '@utils/years'
 import { PageCard, type VideoDetailListItem } from '@components/cards'
@@ -278,7 +278,7 @@ function PlaylistDetail() {
                 <div className="video-detail-meta">
                   <VideoThumbnail url={meta.thumbnail_url} title={meta.title} className="video-detail-thumb" />
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title"><DisplayVideoTitle title={meta.title} /></div>
+                    <div className="video-detail-title"><TextLink text={meta.title} /></div>
                     <Textbox value={meta.description || ''} placeholder="This playlist does not have a description" />
                   </div>
                 </div>
@@ -357,7 +357,6 @@ function PlaylistDetail() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -367,7 +366,6 @@ function PlaylistDetail() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -377,7 +375,6 @@ function PlaylistDetail() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={discoveryDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />

@@ -19,9 +19,8 @@ export { default as TooltipIcon } from './overlay/TooltipIcon'
 
 // Display primitives
 export { default as VideoThumbnail } from './display/VideoThumbnail'
-export { default as DisplayVideoTitle } from './display/DisplayVideoTitle'
+export { default as TextLink } from './display/TextLink'
 export { default as ProfileAvatar } from './display/ProfileAvatar'
 export { default as DisplayDate } from './display/DisplayDate'
-export { default as DisplayCommentAccountName } from './display/DisplayCommentAccountName'
 export { default as ProfileImage } from './display/ProfileImage'
 export { default as StatCard } from './display/StatCard'

@@ -1,5 +1,6 @@
 import './TopContentTable.css'
-import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { VideoThumbnail, TextLink } from '@components/ui'
+import { useHideVideoTitles } from '@hooks/usePrivacyMode'
 
 export type TopContentItem = {
   video_id: string
@@ -18,6 +19,7 @@ type TopContentTableProps = {
 }
 
 function TopContentTable({ items }: TopContentTableProps) {
+  const hideVideoTitles = useHideVideoTitles()
   return (
     <div className="top-content">
       <div className="top-content-title">Your top content in this period</div>
@@ -34,7 +36,7 @@ function TopContentTable({ items }: TopContentTableProps) {
               <div className="rank">{item.rank}</div>
               <VideoThumbnail url={item.thumbnail_url} title={item.title} className="thumb" />
               <div className="meta">
-                <DisplayVideoTitle title={item.title} videoId={item.video_id} className="title top-content-link" />
+                <TextLink text={item.title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="title top-content-link" />
               </div>
             </div>
             <div className="right">{item.upload_date}</div>

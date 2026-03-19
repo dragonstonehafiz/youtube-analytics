@@ -1,5 +1,6 @@
-import { StatCard, VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { StatCard, VideoThumbnail, TextLink } from '@components/ui'
 import { formatWholeNumber } from '@utils/number'
+import { useHideVideoTitles } from '@hooks/usePrivacyMode'
 import './EngagementInsightSubscriberCard.css'
 
 type SubscriberVideoItem = {
@@ -14,15 +15,14 @@ type EngagementInsightSubscriberCardProps = {
   totalSubscribersGained: number
   topSubscriberVideos: SubscriberVideoItem[]
   loading: boolean
-  onOpenVideo: (videoId: string) => void
 }
 
 function EngagementInsightSubscriberCard({
   totalSubscribersGained,
   topSubscriberVideos,
   loading,
-  onOpenVideo,
 }: EngagementInsightSubscriberCardProps) {
+  const hideVideoTitles = useHideVideoTitles()
   return (
     <div className="engagement-insight-subscriber-card">
       <div className="engagement-insight-subscriber-stat">
@@ -43,13 +43,7 @@ function EngagementInsightSubscriberCard({
             <div key={`${item.video_id}-${index}`} className="engagement-insight-subscriber-row">
               <span className="engagement-insight-subscriber-rank">{index + 1}</span>
               <VideoThumbnail url={item.thumbnail_url} title={item.title} className="engagement-insight-subscriber-thumb" />
-              <button
-                type="button"
-                className="engagement-insight-subscriber-title"
-                onClick={() => onOpenVideo(item.video_id)}
-              >
-                <DisplayVideoTitle title={item.title} />
-              </button>
+              <TextLink text={item.title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="engagement-insight-subscriber-title" />
               <span className="engagement-insight-subscriber-metric">{formatWholeNumber(item.subscribers_gained)}</span>
             </div>
           ))}

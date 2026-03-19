@@ -61,21 +61,7 @@
 }
 
 .engagement-insight-subscriber-title {
-  border: 0;
-  background: transparent;
-  text-align: left;
-  font-size: 13px;
-  color: #0f172a;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 0;
-}
-
-.engagement-insight-subscriber-title:hover {
-  text-decoration: underline;
+  min-width: 0;
 }
 
 .engagement-insight-subscriber-metric {

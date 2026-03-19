@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
-import { ActionButton, ProfileAvatar, DisplayCommentAccountName, DisplayDate } from '@components/ui'
+import { ActionButton, ProfileAvatar, TextLink, DisplayDate } from '@components/ui'
 import { useHideDescription } from '@hooks/usePrivacyMode'
+import { formatHandle } from '@utils/handle'
 import './CommentThreadItem.css'
 
 export type CommentRow = {
@@ -50,14 +50,13 @@ function CommentThreadItem({ thread, videoId }: Props) {
         <div className="comment-thread-main">
           <header className="comment-thread-header">
             {thread.parent.author_channel_id ? (
-              <Link
+              <TextLink
+                text={formatHandle(thread.parent.author_name)}
                 to={`/audience/${encodeURIComponent(thread.parent.author_channel_id)}`}
                 className="comment-thread-author comment-thread-author-link"
-              >
-                <DisplayCommentAccountName name={thread.parent.author_name} />
-              </Link>
+              />
             ) : (
-              <div className="comment-thread-author"><DisplayCommentAccountName name={thread.parent.author_name} /></div>
+              <div className="comment-thread-author">{formatHandle(thread.parent.author_name)}</div>
             )}
             <div className="comment-thread-date"><DisplayDate date={thread.parent.published_at} /></div>
           </header>

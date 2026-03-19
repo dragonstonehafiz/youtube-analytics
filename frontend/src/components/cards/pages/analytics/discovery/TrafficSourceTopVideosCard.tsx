@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Dropdown, VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { Dropdown, VideoThumbnail, TextLink } from '@components/ui'
 import { formatWholeNumber } from '@utils/number'
+import { useHideVideoTitles } from '@hooks/usePrivacyMode'
 import './TrafficSourceTopVideosCard.css'
 
 type TopTrafficVideo = {
@@ -23,7 +24,6 @@ type TrafficSourceTopVideosCardProps = {
   loading: boolean
   error: string | null
   onSourceChange: (value: string) => void
-  onOpenVideo: (videoId: string) => void
 }
 
 function TrafficSourceTopVideosCard({
@@ -33,8 +33,8 @@ function TrafficSourceTopVideosCard({
   loading,
   error,
   onSourceChange,
-  onOpenVideo,
 }: TrafficSourceTopVideosCardProps) {
+  const hideVideoTitles = useHideVideoTitles()
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [cardWidth, setCardWidth] = useState(0)
   const COMPACT_WIDTH = 420
@@ -83,9 +83,7 @@ function TrafficSourceTopVideosCard({
               <div key={`${item.video_id}-${index}`} className="traffic-top-row">
                 <span className="traffic-top-rank">{index + 1}</span>
                 <VideoThumbnail url={item.thumbnail_url} title={item.title} className="traffic-top-thumb" />
-                <button type="button" className="traffic-top-title" onClick={() => onOpenVideo(item.video_id)}>
-                  <DisplayVideoTitle title={item.title} />
-                </button>
+                <TextLink text={item.title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="traffic-top-title" />
                 <span className="traffic-top-metric">{formatWholeNumber(item.views)}</span>
                 <span className="traffic-top-metric">{formatWholeNumber(Math.round(item.watch_time_minutes / 60))}</span>
               </div>

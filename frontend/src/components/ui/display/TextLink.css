@@ -1,0 +1,19 @@
+.text-link {
+  font-weight: 600;
+  font-size: inherit;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* button resets (no-op on span/a) */
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}

@@ -15,9 +15,9 @@ export default function ProfileAvatar({
 }: ProfileAvatarProps) {
   return (
     <ProfileImage
-      youtubeAvatarUrl={src}
+      src={src}
       youtubeAvatarSize={size}
-      youtubeUserName={name}
+      name={name}
       className={className}
     />
   )

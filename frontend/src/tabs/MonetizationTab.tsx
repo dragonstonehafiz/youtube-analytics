@@ -31,12 +31,11 @@ type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string; daySpan?: number }
   granularity: Granularity
-  onOpenVideo: (videoId: string) => void
   dataSources: TabDataSource[]
   selectedSourceIndex: number
 }
 
-export default function MonetizationTab({ range, granularity, onOpenVideo, dataSources, selectedSourceIndex }: Props) {
+export default function MonetizationTab({ range, granularity, dataSources, selectedSourceIndex }: Props) {
   const selected = dataSources[selectedSourceIndex]
   const dailyRows = selected?.dailyRows ?? []
   const previousDailyRows = selected?.previousDailyRows ?? []
@@ -212,7 +211,6 @@ export default function MonetizationTab({ range, granularity, onOpenVideo, dataS
             onContentTypeChange={setMonetizationContentType}
             performance={sidePerformance}
             itemCount={7}
-            onOpenVideo={onOpenVideo}
           />
         </PageCard>
       </div>
