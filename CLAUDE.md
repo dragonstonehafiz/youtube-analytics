@@ -145,16 +145,12 @@ frontend/
     Settings/, SyncSettings/, VideoDetail/, Videos/
   src/types/                     # centralized data-shape types (analytics, monetization, etc.)
   src/components/
-    ui/                          # primitives
+    ui/                          # controls, display, navigation, overlay primitives
     charts/                      # visualizations
-    cards/primitives/            # generic card wrappers
-    cards/pages/                 # domain-specific cards, grouped by page area
-      analytics/discovery/       # TrafficSourceShareCard, TrafficSourceTopVideosCard, SearchInsightsTopTermsCard
-      analytics/engagement/      # EngagementInsightCommentCard, EngagementInsightSubscriberCard
-      analytics/insights/        # ContentInsightsCard
-      analytics/monetization/    # MonetizationEarningsCard, MonetizationContentPerformanceCard
-      dashboard/                 # ChannelAnalyticsCard, VideoDetailListCard, CommentsPreviewCard, MostActiveAudienceCard
-      comments/                  # LlmSummaryCard, CommentsWordCloudCard
+    cards/generic-charts/        # chart-wrapper cards (DonutChartCard, HistogramChartCard, BarChartCard)
+    cards/analytics/             # TrafficSourceShareCard, TrafficSourceTopVideosCard, SearchInsightsTopTermsCard, EngagementInsightCommentCard, EngagementInsightSubscriberCard, ContentInsightsCard, MonetizationEarningsCard, MonetizationContentPerformanceCard
+    cards/dashboard/             # ChannelAnalyticsCard, VideoDetailListCard, CommentsPreviewCard, MostActiveAudienceCard
+    cards/comments/              # LlmSummaryCard, CommentsWordCloudCard
     tables/                      # table + list components
     features/                    # complex composite components
   src/tabs/                      # shared tab components used by 2+ pages (Analytics, PlaylistDetail, VideoDetail)
@@ -178,6 +174,7 @@ frontend/
 - `Sidebar` — app navigation sidebar
 - `StatCard` — single-metric stat display
 - `Tooltip`, `TooltipIcon` — viewport-clamped tooltip and help indicator
+- `PageCard` — generic page section container (import from `@components/ui`)
 
 **Charts** (`components/charts/`):
 - `MetricChartCard` — primary time-series chart: KPI chips, trend indicators, granularity bucketing (Daily/7-days/28-days/90-days/Monthly/Yearly), zero-fill, upload markers
@@ -189,12 +186,12 @@ frontend/
 - `UploadPublishTooltip` — tooltip showing videos for a chart data point
 - `SpikeTooltipOverlay` — spike hover tooltip overlay; wrap after `MetricChartCard` in any tab using `useSpikes`
 
-**Card primitives** (`components/cards/primitives/`):
-- `PageCard` — generic card container
-- `DonutChartCard` — card wrapping a donut chart
+**Generic chart cards** (`components/cards/generic-charts/`):
+- `BarChartCard` — card wrapping a bar chart
+- `DonutChartCard` — card wrapping a donut chart with legend
 - `HistogramChartCard` — card wrapping a histogram
 
-**Page cards** (`components/cards/pages/`):
+**Page cards** (`components/cards/` — subfolders: `analytics/`, `dashboard/`, `comments/`):
 - `ChannelAnalyticsCard` — dashboard channel metrics summary
 - `CommentsPreviewCard` — dashboard recent comments preview
 - `CommentsWordCloudCard` — word-cloud PNG display with Word types multiselect and manual generate button
@@ -497,7 +494,7 @@ Multi-tab pages should centralize shared types, utilities, and components to red
 Example: `Competitors/` page uses `types.ts` for image/thumbnail models, `utils.ts` for shared filter/layout logic, and `ThumbnailUploader.tsx` as a reusable component across test tabs.
 
 ### Adding a new reusable component
-1. Pick category: `ui/` primitives · `charts/` · `cards/primitives/` · `cards/pages/<area>/` · `tables/` · `features/`
+1. Pick category: `ui/` primitives · `charts/` · `cards/generic-charts/` · `cards/<area>/` (`analytics/`, `dashboard/`, `comments/`) · `tables/` · `features/`
 2. Create `<ComponentName>.tsx` + colocated `<ComponentName>.css` if needed
 3. Export from the directory's `index.ts`
 
