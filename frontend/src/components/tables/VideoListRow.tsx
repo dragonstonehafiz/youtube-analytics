@@ -1,7 +1,5 @@
-import { useNavigate } from 'react-router-dom'
-import { ActionButton } from '../ui'
-import { formatDisplayDate } from '../../utils/date'
-import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
+import { ActionButton, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../ui'
+import { useHideDescription } from '../../hooks/usePrivacyMode'
 
 export type VideoRow = {
   id: string
@@ -21,29 +19,14 @@ type VideoListRowProps = {
 }
 
 function VideoListRow({ video }: VideoListRowProps) {
-  const navigate = useNavigate()
-  const hideVideoTitles = useHideVideoTitles()
-  const hideVideoThumbnails = useHideVideoThumbnails()
   const hideDescription = useHideDescription()
 
   return (
     <div className="video-table-row">
       <div className="video-cell">
-        {hideVideoThumbnails ? (
-          <div className="video-thumb" />
-        ) : video.thumbnail_url ? (
-          <img className="video-thumb" src={video.thumbnail_url} alt={video.title} />
-        ) : (
-          <div className="video-thumb" />
-        )}
+        <VideoThumbnail url={video.thumbnail_url} title={video.title} className="video-thumb" />
         <div className="video-meta">
-          <button
-            type="button"
-            className="video-title-button"
-            onClick={() => navigate(`/videos/${video.id}`)}
-          >
-            {hideVideoTitles ? '••••••' : video.title}
-          </button>
+          <DisplayVideoTitle title={video.title} videoId={video.id} className="video-title-button" />
           <div className="video-detail-sub">
             <div className="video-desc">{hideDescription ? '-' : (video.description ? video.description : '-')}</div>
             <div className="video-actions">
@@ -58,7 +41,7 @@ function VideoListRow({ video }: VideoListRowProps) {
         </div>
       </div>
       <span className="video-muted">{video.privacy_status ?? '-'}</span>
-      <span>{formatDisplayDate(video.published_at)}</span>
+      <span><DisplayDate date={video.published_at} /></span>
       <span className="right">{(video.views ?? 0).toLocaleString()}</span>
       <span className="right">{(video.comment_count ?? 0).toLocaleString()}</span>
       <span className="right">{(video.like_count ?? 0).toLocaleString()}</span>

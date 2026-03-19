@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, StatCard, Textbox } from '../../components/ui'
+import { ActionButton, StatCard, Textbox, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../../components/ui'
 import { DataRangeControl, type DateRangeValue } from '../../components/features'
 import { fetchVideoYears } from '../../utils/years'
 import { PageCard } from '../../components/cards'
@@ -9,7 +9,6 @@ import EngagementTab from './EngagementTab'
 import MonetizationTab from './MonetizationTab'
 import DiscoveryTab from './DiscoveryTab'
 import CommentsTab from './CommentsTab'
-import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import { formatDuration } from '../../utils/number'
 import { parseVideoDetailTab, VIDEO_DETAIL_TABS } from './utils'
@@ -117,13 +116,9 @@ function VideoDetail() {
             ) : video ? (
               <div className="video-detail-layout">
                 <div className="video-detail-meta">
-                  {video.thumbnail_url ? (
-                    <img className="video-detail-thumb" src={video.thumbnail_url} alt={video.title} />
-                  ) : (
-                    <div className="video-detail-thumb" />
-                  )}
+                  <VideoThumbnail url={video.thumbnail_url} title={video.title} className="video-detail-thumb" />
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title">{video.title || '(untitled)'}</div>
+                    <div className="video-detail-title"><DisplayVideoTitle title={video.title} /></div>
                     <Textbox value={video.description || ''} placeholder="This video does not have a description" height="250px"/>
                   </div>
                 </div>
@@ -137,7 +132,7 @@ function VideoDetail() {
                   <StatCard label="Duration" value={formatDuration(video.duration_seconds)} size = "smaller"/>
                   <StatCard label="Visibility" value={video.privacy_status || '-'} size = "smaller"/>
                   <StatCard label="Content Type" value={video.content_type || '-'} size = "smaller"/>
-                  <StatCard label="Published" value={formatDisplayDate(video.published_at)} size = "smaller" />
+                  <StatCard label="Published" value={<DisplayDate date={video.published_at} />} size = "smaller" />
                 </div>
               </div>
             ) : (

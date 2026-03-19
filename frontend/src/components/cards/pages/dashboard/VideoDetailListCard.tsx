@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import ActionButton from '../../../ui/ActionButton'
-import { useHideVideoTitles, useHideVideoThumbnails } from '../../../../hooks/usePrivacyMode'
+import { ActionButton, VideoThumbnail, DisplayVideoTitle } from '../../../ui'
 import './VideoDetailListCard.css'
 
 export type VideoDetailListItem = {
@@ -110,8 +109,6 @@ function VideoDetailListCard({
   showTypicalRange = true,
   metrics = ['views', 'avg_duration'],
 }: VideoDetailListCardProps) {
-  const hideVideoTitles = useHideVideoTitles()
-  const hideVideoThumbnails = useHideVideoThumbnails()
   const [activeIndex, setActiveIndex] = useState(0)
 
   // Compute valid index: clamp to bounds and reset to 0 when items list shrinks significantly
@@ -141,14 +138,8 @@ function VideoDetailListCard({
       {activeItem ? (
         <>
           <div className="video-detail-list-thumb-wrap">
-            {hideVideoThumbnails ? (
-              <div className="video-detail-list-thumb" />
-            ) : activeItem.thumbnail_url ? (
-              <img className="video-detail-list-thumb" src={activeItem.thumbnail_url} alt={activeItem.title} />
-            ) : (
-              <div className="video-detail-list-thumb" />
-            )}
-            <div className="video-detail-list-thumb-title">{hideVideoTitles ? '••••••' : activeItem.title}</div>
+            <VideoThumbnail url={activeItem.thumbnail_url} title={activeItem.title} className="video-detail-list-thumb" />
+            <div className="video-detail-list-thumb-title"><DisplayVideoTitle title={activeItem.title} /></div>
           </div>
           <div className="video-detail-list-metrics">
             {[

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Dropdown } from '../../../../ui'
+import { Dropdown, VideoThumbnail, DisplayVideoTitle } from '../../../../ui'
 import { formatWholeNumber } from '../../../../../utils/number'
 import './TrafficSourceTopVideosCard.css'
 
@@ -82,9 +82,9 @@ function TrafficSourceTopVideosCard({
             {items.map((item, index) => (
               <div key={`${item.video_id}-${index}`} className="traffic-top-row">
                 <span className="traffic-top-rank">{index + 1}</span>
-                <img className="traffic-top-thumb" src={item.thumbnail_url || ''} alt="" />
+                <VideoThumbnail url={item.thumbnail_url} title={item.title} className="traffic-top-thumb" />
                 <button type="button" className="traffic-top-title" onClick={() => onOpenVideo(item.video_id)}>
-                  {item.title || '(untitled)'}
+                  <DisplayVideoTitle title={item.title} />
                 </button>
                 <span className="traffic-top-metric">{formatWholeNumber(item.views)}</span>
                 <span className="traffic-top-metric">{formatWholeNumber(Math.round(item.watch_time_minutes / 60))}</span>

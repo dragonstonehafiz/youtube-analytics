@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, StatCard, Textbox } from '../../components/ui'
+import { ActionButton, StatCard, Textbox, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../../components/ui'
 import { DataRangeControl, type DateRangeValue } from '../../components/features'
 import { fetchChannelYears } from '../../utils/years'
 import { PageCard, type VideoDetailListItem } from '../../components/cards'
@@ -8,7 +8,6 @@ import type { TopContentItem } from '../../components/tables'
 import type { PublishedItem } from '../../components/charts'
 import CommentsTab from './CommentsTab'
 import { MetricsTab, EngagementTab, MonetizationTab, DiscoveryTab, InsightsTab } from '../../tabs'
-import { formatDisplayDate } from '../../utils/date'
 import { formatWholeNumber, formatDuration } from '../../utils/number'
 import { getStored, setStored } from '../../utils/storage'
 import { usePlaylistVideoIds } from '../../hooks/usePlaylistVideoIds'
@@ -277,19 +276,15 @@ function PlaylistDetail() {
             ) : meta ? (
               <div className="video-detail-layout">
                 <div className="video-detail-meta">
-                  {meta.thumbnail_url ? (
-                    <img className="video-detail-thumb" src={meta.thumbnail_url} alt={meta.title ?? 'Playlist'} />
-                  ) : (
-                    <div className="video-detail-thumb" />
-                  )}
+                  <VideoThumbnail url={meta.thumbnail_url} title={meta.title} className="video-detail-thumb" />
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title">{meta.title || '(untitled)'}</div>
+                    <div className="video-detail-title"><DisplayVideoTitle title={meta.title} /></div>
                     <Textbox value={meta.description || ''} placeholder="This playlist does not have a description" />
                   </div>
                 </div>
                 <div className="video-detail-grid">
                   <StatCard label="Visibility" value={meta.privacy_status || '-'} size="smaller" />
-                  <StatCard label="Published" value={formatDisplayDate(meta.published_at)} size="smaller" />
+                  <StatCard label="Published" value={<DisplayDate date={meta.published_at} />} size="smaller" />
                   <StatCard label="Total Items" value={(meta.item_count ?? 0).toLocaleString()} size="smaller" />
                 </div>
                 <div className="video-detail-grid">

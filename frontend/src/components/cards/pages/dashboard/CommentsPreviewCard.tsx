@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, ProfileImage } from '../../../ui'
-import { useHideVideoThumbnails, useHideDescription } from '../../../../hooks/usePrivacyMode'
+import { ActionButton, ProfileAvatar, VideoThumbnail, DisplayCommentAccountName } from '../../../ui'
+import { useHideDescription } from '../../../../hooks/usePrivacyMode'
 import './CommentsPreviewCard.css'
 
 type CommentPreview = {
@@ -35,17 +35,8 @@ function formatRelativeTime(value: string | null): string {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-function toHandle(value: string | null): string {
-  if (!value || !value.trim()) {
-    return '@Unknown'
-  }
-  const trimmed = value.trim()
-  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`
-}
-
 function CommentsPreviewCard() {
   const navigate = useNavigate()
-  const hideVideoThumbnails = useHideVideoThumbnails()
   const hideDescription = useHideDescription()
   const [items, setItems] = useState<CommentPreview[]>([])
 
@@ -97,12 +88,11 @@ function CommentsPreviewCard() {
                   disabled={!item.author_channel_id}
                   aria-label="View audience member"
                 >
-                  <ProfileImage
+                  <ProfileAvatar
                     className="dashboard-comment-avatar"
                     src={item.author_profile_image_url}
                     name={item.author_name}
-                    fallbackInitial="U"
-                    youtubeAvatarSize={88}
+                    size={88}
                   />
                 </button>
                 <div className="dashboard-comment-content">
@@ -113,10 +103,10 @@ function CommentsPreviewCard() {
                         className="video-title-button"
                         onClick={() => handleOpenAudience(item.author_channel_id)}
                       >
-                        {toHandle(item.author_name)}
+                        <DisplayCommentAccountName name={item.author_name} />
                       </button>
                     ) : (
-                      <span className="video-title">{toHandle(item.author_name)}</span>
+                      <span className="video-title"><DisplayCommentAccountName name={item.author_name} /></span>
                     )}
                     <span className="dashboard-comment-sep">-</span>
                     <span className="dashboard-comment-time">{formatRelativeTime(item.published_at)}</span>
@@ -124,13 +114,7 @@ function CommentsPreviewCard() {
                   <div className="dashboard-comment-text">{hideDescription ? '' : (item.text_display ?? '')}</div>
                 </div>
               </div>
-              {hideVideoThumbnails ? (
-                <div className="dashboard-comment-video-thumb" />
-              ) : item.video_thumbnail_url ? (
-                <img className="dashboard-comment-video-thumb" src={item.video_thumbnail_url} alt="" />
-              ) : (
-                <div className="dashboard-comment-video-thumb" />
-              )}
+              <VideoThumbnail url={item.video_thumbnail_url} className="dashboard-comment-video-thumb" />
             </article>
           ))}
         </div>

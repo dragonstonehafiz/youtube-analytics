@@ -1,4 +1,4 @@
-import { formatDisplayDate } from '../../utils/date'
+import { VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../ui'
 
 export type CompetitorVideoRow = {
   id: string
@@ -22,18 +22,14 @@ function CompetitorListRow({ video }: CompetitorListRowProps) {
   return (
     <div className="video-table-row">
       <div className="video-cell">
-        {video.thumbnail_url ? (
-          <img className="video-thumb" src={video.thumbnail_url} alt={video.title} />
-        ) : (
-          <div className="video-thumb" />
-        )}
+        <VideoThumbnail url={video.thumbnail_url} title={video.title} className="video-thumb" />
         <div className="video-meta">
           <button
             type="button"
             className="video-title-button"
             onClick={() => window.open(`https://www.youtube.com/watch?v=${video.id}`, '_blank')}
           >
-            {video.title}
+            <DisplayVideoTitle title={video.title} />
           </button>
           <div className="video-detail-sub">
             <div style={{
@@ -55,7 +51,7 @@ function CompetitorListRow({ video }: CompetitorListRowProps) {
         </div>
       </div>
       <span className="video-muted">{video.channel_title ?? '-'}</span>
-      <span>{formatDisplayDate(video.published_at)}</span>
+      <span><DisplayDate date={video.published_at} /></span>
       <span className="right">{(video.views ?? 0).toLocaleString()}</span>
       <span className="right">{(video.comment_count ?? 0).toLocaleString()}</span>
       <span className="right">{(video.like_count ?? 0).toLocaleString()}</span>

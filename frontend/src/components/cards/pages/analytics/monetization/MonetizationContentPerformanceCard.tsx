@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { useHideMonetaryValues, useHideVideoTitles, useHideVideoThumbnails } from '../../../../../hooks/usePrivacyMode'
+import { VideoThumbnail, DisplayVideoTitle } from '../../../../../components/ui'
+import { useHideMonetaryValues } from '../../../../../hooks/usePrivacyMode'
 import type { MonetizationContentType, MonetizationPerformance } from '../../../../../types/monetization'
 export type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance } from '../../../../../types/monetization'
 
@@ -29,8 +30,6 @@ function MonetizationContentPerformanceCard({
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [cardWidth, setCardWidth] = useState(0)
   const hideMonetaryValues = useHideMonetaryValues()
-  const hideVideoTitles = useHideVideoTitles()
-  const hideVideoThumbnails = useHideVideoThumbnails()
   const active = performance[contentType]
   const visibleItems = active.items.slice(0, itemCount)
   const revenueValues = visibleItems.map((entry) => entry.revenue)
@@ -101,20 +100,13 @@ function MonetizationContentPerformanceCard({
           return (
             <div key={item.video_id} className={showBar ? 'analytics-content-top-row' : 'analytics-content-top-row compact'}>
               <div className="analytics-content-video">
-                {hideVideoThumbnails ? (
-                  <div className="analytics-content-video-fallback" />
-                ) : item.thumbnail_url ? (
-                  <img src={item.thumbnail_url} alt={item.title} />
-                ) : (
-                  <div className="analytics-content-video-fallback" />
-                )}
+                <VideoThumbnail url={item.thumbnail_url} title={item.title} className="analytics-content-video-fallback" />
                 <button
                   type="button"
                   className="analytics-content-video-title"
                   onClick={() => onOpenVideo(item.video_id)}
-                  title={hideVideoTitles ? '••••••' : item.title}
                 >
-                  {hideVideoTitles ? '••••••' : item.title}
+                  <DisplayVideoTitle title={item.title} />
                 </button>
               </div>
               <div className={showBar ? 'analytics-content-revenue' : 'analytics-content-revenue compact'}>

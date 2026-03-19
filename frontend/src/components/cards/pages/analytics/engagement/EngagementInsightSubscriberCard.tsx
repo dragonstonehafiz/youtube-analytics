@@ -1,4 +1,4 @@
-import { StatCard } from '../../../../ui'
+import { StatCard, VideoThumbnail, DisplayVideoTitle } from '../../../../ui'
 import { formatWholeNumber } from '../../../../../utils/number'
 import './EngagementInsightSubscriberCard.css'
 
@@ -42,13 +42,13 @@ function EngagementInsightSubscriberCard({
           {topSubscriberVideos.map((item, index) => (
             <div key={`${item.video_id}-${index}`} className="engagement-insight-subscriber-row">
               <span className="engagement-insight-subscriber-rank">{index + 1}</span>
-              <img className="engagement-insight-subscriber-thumb" src={item.thumbnail_url || ''} alt="" />
+              <VideoThumbnail url={item.thumbnail_url} title={item.title} className="engagement-insight-subscriber-thumb" />
               <button
                 type="button"
                 className="engagement-insight-subscriber-title"
                 onClick={() => onOpenVideo(item.video_id)}
               >
-                {item.title || '(untitled)'}
+                <DisplayVideoTitle title={item.title} />
               </button>
               <span className="engagement-insight-subscriber-metric">{formatWholeNumber(item.subscribers_gained)}</span>
             </div>

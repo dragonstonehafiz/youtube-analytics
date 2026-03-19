@@ -1,4 +1,4 @@
-import Dropdown from './Dropdown'
+import Dropdown from '../controls/Dropdown'
 
 type PageSizePickerProps = {
   value: number

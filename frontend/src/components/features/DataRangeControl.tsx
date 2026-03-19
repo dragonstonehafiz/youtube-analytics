@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import DateRangePicker from '../ui/DateRangePicker'
-import Dropdown from '../ui/Dropdown'
+import DateRangePicker from '../ui/controls/DateRangePicker'
+import Dropdown from '../ui/controls/Dropdown'
 import { useAnalyticsDateRange, GRANULARITY_OPTIONS, type RangeMode } from '../../hooks/useAnalyticsDateRange'
 import { getStored, setStored } from '../../utils/storage'
 

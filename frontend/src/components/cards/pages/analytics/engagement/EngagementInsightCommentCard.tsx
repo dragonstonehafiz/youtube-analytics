@@ -1,4 +1,4 @@
-import { StatCard } from '../../../../ui'
+import { StatCard, VideoThumbnail, DisplayVideoTitle } from '../../../../ui'
 import { formatWholeNumber } from '../../../../../utils/number'
 import './EngagementInsightCommentCard.css'
 
@@ -42,13 +42,13 @@ function EngagementInsightCommentCard({
           {topCommentedVideos.map((item, index) => (
             <div key={`${item.video_id}-${index}`} className="engagement-insight-comment-row">
               <span className="engagement-insight-comment-rank">{index + 1}</span>
-              <img className="engagement-insight-comment-thumb" src={item.thumbnail_url || ''} alt="" />
+              <VideoThumbnail url={item.thumbnail_url} title={item.title} className="engagement-insight-comment-thumb" />
               <button
                 type="button"
                 className="engagement-insight-comment-title"
                 onClick={() => onOpenVideo(item.video_id)}
               >
-                {item.title || '(untitled)'}
+                <DisplayVideoTitle title={item.title} />
               </button>
               <span className="engagement-insight-comment-metric">{formatWholeNumber(item.comment_count)}</span>
             </div>

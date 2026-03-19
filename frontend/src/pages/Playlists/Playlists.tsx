@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../../components/ui'
 import { PageCard } from '../../components/cards'
 import usePagination from '../../hooks/usePagination'
-import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Playlists.css'
@@ -187,18 +186,14 @@ function Playlists() {
                 rows.map((playlist) => (
                   <div key={playlist.id} className="playlist-table-row">
                     <div className="video-cell">
-                      {playlist.thumbnail_url ? (
-                        <img className="video-thumb" src={playlist.thumbnail_url} alt={playlist.title ?? 'Playlist'} />
-                      ) : (
-                        <div className="video-thumb" />
-                      )}
+                      <VideoThumbnail url={playlist.thumbnail_url} title={playlist.title} className="video-thumb" />
                       <div className="video-meta">
                         <button
                           type="button"
                           className="video-title-button"
                           onClick={() => navigate(`/playlists/${playlist.id}`)}
                         >
-                          {playlist.title || '(untitled)'}
+                          <DisplayVideoTitle title={playlist.title} />
                         </button>
                         <div className="video-muted playlist-desc">{playlist.description || '-'}</div>
                       </div>
@@ -207,7 +202,7 @@ function Playlists() {
                     <span className="right">{(playlist.item_count ?? 0).toLocaleString()}</span>
                     <span className="right">{(playlist.total_playlist_views ?? 0).toLocaleString()}</span>
                     <span className="right">{(playlist.total_content_views ?? 0).toLocaleString()}</span>
-                    <span>{formatDisplayDate(playlist.last_item_added_at)}</span>
+                    <span><DisplayDate date={playlist.last_item_added_at} /></span>
                   </div>
                 ))
               )}

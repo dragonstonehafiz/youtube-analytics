@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ActionButton, ProfileImage } from '../ui'
-import { formatDisplayDate } from '../../utils/date'
+import { ActionButton, ProfileAvatar, DisplayCommentAccountName, DisplayDate } from '../ui'
 import { useHideDescription } from '../../hooks/usePrivacyMode'
 import './CommentThreadItem.css'
 
@@ -20,18 +19,6 @@ export type CommentThread = {
   parent: CommentRow
   replies: CommentRow[]
   repliesTotal: number
-}
-
-function getAuthorHandle(value: string | null): string {
-  if (!value || !value.trim()) {
-    return '@unknown'
-  }
-  const trimmed = value.trim()
-  return trimmed.startsWith('@') ? trimmed : `@${trimmed}`
-}
-
-function formatPostedAt(value: string | null): string {
-  return formatDisplayDate(value)
 }
 
 function formatLikeCount(value: number | null): string {
@@ -54,11 +41,11 @@ function CommentThreadItem({ thread, videoId }: Props) {
   return (
     <article className="comment-thread-item">
       <div className="comment-thread-row">
-        <ProfileImage
+        <ProfileAvatar
           className="comment-thread-avatar"
           src={thread.parent.author_profile_image_url}
           name={thread.parent.author_name}
-          youtubeAvatarSize={88}
+          size={88}
         />
         <div className="comment-thread-main">
           <header className="comment-thread-header">
@@ -67,12 +54,12 @@ function CommentThreadItem({ thread, videoId }: Props) {
                 to={`/audience/${encodeURIComponent(thread.parent.author_channel_id)}`}
                 className="comment-thread-author comment-thread-author-link"
               >
-                {getAuthorHandle(thread.parent.author_name)}
+                <DisplayCommentAccountName name={thread.parent.author_name} />
               </Link>
             ) : (
-              <div className="comment-thread-author">{getAuthorHandle(thread.parent.author_name)}</div>
+              <div className="comment-thread-author"><DisplayCommentAccountName name={thread.parent.author_name} /></div>
             )}
-            <div className="comment-thread-date">{formatPostedAt(thread.parent.published_at)}</div>
+            <div className="comment-thread-date"><DisplayDate date={thread.parent.published_at} /></div>
           </header>
           <div className="comment-thread-text">{hideDescription ? '' : (thread.parent.text_display || '')}</div>
           <div className="comment-thread-meta">

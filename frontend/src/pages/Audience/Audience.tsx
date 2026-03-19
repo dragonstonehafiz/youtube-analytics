@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageCard } from '../../components/cards'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../../components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileAvatar, DisplayDate } from '../../components/ui'
 import usePagination from '../../hooks/usePagination'
-import { formatDisplayDate } from '../../utils/date'
 import { getStored, setStored } from '../../utils/storage'
 import '../shared.css'
 import './Audience.css'
@@ -183,7 +182,7 @@ function Audience() {
                 rows.map((row) => (
                   <div className="audience-table-row" key={row.channel_id}>
                     <div className="audience-cell">
-                      <ProfileImage
+                      <ProfileAvatar
                         className="audience-avatar"
                         src={row.profile_image_url}
                         name={row.display_name}
@@ -195,9 +194,9 @@ function Audience() {
                       </div>
                     </div>
                     <span>{row.is_public_subscriber ? 'Yes' : 'No'}</span>
-                    <span>{formatDisplayDate(row.subscribed_at)}</span>
-                    <span>{formatDisplayDate(row.first_commented_at)}</span>
-                    <span>{formatDisplayDate(row.last_commented_at)}</span>
+                    <span><DisplayDate date={row.subscribed_at} /></span>
+                    <span><DisplayDate date={row.first_commented_at} /></span>
+                    <span><DisplayDate date={row.last_commented_at} /></span>
                     <span className="right">{(row.comment_count ?? 0).toLocaleString()}</span>
                     <span className="right">{(row.total_comment_likes ?? 0).toLocaleString()}</span>
                     <span className="right">{(row.total_comment_replies ?? 0).toLocaleString()}</span>
