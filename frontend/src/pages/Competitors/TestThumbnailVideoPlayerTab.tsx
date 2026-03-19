@@ -43,12 +43,6 @@ function TestThumbnailVideoPlayerTab() {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
 
   const fetchVideos = useCallback(async (title: string = '') => {
-    if (!title.trim()) {
-      setVideos([])
-      setShorts([])
-      setLoading(false)
-      return
-    }
     try {
       setLoading(true)
       const includeShorts = getStored<boolean>('includeShorts', false)
@@ -132,15 +126,11 @@ function TestThumbnailVideoPlayerTab() {
       <div className="page-row">
         <ThumbnailUploader onReloadThumbnails={handleGetVideos} />
       </div>
-      {loading && (
-        <div className="page-row">
-          <PageCard>
-            <div className="thumbnail-loading">Loading...</div>
-          </PageCard>
-        </div>
-      )}
       <div className="page-row">
         <PageCard>
+          {loading ? (
+            <div className="thumbnail-loading">Loading...</div>
+          ) : (
           <div className="thumbnail-player-wrapper">
           <div className="thumbnail-player-main">
             {/* Video Player */}
@@ -307,6 +297,7 @@ function TestThumbnailVideoPlayerTab() {
             })}
           </div>
         </div>
+          )}
         </PageCard>
       </div>
     </div>

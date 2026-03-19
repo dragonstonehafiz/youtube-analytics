@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getStored } from '@utils/storage'
+import { getStored, setStored } from '@utils/storage'
 import CompetitorVideosTab from './CompetitorVideosTab'
 import TestThumbnailHomeTab from './TestThumbnailHomeTab'
 import TestThumbnailSearchTab from './TestThumbnailSearchTab'

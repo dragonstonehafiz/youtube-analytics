@@ -28,11 +28,6 @@ function TestThumbnailHome() {
   const [loading, setLoading] = useState(true)
 
   const fetchVideos = useCallback(async (title: string = '') => {
-    if (!title.trim()) {
-      setAllVideos([])
-      setLoading(false)
-      return
-    }
     try {
       setLoading(true)
       const includeShorts = getStored<boolean>('includeShorts', false)
@@ -51,7 +46,7 @@ function TestThumbnailHome() {
     } finally {
       setLoading(false)
     }
-     
+
   }, [])
 
 

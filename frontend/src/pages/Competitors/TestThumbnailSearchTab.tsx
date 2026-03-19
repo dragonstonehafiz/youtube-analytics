@@ -16,12 +16,6 @@ function TestThumbnailSearchTab() {
   const [activeFilter, setActiveFilter] = useState('All')
 
   const fetchVideos = useCallback(async (title: string = '') => {
-    if (!title.trim()) {
-      setVideos([])
-      setShorts([])
-      setLoading(false)
-      return
-    }
     try {
       setLoading(true)
       const includeShorts = getStored<boolean>('includeShorts', false)
