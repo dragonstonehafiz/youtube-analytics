@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PageCard } from '../../components/cards'
-import { ActionButton, Dropdown } from '../../components/ui'
+import { PageCard } from '@components/cards'
+import { ActionButton, Dropdown } from '@components/ui'
 import '../shared.css'
 import './Settings.css'
 

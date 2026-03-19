@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getStored, setStored } from '../utils/storage'
-import type { DateRange, PreviousDateRange } from '../types'
+import { getStored, setStored } from '@utils/storage'
+import type { DateRange, PreviousDateRange } from '@types'
 
 export type RangeMode = 'presets' | 'year' | 'custom'
 export type { DateRange, PreviousDateRange }

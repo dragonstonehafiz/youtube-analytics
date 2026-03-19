@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../../components/ui'
-import { PageCard } from '../../components/cards'
-import usePagination from '../../hooks/usePagination'
-import { getStored, setStored } from '../../utils/storage'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
+import { PageCard } from '@components/cards'
+import usePagination from '@hooks/usePagination'
+import { getStored, setStored } from '@utils/storage'
 import '../shared.css'
 import './Playlists.css'
 

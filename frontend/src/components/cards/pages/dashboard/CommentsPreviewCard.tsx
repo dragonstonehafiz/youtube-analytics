@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, ProfileAvatar, VideoThumbnail, DisplayCommentAccountName } from '../../../ui'
-import { useHideDescription } from '../../../../hooks/usePrivacyMode'
+import { ActionButton, ProfileAvatar, VideoThumbnail, DisplayCommentAccountName } from '@components/ui'
+import { useHideDescription } from '@hooks/usePrivacyMode'
 import './CommentsPreviewCard.css'
 
 type CommentPreview = {

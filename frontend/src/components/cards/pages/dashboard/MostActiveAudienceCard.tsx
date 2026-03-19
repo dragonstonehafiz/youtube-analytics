@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ActionButton, ProfileAvatar } from '../../../ui'
+import { ActionButton, ProfileAvatar } from '@components/ui'
 import './MostActiveAudienceCard.css'
 
 type ActiveAudienceItem = {

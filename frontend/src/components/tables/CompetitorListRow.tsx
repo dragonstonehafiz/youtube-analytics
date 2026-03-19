@@ -1,4 +1,4 @@
-import { VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../ui'
+import { VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
 
 export type CompetitorVideoRow = {
   id: string

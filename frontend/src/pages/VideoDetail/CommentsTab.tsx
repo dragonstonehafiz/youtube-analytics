@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PageSizePicker, PageSwitcher } from '../../components/ui'
-import { CommentsWordCloudCard, LlmSummaryCard, PageCard } from '../../components/cards'
-import { CommentFilter, type CommentSort } from '../../components/features'
-import { CommentThreadItem, type CommentRow } from '../../components/tables'
-import usePagination from '../../hooks/usePagination'
-import { useLlmSummary } from '../../hooks/useLlmSummary'
-import { useWordCloud, WORD_TYPE_OPTIONS, type WordType } from '../../hooks/useWordCloud'
-import { getStored, setStored } from '../../utils/storage'
+import { PageSizePicker, PageSwitcher } from '@components/ui'
+import { CommentsWordCloudCard, LlmSummaryCard, PageCard } from '@components/cards'
+import { CommentFilter, type CommentSort } from '@components/features'
+import { CommentThreadItem, type CommentRow } from '@components/tables'
+import usePagination from '@hooks/usePagination'
+import { useLlmSummary } from '@hooks/useLlmSummary'
+import { useWordCloud, WORD_TYPE_OPTIONS, type WordType } from '@hooks/useWordCloud'
+import { getStored, setStored } from '@utils/storage'
 
 type CommentThread = {
   parent: CommentRow

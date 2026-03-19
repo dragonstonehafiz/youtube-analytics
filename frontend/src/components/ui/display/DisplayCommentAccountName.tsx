@@ -1,4 +1,4 @@
-import { formatHandle } from '../../../utils/handle'
+import { formatHandle } from '@utils/handle'
 
 interface DisplayCommentAccountNameProps {
   name: string | null | undefined

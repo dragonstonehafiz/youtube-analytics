@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { DonutChart, RatioBar, type DonutSegmentResolved } from '../../charts'
+import { DonutChart, RatioBar, type DonutSegmentResolved } from '@components/charts'
 import './DonutChartCard.css'
 
 type DonutChartCardSegment = {

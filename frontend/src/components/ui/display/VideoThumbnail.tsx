@@ -1,4 +1,4 @@
-import { useHideVideoThumbnails } from '../../../hooks/usePrivacyMode'
+import { useHideVideoThumbnails } from '@hooks/usePrivacyMode'
 import './VideoThumbnail.css'
 
 interface VideoThumbnailProps {

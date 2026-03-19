@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UploadPublishTooltip, type UploadHoverState } from '../../../../charts'
-import { formatWholeNumber } from '../../../../../utils/number'
+import { UploadPublishTooltip, type UploadHoverState } from '@components/charts'
+import { formatWholeNumber } from '@utils/number'
 import './SearchInsightsTopTermsCard.css'
 
 type SearchInsightsTopTerm = {

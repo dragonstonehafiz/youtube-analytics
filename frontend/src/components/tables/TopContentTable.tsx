@@ -1,5 +1,5 @@
 import './TopContentTable.css'
-import { VideoThumbnail, DisplayVideoTitle } from '../ui'
+import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
 
 export type TopContentItem = {
   video_id: string

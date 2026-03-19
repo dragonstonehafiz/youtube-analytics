@@ -1,6 +1,6 @@
 import type { ChannelDailyRow } from './analytics'
-import type { PublishedItem } from '../components/charts'
-import type { TrafficSourceRow } from '../utils/trafficSeries'
+import type { PublishedItem } from '@components/charts'
+import type { TrafficSourceRow } from '@utils/trafficSeries'
 
 export type TabDataSource = {
   label: string

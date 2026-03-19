@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ActionButton, VideoThumbnail, DisplayVideoTitle } from '../../../ui'
+import { ActionButton, VideoThumbnail, DisplayVideoTitle } from '@components/ui'
 import './VideoDetailListCard.css'
 
 export type VideoDetailListItem = {

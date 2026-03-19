@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import { ActionButton, ProfileAvatar, DisplayCommentAccountName, DisplayDate } from '../ui'
-import { useHideDescription } from '../../hooks/usePrivacyMode'
+import { ActionButton, ProfileAvatar, DisplayCommentAccountName, DisplayDate } from '@components/ui'
+import { useHideDescription } from '@hooks/usePrivacyMode'
 import './CommentThreadItem.css'
 
 export type CommentRow = {

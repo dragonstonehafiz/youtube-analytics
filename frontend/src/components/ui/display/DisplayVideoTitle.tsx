@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useHideVideoTitles } from '../../../hooks/usePrivacyMode'
+import { useHideVideoTitles } from '@hooks/usePrivacyMode'
 import './DisplayVideoTitle.css'
 
 interface DisplayVideoTitleProps {

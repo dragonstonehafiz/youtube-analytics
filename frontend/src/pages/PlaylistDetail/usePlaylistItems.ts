@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { PlaylistItemRowData, PlaylistItemSortKey } from '../../components/tables'
-import usePagination from '../../hooks/usePagination'
+import type { PlaylistItemRowData, PlaylistItemSortKey } from '@components/tables'
+import usePagination from '@hooks/usePagination'
 
 type SortDirection = 'asc' | 'desc'
 

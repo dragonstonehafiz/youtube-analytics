@@ -1,4 +1,4 @@
-import type { Thumbnail, CompetitorVideoRow } from '../../types'
+import type { Thumbnail, CompetitorVideoRow } from '@types'
 
 type RelatedVideosResponse = { items?: unknown }
 

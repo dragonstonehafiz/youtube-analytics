@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { VideoThumbnail, DisplayVideoTitle } from '../ui'
+import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
 
 export type UploadPublishTooltipItem = {
   video_id?: string

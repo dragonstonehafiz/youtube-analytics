@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, useEffect } from 'react'
-import { formatWholeNumber } from '../../../../../utils/number'
-import { StatCard } from '../../../../ui'
-import UploadPublishTooltip, { type UploadHoverState } from '../../../../charts/UploadPublishTooltip'
+import { formatWholeNumber } from '@utils/number'
+import { StatCard } from '@components/ui'
+import UploadPublishTooltip, { type UploadHoverState } from '@components/charts/UploadPublishTooltip'
 import './ContentInsightsCard.css'
 
 type InsightVideo = {

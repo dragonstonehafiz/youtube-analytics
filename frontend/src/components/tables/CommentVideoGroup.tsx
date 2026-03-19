@@ -1,4 +1,4 @@
-import { VideoThumbnail, DisplayVideoTitle } from '../ui'
+import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
 import CommentThreadItem, { type CommentThread } from './CommentThreadItem'
 
 type CommentVideoGroupProps = {

@@ -1,5 +1,5 @@
-import { ActionButton, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '../ui'
-import { useHideDescription } from '../../hooks/usePrivacyMode'
+import { ActionButton, VideoThumbnail, DisplayVideoTitle, DisplayDate } from '@components/ui'
+import { useHideDescription } from '@hooks/usePrivacyMode'
 
 export type PlaylistItemRowData = {
   id: string

@@ -1,4 +1,4 @@
-import { formatDisplayDate } from '../../../utils/date'
+import { formatDisplayDate } from '@utils/date'
 
 interface DisplayDateProps {
   date: string | null | undefined

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ActionButton } from '../../components/ui'
+import { ActionButton } from '@components/ui'
 
 type Props = {
   title: string

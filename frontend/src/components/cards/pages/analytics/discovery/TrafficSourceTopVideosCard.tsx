@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Dropdown, VideoThumbnail, DisplayVideoTitle } from '../../../../ui'
-import { formatWholeNumber } from '../../../../../utils/number'
+import { Dropdown, VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { formatWholeNumber } from '@utils/number'
 import './TrafficSourceTopVideosCard.css'
 
 type TopTrafficVideo = {

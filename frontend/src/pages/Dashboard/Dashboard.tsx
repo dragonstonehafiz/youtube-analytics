@@ -8,7 +8,7 @@ import {
   TrafficSourceShareCard,
   VideoDetailListCard,
   type TrafficSourceShareItem,
-} from '../../components/cards'
+} from '@components/cards'
 import '../shared.css'
 import './Dashboard.css'
 

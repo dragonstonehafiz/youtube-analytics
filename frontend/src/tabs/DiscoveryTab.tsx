@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity } from '../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
 import {
   PageCard,
   SearchInsightsTopTermsCard,
@@ -9,10 +9,10 @@ import {
   type TopTrafficVideo,
   type TrafficSourceShareItem,
   type TrafficSourceOption,
-} from '../components/cards'
-import { buildTrafficSeries } from '../utils/trafficSeries'
-import { formatWholeNumber } from '../utils/number'
-import type { DiscoveryDataSource } from '../types'
+} from '@components/cards'
+import { buildTrafficSeries } from '@utils/trafficSeries'
+import { formatWholeNumber } from '@utils/number'
+import type { DiscoveryDataSource } from '@types'
 
 type TopVideosBySourceResponseItem = { video_id: string; title: string; thumbnail_url: string; published_at: string; views: number; watch_time_minutes: number }
 type TopSearchResponseItem = { search_term: string; views: number; watch_time_minutes: number; video_count: number }

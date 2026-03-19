@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { VideoThumbnail, DisplayVideoTitle } from '../../../../../components/ui'
-import { useHideMonetaryValues } from '../../../../../hooks/usePrivacyMode'
-import type { MonetizationContentType, MonetizationPerformance } from '../../../../../types/monetization'
-export type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance } from '../../../../../types/monetization'
+import { VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { useHideMonetaryValues } from '@hooks/usePrivacyMode'
+import type { MonetizationContentType, MonetizationPerformance } from '@types/monetization'
+export type { MonetizationContentType, MonetizationTopItem, MonetizationPerformance } from '@types/monetization'
 
 type MonetizationContentPerformanceCardProps = {
   contentType: MonetizationContentType

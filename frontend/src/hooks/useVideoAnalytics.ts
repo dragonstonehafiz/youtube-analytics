@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { DateRange, VideoDailyRow } from '../types'
+import type { DateRange, VideoDailyRow } from '@types'
 
 export type { VideoDailyRow }
 

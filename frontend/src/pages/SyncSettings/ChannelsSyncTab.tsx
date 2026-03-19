@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ActionButton, TextInput } from '../../components/ui'
-import { formatWholeNumber } from '../../utils/number'
+import { ActionButton, TextInput } from '@components/ui'
+import { formatWholeNumber } from '@utils/number'
 import SyncEstimatePanel from './SyncEstimatePanel'
 import SyncTabHeader from './SyncTabHeader'
 

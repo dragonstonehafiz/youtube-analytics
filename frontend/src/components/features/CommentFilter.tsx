@@ -1,4 +1,4 @@
-import { ActionButton, DateRangePicker, Dropdown } from '../ui'
+import { ActionButton, DateRangePicker, Dropdown } from '@components/ui'
 import './CommentFilter.css'
 
 export type CommentSort = 'published_at' | 'likes' | 'reply_count'

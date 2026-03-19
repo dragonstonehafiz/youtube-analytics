@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { CommentVideoGroup, type CommentRow, type CommentThread } from '../../components/tables'
-import { PageCard } from '../../components/cards'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileAvatar, DisplayDate } from '../../components/ui'
-import usePagination from '../../hooks/usePagination'
+import { CommentVideoGroup, type CommentRow, type CommentThread } from '@components/tables'
+import { PageCard } from '@components/cards'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileAvatar, DisplayDate } from '@components/ui'
+import usePagination from '@hooks/usePagination'
 import '../shared.css'
 import './AudienceDetail.css'
 

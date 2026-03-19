@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { DateRange, VideoDailyRow, PlaylistDailyRow, PlaylistTotals } from '../types'
+import type { DateRange, VideoDailyRow, PlaylistDailyRow, PlaylistTotals } from '@types'
 import { normalizeVideoRows } from './useVideoAnalytics'
 
 export type { PlaylistDailyRow, PlaylistTotals }

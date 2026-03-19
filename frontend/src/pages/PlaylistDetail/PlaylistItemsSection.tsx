@@ -1,6 +1,6 @@
-import { PageCard } from '../../components/cards'
-import { PlaylistItemsTable } from '../../components/tables'
-import { PageSizePicker, PageSwitcher } from '../../components/ui'
+import { PageCard } from '@components/cards'
+import { PlaylistItemsTable } from '@components/tables'
+import { PageSizePicker, PageSwitcher } from '@components/ui'
 import { usePlaylistItems } from './usePlaylistItems'
 
 type Props = {

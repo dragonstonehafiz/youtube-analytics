@@ -1,4 +1,4 @@
-import { HistogramChart } from '../../charts'
+import { HistogramChart } from '@components/charts'
 
 type HistogramChartCardProps = {
   viewData: number[]

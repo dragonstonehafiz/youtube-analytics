@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { DateRange, ChannelDailyRow, ChannelTotals } from '../types'
+import type { DateRange, ChannelDailyRow, ChannelTotals } from '@types'
 
 export type { ChannelDailyRow, ChannelTotals }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { type SpikeRegion } from '../components/charts'
-import { type UploadHoverState, type UploadPublishTooltipItem } from '../components/charts/UploadPublishTooltip'
+import { type SpikeRegion } from '@components/charts'
+import { type UploadHoverState, type UploadPublishTooltipItem } from '@components/charts/UploadPublishTooltip'
 
 type RawRegion = { start_date: string; end_date: string }
 type RawContributor = {

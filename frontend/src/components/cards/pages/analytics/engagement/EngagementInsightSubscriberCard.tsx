@@ -1,5 +1,5 @@
-import { StatCard, VideoThumbnail, DisplayVideoTitle } from '../../../../ui'
-import { formatWholeNumber } from '../../../../../utils/number'
+import { StatCard, VideoThumbnail, DisplayVideoTitle } from '@components/ui'
+import { formatWholeNumber } from '@utils/number'
 import './EngagementInsightSubscriberCard.css'
 
 type SubscriberVideoItem = {

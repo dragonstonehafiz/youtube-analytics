@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { getSharedPageSize, setSharedPageSize } from '../utils/storage'
+import { getSharedPageSize, setSharedPageSize } from '@utils/storage'
 
 type PaginationOptions = {
   total: number

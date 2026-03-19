@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { DonutChartCard, type DonutChartCardSegment } from '../../../primitives'
-import { formatWholeNumber } from '../../../../../utils/number'
+import { DonutChartCard, type DonutChartCardSegment } from '@components/cards/primitives'
+import { formatWholeNumber } from '@utils/number'
 
 type TrafficSourceShareItem = {
   key: string

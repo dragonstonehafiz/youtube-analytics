@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
-import { PageCard } from '../../components/cards'
-import { CompetitorListTable, type CompetitorVideoRow, type CompetitorSortKey } from '../../components/tables'
-import usePagination from '../../hooks/usePagination'
-import { getStored, setStored } from '../../utils/storage'
+import { ActionButton, DateRangePicker, Dropdown, PageSizePicker, PageSwitcher } from '@components/ui'
+import { PageCard } from '@components/cards'
+import { CompetitorListTable, type CompetitorVideoRow, type CompetitorSortKey } from '@components/tables'
+import usePagination from '@hooks/usePagination'
+import { getStored, setStored } from '@utils/storage'
 
 type CompetitorFilters = {
   q: string

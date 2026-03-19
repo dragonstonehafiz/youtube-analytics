@@ -1,4 +1,4 @@
-import type { VideoDailyRow, VideoDetailTab } from '../../types'
+import type { VideoDailyRow, VideoDetailTab } from '@types'
 
 export const VIDEO_DETAIL_TABS: Array<{ key: VideoDetailTab; label: string }> = [
   { key: 'metrics', label: 'Metrics' },

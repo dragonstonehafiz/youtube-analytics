@@ -21,7 +21,7 @@ YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 - keep `.method()` on same line as object in Python — no chained calls starting on new lines
 - keep CSS in colocated `.css` files; no inline styles
 - import `../shared.css` in every page component before the page-specific CSS
-- use `'../../components/...'` import paths from inside page subdirectories
+- use path aliases for imports: `@components/`, `@pages/`, `@hooks/`, `@utils/`, `@types/`, `@tabs/`, `@assets/` (see Frontend imports below)
 
 ### Don't
 - don't add `updated_at` tracking to `videos`, `playlists`, `playlist_items`, or `comments`
@@ -53,6 +53,44 @@ cd frontend && npx eslint src/pages/Videos/Videos.tsx --fix
 # Frontend — full build (only when explicitly requested)
 cd frontend && npm run build
 ```
+
+---
+
+### Frontend imports (path aliases)
+
+Use path aliases instead of relative imports. Configured in `vite.config.ts` and `tsconfig.app.json`:
+
+```ts
+// Components
+import { StatCard } from '@components/ui'
+import Videos from '@pages/Videos'
+
+// Hooks & utilities
+import { useAnalyticsDateRange } from '@hooks/useAnalyticsDateRange'
+import { formatWholeNumber } from '@utils/number'
+
+// Types
+import type { AnalyticsRow } from '@types/analytics'
+
+// Shared tabs
+import { InsightsTab } from '@tabs/InsightsTab'
+
+// Assets
+import AnalyticsIcon from '@assets/analytics.svg?react'
+
+// Generic src imports
+import { something } from '@/path/to/file'
+```
+
+**Aliases:**
+- `@/` → `src/`
+- `@components/` → `src/components/`
+- `@pages/` → `src/pages/`
+- `@hooks/` → `src/hooks/`
+- `@utils/` → `src/utils/`
+- `@types/` → `src/types/`
+- `@tabs/` → `src/tabs/`
+- `@assets/` → `src/assets/`
 
 ---
 

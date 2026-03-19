@@ -1,8 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
-import ActionButton from '../../components/ui/navigation/ActionButton'
-import TextInput from '../../components/ui/controls/TextInput'
-import { getStored, setStored } from '../../utils/storage'
-import type { Thumbnail } from '../../types'
+import ActionButton from '@components/ui/navigation/ActionButton'
+import TextInput from '@components/ui/controls/TextInput'
+import { getStored, setStored } from '@utils/storage'
+import type { Thumbnail } from '@types'
 import './ThumbnailUploader.css'
 
 type ThumbnailUploaderProps = {

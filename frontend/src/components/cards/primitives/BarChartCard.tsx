@@ -1,4 +1,4 @@
-import { BarChart, type BarChartBarInfo } from '../../charts'
+import { BarChart, type BarChartBarInfo } from '@components/charts'
 
 type BarChartCardProps = {
   data: number[]

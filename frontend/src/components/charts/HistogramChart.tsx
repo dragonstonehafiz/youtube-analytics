@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { formatDuration } from '../../utils/number'
+import { formatDuration } from '@utils/number'
 import './HistogramChart.css'
 
 type HistogramChartProps = {
