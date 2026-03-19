@@ -12,6 +12,7 @@ import { formatWholeNumber, formatDuration } from '@utils/number'
 import { getStored, setStored } from '@utils/storage'
 import { usePlaylistVideoIds } from '@hooks/usePlaylistVideoIds'
 import { usePlaylistAnalytics } from '@hooks/usePlaylistAnalytics'
+import { useHideVideoTitles, useHideDescription } from '@hooks/usePrivacyMode'
 import type { PlaylistMeta, PlaylistAnalyticsTab, PlaylistViewMode, TabDataSource, DiscoveryDataSource } from '@types'
 import type { TrafficSourceRow } from '@utils/trafficSeries'
 import { PLAYLIST_DETAIL_TABS, parsePlaylistDetailTab, VIEW_MODE_OPTIONS } from './utils'
@@ -41,6 +42,8 @@ function PlaylistDetail() {
   const [videoTrafficRows, setVideoTrafficRows] = useState<TrafficSourceRow[]>([])
   const [previousVideoTrafficRows, setPreviousVideoTrafficRows] = useState<TrafficSourceRow[]>([])
   const videoIds = usePlaylistVideoIds(playlistId)
+  const hideVideoTitles = useHideVideoTitles()
+  const hideDescription = useHideDescription()
 
   const range = rangeValue?.range ?? EMPTY_RANGE
   const previousRange = rangeValue?.previousRange ?? EMPTY_RANGE
@@ -278,8 +281,8 @@ function PlaylistDetail() {
                 <div className="video-detail-meta">
                   <VideoThumbnail url={meta.thumbnail_url} title={meta.title} className="video-detail-thumb" />
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title"><TextLink text={meta.title} /></div>
-                    <Textbox value={meta.description || ''} placeholder="This playlist does not have a description" />
+                    <div className="video-detail-title"><TextLink text={meta.title} hideText={hideVideoTitles} /></div>
+                    <Textbox value={hideDescription ? '' : (meta.description || '')} placeholder="This playlist does not have a description" />
                   </div>
                 </div>
                 <div className="video-detail-grid">

@@ -12,6 +12,7 @@ import CommentsTab from './CommentsTab'
 import { getStored, setStored } from '@utils/storage'
 import { formatDuration } from '@utils/number'
 import { parseVideoDetailTab, VIDEO_DETAIL_TABS } from './utils'
+import { useHideVideoTitles, useHideDescription } from '@hooks/usePrivacyMode'
 import type { VideoDetailTab, VideoMetadata } from '@types'
 import '../shared.css'
 import './VideoDetail.css'
@@ -26,6 +27,8 @@ function VideoDetail() {
   const [error, setError] = useState<string | null>(null)
   const [derivedYears, setDerivedYears] = useState<string[]>([])
   const [rangeValue, setRangeValue] = useState<DateRangeValue | null>(null)
+  const hideVideoTitles = useHideVideoTitles()
+  const hideDescription = useHideDescription()
 
   useEffect(() => {
     async function loadVideo() {
@@ -118,8 +121,8 @@ function VideoDetail() {
                 <div className="video-detail-meta">
                   <VideoThumbnail url={video.thumbnail_url} title={video.title} className="video-detail-thumb" />
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title"><TextLink text={video.title} /></div>
-                    <Textbox value={video.description || ''} placeholder="This video does not have a description" height="250px"/>
+                    <div className="video-detail-title"><TextLink text={video.title} hideText={hideVideoTitles} /></div>
+                    <Textbox value={hideDescription ? '' : (video.description || '')} placeholder="This video does not have a description" height="250px"/>
                   </div>
                 </div>
                 <div className="video-detail-grid">

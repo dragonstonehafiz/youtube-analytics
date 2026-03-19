@@ -288,6 +288,13 @@ def build_playlist_publish_map() -> dict[str, str]:
     return publish_map
 
 
+def _get_video_title(video_id: str) -> str:
+    """Get video title by ID. Returns video_id if not found."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT title FROM videos WHERE id = ?", (video_id,)).fetchone()
+    return row["title"] if row else video_id
+
+
 def sync_video_analytics(
     start_date: str | None = None,
     end_date: str | None = None,
@@ -334,9 +341,10 @@ def sync_video_analytics(
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
             sync_progress.raise_if_stop_requested("Stop requested.")
+            video_title = _get_video_title(video_id)
             sync_progress.format_message(
                 "Video analytics [{current}/{total}] {detail}",
-                detail=f"{segment.start} → {segment.end} [{video_index}/{segment_total}]",
+                detail=f"{video_title} - {segment.start} → {segment.end} [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
@@ -396,9 +404,10 @@ def sync_video_traffic_source(
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
             sync_progress.raise_if_stop_requested("Stop requested.")
+            video_title = _get_video_title(video_id)
             sync_progress.format_message(
                 "Video traffic source [{current}/{total}] {detail}",
-                detail=f"{segment.start} → {segment.end} [{video_index}/{segment_total}]",
+                detail=f"{video_title} - {segment.start} → {segment.end} [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             next_start = find_next_sync_date(latest_by_video.get(video_id), segment.start)
@@ -460,9 +469,10 @@ def sync_video_search_insights(
         segment_total = max(len(segment_videos), 1)
         for video_index, video_id in enumerate(segment_videos, start=1):
             sync_progress.raise_if_stop_requested("Stop requested.")
+            video_title = _get_video_title(video_id)
             sync_progress.format_message(
                 "Video search insights [{current}/{total}] {detail}",
-                detail=f"{segment.start} → {segment.end} [{video_index}/{segment_total}]",
+                detail=f"{video_title} - {segment.start} → {segment.end} [{video_index}/{segment_total}]",
             )
             publish_date = publish_map.get(video_id)
             segment_start = max(segment.start, date_range.start)

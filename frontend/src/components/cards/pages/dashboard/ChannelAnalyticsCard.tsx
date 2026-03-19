@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ActionButton } from '@components/ui'
+import { useHideMonetaryValues } from '@hooks/usePrivacyMode'
 import './ChannelAnalyticsCard.css'
 
 type ChannelSummary = {
@@ -26,6 +27,7 @@ function trendForDelta(delta: number): 'up' | 'down' | 'flat' {
 
 function ChannelAnalyticsCard() {
   const navigate = useNavigate()
+  const hideMonetaryValues = useHideMonetaryValues()
   const [summary, setSummary] = useState<ChannelSummary>({
     subscribers: null,
     subscriberDelta: 0,
@@ -117,7 +119,7 @@ function ChannelAnalyticsCard() {
       <div className="dashboard-channel-metric-row">
         <span>Estimated revenue</span>
         <strong>
-          ${summary.revenue.toFixed(2)}
+          {hideMonetaryValues ? '••••••' : `$${summary.revenue.toFixed(2)}`}
           <span className={`dashboard-metric-arrow dashboard-metric-arrow-${summary.revenueTrend}`} />
         </strong>
       </div>

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
 import { PageCard } from '@components/cards'
 import usePagination from '@hooks/usePagination'
 import { getStored, setStored } from '@utils/storage'
+import { useHideVideoTitles, useHideDescription } from '@hooks/usePrivacyMode'
 import '../shared.css'
 import './Playlists.css'
 
@@ -41,8 +41,9 @@ function Playlists() {
     q: storedFilters?.q ?? '',
     privacy_status: storedFilters?.privacy_status ?? '',
   })
-  const navigate = useNavigate()
   const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total, defaultPageSize: 10 })
+  const hideVideoTitles = useHideVideoTitles()
+  const hideDescription = useHideDescription()
 
   useEffect(() => {
     async function loadPlaylists() {
@@ -188,8 +189,8 @@ function Playlists() {
                     <div className="video-cell">
                       <VideoThumbnail url={playlist.thumbnail_url} title={playlist.title} className="video-thumb" />
                       <div className="video-meta">
-                        <TextLink text={playlist.title} to={`/playlists/${playlist.id}`} className="video-title-button" />
-                        <div className="video-muted playlist-desc">{playlist.description || '-'}</div>
+                        <TextLink text={playlist.title} to={`/playlists/${playlist.id}`} className="video-title-button" hideText={hideVideoTitles} />
+                        <div className="video-muted playlist-desc">{hideDescription ? '-' : (playlist.description || '-')}</div>
                       </div>
                     </div>
                     <span className="video-muted">{playlist.privacy_status ?? '-'}</span>

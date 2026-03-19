@@ -84,6 +84,7 @@ function TrafficSourceTopVideosCard({
                 <span className="traffic-top-rank">{index + 1}</span>
                 <VideoThumbnail url={item.thumbnail_url} title={item.title} className="traffic-top-thumb" />
                 <TextLink text={item.title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="traffic-top-title" />
+
                 <span className="traffic-top-metric">{formatWholeNumber(item.views)}</span>
                 <span className="traffic-top-metric">{formatWholeNumber(Math.round(item.watch_time_minutes / 60))}</span>
               </div>
