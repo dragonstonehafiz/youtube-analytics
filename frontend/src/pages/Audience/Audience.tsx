@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileAvatar, DisplayDate } from '@components/ui'
 import usePagination from '@hooks/usePagination'
 import { getStored, setStored } from '@utils/storage'

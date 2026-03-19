@@ -4,11 +4,11 @@ import {
   ChannelAnalyticsCard,
   CommentsPreviewCard,
   MostActiveAudienceCard,
-  PageCard,
   TrafficSourceShareCard,
   VideoDetailListCard,
   type TrafficSourceShareItem,
 } from '@components/cards'
+import { PageCard } from '@components/ui'
 import '../shared.css'
 import './Dashboard.css'
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PageSizePicker, PageSwitcher } from '@components/ui'
-import { CommentsWordCloudCard, LlmSummaryCard, PageCard } from '@components/cards'
+import { CommentsWordCloudCard, LlmSummaryCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { CommentFilter, type CommentSort } from '@components/features'
 import { CommentThreadItem, type CommentRow } from '@components/tables'
 import usePagination from '@hooks/usePagination'

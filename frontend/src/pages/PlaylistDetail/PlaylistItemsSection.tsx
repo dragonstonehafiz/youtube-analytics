@@ -1,4 +1,4 @@
-import { PageCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { PlaylistItemsTable } from '@components/tables'
 import { PageSizePicker, PageSwitcher } from '@components/ui'
 import { usePlaylistItems } from './usePlaylistItems'

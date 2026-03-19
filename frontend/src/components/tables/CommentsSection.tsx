@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import CommentVideoGroup from './CommentVideoGroup'
-import { PageCard } from '../cards'
+import { PageCard } from '../ui'
 import type { CommentGroup } from '@utils/commentGroups'
 import './CommentsSection.css'
 

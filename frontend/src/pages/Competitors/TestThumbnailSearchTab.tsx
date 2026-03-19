@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PageCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
 import { getStored } from '@utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'

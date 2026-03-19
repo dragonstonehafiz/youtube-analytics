@@ -1,5 +1,5 @@
 import { MetricChartCard, type Granularity, type MetricItem } from '@components/charts'
-import { PageCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 
 type Props = {
   loading: boolean

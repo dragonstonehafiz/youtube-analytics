@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { PageCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { ActionButton, Dropdown } from '@components/ui'
 import '../shared.css'
 import './Settings.css'

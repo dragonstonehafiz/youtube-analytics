@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
-import { PageCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import usePagination from '@hooks/usePagination'
 import { getStored, setStored } from '@utils/storage'
 import { useHideVideoTitles, useHideDescription } from '@hooks/usePrivacyMode'

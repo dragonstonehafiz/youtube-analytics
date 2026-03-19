@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
-import { PageCard, VideoDetailListCard, type VideoDetailListItem } from '@components/cards'
+import { VideoDetailListCard, type VideoDetailListItem } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { TopContentTable, type TopContentItem } from '@components/tables'
 import { formatCurrency, formatWholeNumber } from '@utils/number'
 import { fillDayGaps } from '@utils/date'

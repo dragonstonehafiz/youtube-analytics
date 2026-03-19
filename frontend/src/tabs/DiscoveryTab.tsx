@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
 import {
-  PageCard,
   SearchInsightsTopTermsCard,
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
@@ -10,6 +9,7 @@ import {
   type TrafficSourceShareItem,
   type TrafficSourceOption,
 } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { buildTrafficSeries } from '@utils/trafficSeries'
 import { formatWholeNumber } from '@utils/number'
 import type { DiscoveryDataSource } from '@types'

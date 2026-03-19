@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { DonutChartCard, type DonutChartCardSegment } from '@components/cards/primitives'
+import { DonutChartCard, type DonutChartCardSegment } from '@components/cards/generic-charts'
 import { formatWholeNumber } from '@utils/number'
 
 type TrafficSourceShareItem = {

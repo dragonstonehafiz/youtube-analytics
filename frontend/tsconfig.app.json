@@ -24,6 +24,7 @@
       "@pages/*": ["src/pages/*"],
       "@hooks/*": ["src/hooks/*"],
       "@utils/*": ["src/utils/*"],
+      "@types": ["src/types/index"],
       "@types/*": ["src/types/*"],
       "@tabs/*": ["src/tabs/*"],
       "@assets/*": ["src/assets/*"]

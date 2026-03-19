@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, PageCard, type ContentInsights } from '@components/cards'
+import { ContentInsightsCard, DonutChartCard, HistogramChartCard, BarChartCard, type ContentInsights } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { ScatterChart, type ScatterPoint, type BarChartBarInfo } from '@components/charts'
 import UploadPublishTooltip, { type UploadHoverState } from '@components/charts/UploadPublishTooltip'
 import { formatWholeNumber, formatDuration } from '@utils/number'

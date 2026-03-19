@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
-import { PageCard, EngagementInsightCommentCard, EngagementInsightSubscriberCard, type CommentVideoItem, type SubscriberVideoItem } from '@components/cards'
+import { EngagementInsightCommentCard, EngagementInsightSubscriberCard, type CommentVideoItem, type SubscriberVideoItem } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { formatDuration, formatWholeNumber } from '@utils/number'
 import SpikeTooltipOverlay from '@components/charts/SpikeTooltipOverlay'
 import { useSpikes } from '@hooks/useSpikes'

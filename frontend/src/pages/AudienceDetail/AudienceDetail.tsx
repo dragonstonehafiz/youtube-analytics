@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { CommentVideoGroup, type CommentRow, type CommentThread } from '@components/tables'
-import { PageCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileAvatar, DisplayDate } from '@components/ui'
 import usePagination from '@hooks/usePagination'
 import '../shared.css'

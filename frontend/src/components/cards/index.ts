@@ -1,2 +1,4 @@
-export * from './primitives'
-export * from './pages'
+export * from './generic-charts'
+export * from './analytics'
+export * from './dashboard'
+export * from './comments'

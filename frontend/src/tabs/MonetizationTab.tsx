@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
-import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard } from '@components/cards'
+import { MonetizationContentPerformanceCard, MonetizationEarningsCard } from '@components/cards'
+import { PageCard } from '@components/ui'
 import { formatCurrency, formatWholeNumber } from '@utils/number'
 import { fillDayGaps } from '@utils/date'
 import SpikeTooltipOverlay from '@components/charts/SpikeTooltipOverlay'
