@@ -22,7 +22,7 @@ from src.database.channel_analytics import upsert_channel_analytics
 from src.database.comments import upsert_comments
 from src.database.competitors import upsert_competitor_videos
 from src.database.db import get_connection, ensure_authenticated_channel_in_database
-from src.database.playlist_daily import upsert_playlist_daily_analytics
+from src.database.playlist_analytics import upsert_playlist_analytics
 from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
 from src.database.channel_traffic_sources import upsert_channel_traffic_sources
 from src.database.video_search_insights import upsert_video_search_insights
@@ -689,7 +689,7 @@ def sync_playlist_analytics(
                 playlist_id, query_start, segment.end, publish_date=publish_map.get(playlist_id)
             )
             sync_progress.increment_api_calls(playlist_api_calls)
-            upsert_playlist_daily_analytics(playlist_id, rows)
+            upsert_playlist_analytics(playlist_id, rows)
             latest_by_playlist[playlist_id] = segment.end
             sync_progress.increment()
 

@@ -78,13 +78,13 @@ backend/
   server.py                      # FastAPI entry point
   src/routes/                    # API route handlers by domain
     videos.py, playlists.py, audience.py, comments.py
-    analytics.py, sync.py, stats.py, llm.py
-    helpers.py                   # shared route helpers
+    analytics.py, channel_analytics.py, video_analytics.py, playlist_analytics.py
+    sync.py, stats.py, llm.py, helpers.py
   src/sync.py                    # sync orchestration + stage order
   src/database/                  # DB helpers per table
     schema.sql, db.py
     videos.py, playlists.py, comments.py, audience.py
-    video_analytics.py, channel_analytics.py, playlist_daily.py
+    video_analytics.py, channel_analytics.py, playlist_analytics.py
     traffic_sources.py, video_traffic_source.py, video_search_insights.py
   src/youtube/                   # YouTube API clients
     auth.py, client.py, videos.py, playlists.py
