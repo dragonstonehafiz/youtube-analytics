@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { Route, Routes } from 'react-router-dom'
-import Sidebar from '@components/ui/navigation/Sidebar'
+import { Sidebar } from '@components/ui'
 import Analytics from '@pages/Analytics'
 import Audience from '@pages/Audience'
 import AudienceDetail from '@pages/AudienceDetail'
