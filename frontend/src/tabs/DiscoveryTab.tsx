@@ -32,7 +32,6 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
   const previousTrafficRows = selected?.previousTrafficRows ?? []
   const videoIds = selected?.videoIds ?? []
   const contentType = selected?.contentType
-  const playlistId = selected?.playlistId
   const publishedDates = selected?.publishedDates ?? {}
   const videoIdsKey = videoIds.join(',')
 
@@ -54,7 +53,7 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
         const params = new URLSearchParams({ start_date: range.start, end_date: range.end, traffic_source: trafficTopSource, limit: '10' })
         if (contentType && contentType !== 'all') params.set('content_type', contentType)
         if (videoIds.length > 0) params.set('video_ids', videoIds.join(','))
-        const url = `http://localhost:8000/analytics/video-traffic-source-top-videos?${params.toString()}`
+        const url = `http://localhost:8000/discovery/video/traffic-sources/top-videos?${params.toString()}`
         const response = await fetch(url)
         if (!response.ok) throw new Error(`Failed to load traffic-source videos (${response.status})`)
         const payload = await response.json()
@@ -79,7 +78,7 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
         const params = new URLSearchParams({ start_date: range.start, end_date: range.end })
         if (contentType && contentType !== 'all') params.set('content_type', contentType)
         if (videoIdsKey.length > 0) params.set('video_ids', videoIdsKey)
-        const response = await fetch(`http://localhost:8000/analytics/video-search-insights?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/discovery/video/search-insights?${params.toString()}`)
         if (!response.ok) throw new Error(`Failed to load top search terms (${response.status})`)
         const payload = await response.json()
         const termItems = (Array.isArray(payload?.items) ? payload.items : []) as TopSearchResponseItem[]

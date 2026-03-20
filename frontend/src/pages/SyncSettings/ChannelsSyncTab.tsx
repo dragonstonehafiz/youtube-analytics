@@ -63,7 +63,7 @@ function ChannelsSyncTab({
         }
 
         const enabledIds = enabledChannels.map((c) => c.channel_id).join(',')
-        const url = new URL('http://localhost:8000/sync/channels/estimate')
+        const url = new URL('http://localhost:8000/sync/estimate/channels')
         url.searchParams.set('channel_ids', enabledIds)
 
         const response = await fetch(url)

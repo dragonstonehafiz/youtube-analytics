@@ -73,15 +73,15 @@ export function usePlaylistAnalytics(
       setLoading(true)
       setError(null)
       try {
-        const plBase = `http://localhost:8000/analytics/playlist-analytics?playlist_id=${playlistId}`
+        const plBase = `http://localhost:8000/analytics/playlist/${playlistId}`
         const videoBase =
           videoIds.length > 0
-            ? `http://localhost:8000/analytics/video-analytics?video_ids=${encodeURIComponent(videoIds.join(','))}`
+            ? `http://localhost:8000/analytics/video?video_ids=${encodeURIComponent(videoIds.join(','))}`
             : null
 
         const requests: Promise<Response>[] = [
-          fetch(`${plBase}&start_date=${range.start}&end_date=${range.end}`),
-          fetch(`${plBase}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
+          fetch(`${plBase}?start_date=${range.start}&end_date=${range.end}`),
+          fetch(`${plBase}?start_date=${previousRange.start}&end_date=${previousRange.end}`),
         ]
         if (videoBase) {
           requests.push(fetch(`${videoBase}&start_date=${range.start}&end_date=${range.end}`))

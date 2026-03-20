@@ -131,7 +131,7 @@ function PlaylistDetail() {
     async function loadTraffic() {
       try {
         const idsParam = encodeURIComponent(videoIds.join(','))
-        const vidBase = `http://localhost:8000/analytics/video-traffic-sources?video_ids=${idsParam}`
+        const vidBase = `http://localhost:8000/discovery/video/traffic-sources?video_ids=${idsParam}`
         const [vidCur, vidPrev] = await Promise.all([
           fetch(`${vidBase}&start_date=${range.start}&end_date=${range.end}`),
           fetch(`${vidBase}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
@@ -156,7 +156,7 @@ function PlaylistDetail() {
     const idsParam = `&video_ids=${videoIds.join(',')}`
     async function loadTopContent() {
       try {
-        const response = await fetch(`http://localhost:8000/analytics/top-content?start_date=${start}&end_date=${end}&limit=10${idsParam}`)
+        const response = await fetch(`http://localhost:8000/insights/top-content?start_date=${start}&end_date=${end}&limit=10${idsParam}`)
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
         const transformed = items.map((item: Record<string, unknown>, index: number) => ({
@@ -204,8 +204,8 @@ function PlaylistDetail() {
       try {
         const idsParam = `&video_ids=${encodeURIComponent(videoIds.join(','))}`
         const [longformRes, shortRes] = await Promise.all([
-          fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc${idsParam}`),
-          fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc${idsParam}`),
+          fetch(`http://localhost:8000/insights/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc${idsParam}`),
+          fetch(`http://localhost:8000/insights/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc${idsParam}`),
         ])
         const [longformData, shortData] = await Promise.all([longformRes.json(), shortRes.json()])
         setLatestLongform(mapItems(longformData))

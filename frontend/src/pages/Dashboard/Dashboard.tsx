@@ -36,12 +36,12 @@ function Dashboard() {
         const ninetyDaysAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
         const [longformResponse, shortResponse, trafficResponse] = await Promise.all([
           fetch(
-            `http://localhost:8000/analytics/top-content?start_date=2000-01-01&end_date=${today}&limit=10&content_type=video&sort_by=published_at&direction=desc&privacy_status=public`
+            `http://localhost:8000/insights/top-content?start_date=2000-01-01&end_date=${today}&limit=10&content_type=video&sort_by=published_at&direction=desc&privacy_status=public`
           ),
           fetch(
-            `http://localhost:8000/analytics/top-content?start_date=2000-01-01&end_date=${today}&limit=10&content_type=short&sort_by=published_at&direction=desc&privacy_status=public`
+            `http://localhost:8000/insights/top-content?start_date=2000-01-01&end_date=${today}&limit=10&content_type=short&sort_by=published_at&direction=desc&privacy_status=public`
           ),
-          fetch(`http://localhost:8000/analytics/channel-traffic-sources?start_date=${ninetyDaysAgo}&end_date=${today}`),
+          fetch(`http://localhost:8000/discovery/channel/traffic-sources?start_date=${ninetyDaysAgo}&end_date=${today}`),
         ])
         const [longformData, shortData, trafficData] = await Promise.all([
           longformResponse.json(),

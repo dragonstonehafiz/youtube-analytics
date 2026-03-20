@@ -77,7 +77,7 @@ function DataSyncTab({
       setApiCallsError(null)
       try {
         const params = new URLSearchParams({ pull: pulls.join(',') })
-        const response = await fetch(`http://localhost:8000/sync/data/estimate?${params}`)
+        const response = await fetch(`http://localhost:8000/sync/estimate/data?${params}`)
         if (!response.ok) throw new Error(`Request failed (${response.status})`)
         const data = await response.json()
         if (active) {

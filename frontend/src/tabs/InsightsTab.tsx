@@ -26,7 +26,7 @@ export default function InsightsTab({ range, filterParam, playlistId }: Props) {
       try {
         const urlParams = new URLSearchParams({ start_date: range.start, end_date: range.end, ...filterParam })
         const response = await fetch(
-          `http://localhost:8000/analytics/content-insights?${urlParams}`
+          `http://localhost:8000/insights/content?${urlParams}`
         )
         const data = await response.json()
         setContentInsights(data)

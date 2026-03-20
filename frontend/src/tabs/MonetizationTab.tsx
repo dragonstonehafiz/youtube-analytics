@@ -83,18 +83,18 @@ export default function MonetizationTab({ range, granularity, onOpenVideo, dataS
         const performance: Record<MonetizationContentType, MonetizationPerformance> = { ...EMPTY_PERFORMANCE }
         if (contentType === 'all') {
           const [videoSummaryRes, shortSummaryRes, videoTopRes, shortTopRes] = await Promise.all([
-            fetch(`http://localhost:8000/analytics/video-analytics/summary?start_date=${range.start}&end_date=${range.end}&content_type=video`),
-            fetch(`http://localhost:8000/analytics/video-analytics/summary?start_date=${range.start}&end_date=${range.end}&content_type=short`),
-            fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
-            fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+            fetch(`http://localhost:8000/analytics/video/aggregate?start_date=${range.start}&end_date=${range.end}&content_type=video`),
+            fetch(`http://localhost:8000/analytics/video/aggregate?start_date=${range.start}&end_date=${range.end}&content_type=short`),
+            fetch(`http://localhost:8000/insights/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=video&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+            fetch(`http://localhost:8000/insights/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=short&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
           ])
           const [vs, ss, vt, st] = await Promise.all([videoSummaryRes.json(), shortSummaryRes.json(), videoTopRes.json(), shortTopRes.json()])
           performance.video = mapPerformance(vs, vt)
           performance.short = mapPerformance(ss, st)
         } else {
           const [summaryRes, topRes] = await Promise.all([
-            fetch(`http://localhost:8000/analytics/video-analytics/summary?start_date=${range.start}&end_date=${range.end}&content_type=${contentType}`),
-            fetch(`http://localhost:8000/analytics/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=${contentType}&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
+            fetch(`http://localhost:8000/analytics/video/aggregate?start_date=${range.start}&end_date=${range.end}&content_type=${contentType}`),
+            fetch(`http://localhost:8000/insights/top-content?start_date=${range.start}&end_date=${range.end}&limit=10&content_type=${contentType}&sort_by=estimated_revenue&direction=desc&privacy_status=public`),
           ])
           const [summary, topContent] = await Promise.all([summaryRes.json(), topRes.json()])
           if (contentType === 'video') performance.video = mapPerformance(summary, topContent)

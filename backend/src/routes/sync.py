@@ -13,40 +13,15 @@ from src.sync import (
     ANALYTICS_STAGES,
     DATA_STAGES,
     SyncQueueItem,
-    sync_analytics,
-    sync_data,
-    sync_channels,
+    sync_analytics as _sync_analytics_task,
+    sync_data as _sync_data_task,
+    sync_channels as _sync_channels_task,
     sync_progress,
 )
 from src.utils.logger import get_logger
-from src.youtube.videos import get_channel_info
 
 router = APIRouter()
 _logger = get_logger("sync_routes")
-
-
-@router.get("/health")
-def health() -> dict:
-    """Return basic health status."""
-    return {"ok": True}
-
-
-@router.get("/me")
-def me() -> dict:
-    """Return authenticated channel metadata."""
-    channel = get_channel_info()
-    snippet = channel.get("snippet", {})
-    stats = channel.get("statistics", {})
-    return {
-        "id": channel.get("id"),
-        "title": snippet.get("title"),
-        "description": snippet.get("description"),
-        "published_at": snippet.get("publishedAt"),
-        "country": snippet.get("country"),
-        "views": stats.get("viewCount"),
-        "subscriber_count": stats.get("subscriberCount"),
-        "video_count": stats.get("videoCount"),
-    }
 
 
 class _DataSyncItem(BaseModel):
@@ -73,7 +48,7 @@ class _ChannelsSyncBody(BaseModel):
 
 
 @router.post("/sync/data")
-def sync_data_route(body: _DataSyncBody, background_tasks: BackgroundTasks) -> JSONResponse:
+def sync_data(body: _DataSyncBody, background_tasks: BackgroundTasks) -> JSONResponse:
     """Trigger a YouTube Data API sync.
 
     Each item in ``body.items`` specifies its own stage and deep_sync option.
@@ -93,12 +68,12 @@ def sync_data_route(body: _DataSyncBody, background_tasks: BackgroundTasks) -> J
     if not sync_progress.try_start():
         return JSONResponse(status_code=409, content={"error": "A sync is already running."})
     queue = [SyncQueueItem(stage=i.stage) for i in body.items]
-    background_tasks.add_task(sync_data, queue)
+    background_tasks.add_task(_sync_data_task, queue)
     return JSONResponse(content={"queued": True})
 
 
 @router.post("/sync/analytics")
-def sync_analytics_route(body: _AnalyticsSyncBody, background_tasks: BackgroundTasks) -> JSONResponse:
+def sync_analytics(body: _AnalyticsSyncBody, background_tasks: BackgroundTasks) -> JSONResponse:
     """Trigger a YouTube Analytics API sync.
 
     Each item specifies its own stage and deep_sync option; the shared date range
@@ -126,12 +101,12 @@ def sync_analytics_route(body: _AnalyticsSyncBody, background_tasks: BackgroundT
         )
         for i in body.items
     ]
-    background_tasks.add_task(sync_analytics, queue)
+    background_tasks.add_task(_sync_analytics_task, queue)
     return JSONResponse(content={"queued": True})
 
 
 @router.post("/sync/channels")
-def sync_channels_route(body: _ChannelsSyncBody = None, background_tasks: BackgroundTasks = None) -> JSONResponse:
+def sync_channels(body: _ChannelsSyncBody = None, background_tasks: BackgroundTasks = None) -> JSONResponse:
     """Trigger a channel video sync.
 
     Syncs specified channels from the channels table into videos_competitors table.
@@ -145,12 +120,12 @@ def sync_channels_route(body: _ChannelsSyncBody = None, background_tasks: Backgr
 
     channel_ids = body.channel_ids if body else None
 
-    background_tasks.add_task(sync_channels, channel_ids=channel_ids)
+    background_tasks.add_task(_sync_channels_task, channel_ids=channel_ids)
     return JSONResponse(content={"queued": True})
 
 
-@router.get("/sync/data/estimate")
-def get_data_estimate(
+@router.get("/sync/estimate/data")
+def get_estimate_data(
     pull: str | None = None,
 ) -> JSONResponse:
     """Estimate minimum YouTube Data API v3 calls for selected data pulls.
@@ -173,8 +148,8 @@ def get_data_estimate(
     return JSONResponse(content={"by_pull": by_pull, "total": sum(by_pull.values())})
 
 
-@router.get("/sync/analytics/estimate")
-def get_analytics_estimate(
+@router.get("/sync/estimate/analytics")
+def get_estimate_analytics(
     pull: str | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -203,8 +178,8 @@ def get_analytics_estimate(
     return JSONResponse(content={"by_pull": by_pull, "total": sum(by_pull.values())})
 
 
-@router.get("/sync/channels/estimate")
-def get_channels_estimate(channel_ids: str | None = None) -> JSONResponse:
+@router.get("/sync/estimate/channels")
+def get_estimate_channels(channel_ids: str | None = None) -> JSONResponse:
     """Estimate minimum YouTube Data API v3 calls for channels sync.
 
     Args:
@@ -242,7 +217,7 @@ def stop_sync() -> dict:
 
 
 @router.get("/sync/progress")
-def get_sync_progress_state() -> dict:
+def get_sync_progress() -> dict:
     """Return in-memory sync progress state."""
     return sync_progress.to_dict()
 
