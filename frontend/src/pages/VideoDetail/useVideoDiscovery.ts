@@ -62,8 +62,8 @@ export function useVideoDiscovery(
       setTrafficError(null)
       try {
         const [currentResponse, previousResponse] = await Promise.all([
-          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&video_id=${videoId}`),
-          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&video_id=${videoId}`),
+          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&video_ids=${videoId}`),
+          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&video_ids=${videoId}`),
         ])
         const [currentData, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
         if (!cancelled) {

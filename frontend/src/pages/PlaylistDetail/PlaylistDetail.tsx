@@ -121,7 +121,7 @@ function PlaylistDetail() {
   }, [playlistId, range.start, range.end, rangeValue])
 
   useEffect(() => {
-    if (!rangeValue || !playlistId) {
+    if (!rangeValue || !videoIds || videoIds.length === 0) {
       setPlaylistTrafficRows([]); setPreviousPlaylistTrafficRows([])
       setVideoTrafficRows([]); setPreviousVideoTrafficRows([])
       return
@@ -130,28 +130,17 @@ function PlaylistDetail() {
       items.map((item) => ({ day: String(item?.day ?? ''), traffic_source: String(item?.traffic_source ?? ''), views: Number(item?.views ?? 0), watch_time_minutes: Number(item?.watch_time_minutes ?? 0) }))
     async function loadTraffic() {
       try {
-        const plBase = `http://localhost:8000/analytics/playlist-traffic-sources?playlist_id=${playlistId}`
-        const idsParam = videoIds.length > 0 ? `&video_ids=${encodeURIComponent(videoIds.join(','))}` : ''
-        const vidBase = `http://localhost:8000/analytics/video-traffic-sources?${idsParam}`
-        const [plCur, plPrev, vidCur, vidPrev] = await Promise.all([
-          fetch(`${plBase}&start_date=${range.start}&end_date=${range.end}`),
-          fetch(`${plBase}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
-          ...(videoIds.length > 0 ? [
-            fetch(`${vidBase}&start_date=${range.start}&end_date=${range.end}`),
-            fetch(`${vidBase}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
-          ] : [Promise.resolve(null), Promise.resolve(null)]),
+        const idsParam = encodeURIComponent(videoIds.join(','))
+        const vidBase = `http://localhost:8000/analytics/video-traffic-sources?video_ids=${idsParam}`
+        const [vidCur, vidPrev] = await Promise.all([
+          fetch(`${vidBase}&start_date=${range.start}&end_date=${range.end}`),
+          fetch(`${vidBase}&start_date=${previousRange.start}&end_date=${previousRange.end}`),
         ])
-        const [plCurData, plPrevData] = await Promise.all([plCur.json(), plPrev.json()])
-        setPlaylistTrafficRows(Array.isArray(plCurData?.items) ? toRows(plCurData.items) : [])
-        setPreviousPlaylistTrafficRows(Array.isArray(plPrevData?.items) ? toRows(plPrevData.items) : [])
-        if (vidCur && vidPrev) {
-          const [vidCurData, vidPrevData] = await Promise.all([vidCur.json(), vidPrev.json()])
-          setVideoTrafficRows(Array.isArray(vidCurData?.items) ? toRows(vidCurData.items) : [])
-          setPreviousVideoTrafficRows(Array.isArray(vidPrevData?.items) ? toRows(vidPrevData.items) : [])
-        } else {
-          setVideoTrafficRows([])
-          setPreviousVideoTrafficRows([])
-        }
+        const [vidCurData, vidPrevData] = await Promise.all([vidCur.json(), vidPrev.json()])
+        setVideoTrafficRows(Array.isArray(vidCurData?.items) ? toRows(vidCurData.items) : [])
+        setPreviousVideoTrafficRows(Array.isArray(vidPrevData?.items) ? toRows(vidPrevData.items) : [])
+        setPlaylistTrafficRows([])
+        setPreviousPlaylistTrafficRows([])
       } catch {
         setPlaylistTrafficRows([]); setPreviousPlaylistTrafficRows([])
         setVideoTrafficRows([]); setPreviousVideoTrafficRows([])
@@ -159,7 +148,7 @@ function PlaylistDetail() {
     }
     loadTraffic()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playlistId, rangeValue, range.start, range.end, previousRange.start, previousRange.end, videoIds.join(',')])
+  }, [rangeValue, range.start, range.end, previousRange.start, previousRange.end, videoIds.join(',')])
 
   useEffect(() => {
     if (!rangeValue || videoIds.length === 0) return

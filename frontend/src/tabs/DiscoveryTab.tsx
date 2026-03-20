@@ -47,19 +47,14 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
   useEffect(() => {
     async function loadTopVideosBySource() {
       if (!trafficTopSource) { setTrafficTopVideos([]); setTrafficTopError(null); return }
-      if (!playlistId && !contentType) { setTrafficTopVideos([]); return }
+      if (videoIds.length === 0 && !contentType) { setTrafficTopVideos([]); return }
       setTrafficTopLoading(true)
       setTrafficTopError(null)
       try {
-        let url: string
-        if (playlistId) {
-          const params = new URLSearchParams({ playlist_id: playlistId, start_date: range.start, end_date: range.end, traffic_source: trafficTopSource, limit: '10' })
-          url = `http://localhost:8000/analytics/playlist-video-traffic-source-top-videos?${params.toString()}`
-        } else {
-          const params = new URLSearchParams({ start_date: range.start, end_date: range.end, traffic_source: trafficTopSource, limit: '10' })
-          if (contentType && contentType !== 'all') params.set('content_type', contentType)
-          url = `http://localhost:8000/analytics/video-traffic-source-top-videos?${params.toString()}`
-        }
+        const params = new URLSearchParams({ start_date: range.start, end_date: range.end, traffic_source: trafficTopSource, limit: '10' })
+        if (contentType && contentType !== 'all') params.set('content_type', contentType)
+        if (videoIds.length > 0) params.set('video_ids', videoIds.join(','))
+        const url = `http://localhost:8000/analytics/video-traffic-source-top-videos?${params.toString()}`
         const response = await fetch(url)
         if (!response.ok) throw new Error(`Failed to load traffic-source videos (${response.status})`)
         const payload = await response.json()
@@ -73,7 +68,7 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
       }
     }
     loadTopVideosBySource()
-  }, [range.start, range.end, contentType, playlistId, trafficTopSource])
+  }, [range.start, range.end, contentType, videoIds, trafficTopSource])
 
   useEffect(() => {
     async function loadTopSearchTerms() {
