@@ -218,71 +218,71 @@ function Settings() {
       <div className="page-body">
         <div className="page-row">
           <PageCard>
-            <div className="settings-layout">
-              <div className="settings-section">
-                <div className="llm-settings-header">
-                  <div>
-                    <h2 className="llm-settings-title">
-                      {schema?.title ?? 'Model Configuration'}
-                      <span className={llmStatus === 'loaded' ? 'llm-status-dot llm-status-loaded' : 'llm-status-dot llm-status-not-loaded'} />
-                    </h2>
-                  </div>
-                </div>
-                {loading ? <div className="llm-settings-message">Loading settings…</div> : null}
-                {!loading && error ? <div className="llm-settings-message llm-settings-message-error">{error}</div> : null}
-                {!loading ? (
-                  <div className="llm-settings-form">
-                    {fieldList.map((field) => (
-                      <label className="llm-settings-field" key={field.key}>
-                        <span className="llm-settings-label">{field.label}</span>
-                        {renderField(field)}
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="llm-settings-footer">
-                  <ActionButton label={saving ? 'Saving...' : 'Save settings'} onClick={saveSettings} disabled={loading || saving} variant="primary" />
+            <div className="settings-section">
+              <div className="llm-settings-header">
+                <div>
+                  <h2 className="llm-settings-title">
+                    {schema?.title ?? 'Model Configuration'}
+                    <span className={llmStatus === 'loaded' ? 'llm-status-dot llm-status-loaded' : 'llm-status-dot llm-status-not-loaded'} />
+                  </h2>
                 </div>
               </div>
-
-              <div className="settings-divider" />
-
-              <div className="settings-section">
-                <h2 className="privacy-mode-title">Privacy Settings</h2>
-                <div className="privacy-mode-item">
-                  <label className="privacy-mode-toggle">
-                    <input
-                      type="checkbox"
-                      checked={hideMonetaryValues}
-                      onChange={(e) => setHideMonetaryValues(e.target.checked)}
-                    />
-                    <span className="privacy-mode-label">Hide monetary values</span>
-                  </label>
-                  <label className="privacy-mode-toggle">
-                    <input
-                      type="checkbox"
-                      checked={hideVideoTitles}
-                      onChange={(e) => setHideVideoTitles(e.target.checked)}
-                    />
-                    <span className="privacy-mode-label">Hide video titles</span>
-                  </label>
-                  <label className="privacy-mode-toggle">
-                    <input
-                      type="checkbox"
-                      checked={hideVideoThumbnails}
-                      onChange={(e) => setHideVideoThumbnails(e.target.checked)}
-                    />
-                    <span className="privacy-mode-label">Hide video thumbnails</span>
-                  </label>
-                  <label className="privacy-mode-toggle">
-                    <input
-                      type="checkbox"
-                      checked={hideDescription}
-                      onChange={(e) => setHideDescription(e.target.checked)}
-                    />
-                    <span className="privacy-mode-label">Hide descriptions</span>
-                  </label>
+              {loading ? <div className="llm-settings-message">Loading settings…</div> : null}
+              {!loading && error ? <div className="llm-settings-message llm-settings-message-error">{error}</div> : null}
+              {!loading ? (
+                <div className="llm-settings-form">
+                  {fieldList.map((field) => (
+                    <label className="llm-settings-field" key={field.key}>
+                      <span className="llm-settings-label">{field.label}</span>
+                      {renderField(field)}
+                    </label>
+                  ))}
                 </div>
+              ) : null}
+              <div className="llm-settings-footer">
+                <ActionButton label={saving ? 'Saving...' : 'Save settings'} onClick={saveSettings} disabled={loading || saving} variant="primary" />
+              </div>
+            </div>
+          </PageCard>
+        </div>
+
+        <div className="page-row">
+          <PageCard>
+            <div className="settings-section">
+              <h2 className="privacy-mode-title">Privacy Settings</h2>
+              <div className="privacy-mode-item">
+                <label className="privacy-mode-toggle">
+                  <input
+                    type="checkbox"
+                    checked={hideMonetaryValues}
+                    onChange={(e) => setHideMonetaryValues(e.target.checked)}
+                  />
+                  <span className="privacy-mode-label">Hide monetary values</span>
+                </label>
+                <label className="privacy-mode-toggle">
+                  <input
+                    type="checkbox"
+                    checked={hideVideoTitles}
+                    onChange={(e) => setHideVideoTitles(e.target.checked)}
+                  />
+                  <span className="privacy-mode-label">Hide video titles</span>
+                </label>
+                <label className="privacy-mode-toggle">
+                  <input
+                    type="checkbox"
+                    checked={hideVideoThumbnails}
+                    onChange={(e) => setHideVideoThumbnails(e.target.checked)}
+                  />
+                  <span className="privacy-mode-label">Hide video thumbnails</span>
+                </label>
+                <label className="privacy-mode-toggle">
+                  <input
+                    type="checkbox"
+                    checked={hideDescription}
+                    onChange={(e) => setHideDescription(e.target.checked)}
+                  />
+                  <span className="privacy-mode-label">Hide descriptions</span>
+                </label>
               </div>
             </div>
           </PageCard>
