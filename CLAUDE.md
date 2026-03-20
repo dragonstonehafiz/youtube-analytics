@@ -16,6 +16,7 @@ YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 - use existing UI components before writing custom controls
 - use `MetricChartCard` for all time-series charts; pass raw daily series (it handles aggregation)
 - use `Dropdown` (not native `<select>`) for all dropdowns
+- use HTML `<table>` elements for all data tables — never CSS Grid divs masquerading as tables
 - use `usePagination.ts` hook for shared page-size state
 - use local storage keys namespaced by page (e.g. `videoDetailGranularity`)
 - keep `.method()` on same line as object in Python — no chained calls starting on new lines
