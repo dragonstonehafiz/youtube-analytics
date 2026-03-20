@@ -3,11 +3,10 @@ from __future__ import annotations
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 from googleapiclient.errors import HttpError
 
-from src.helper.sync_dates import (
+from src.utils.sync_dates import (
     build_sync_date_range,
     get_earliest_date,
     find_next_sync_date,
@@ -16,16 +15,16 @@ from src.helper.sync_dates import (
     next_day,
     normalize_iso_datetime_to_date,
 )
-from src.helper.sync_progress import SyncProgress, SyncStopRequested
-from src.database.analytics import upsert_daily_analytics
+from src.utils.sync_progress import SyncProgress, SyncStopRequested
+from src.database.video_analytics import upsert_video_analytics
 from src.database.audience import upsert_audience, upsert_commenters_from_comments
-from src.database.channel_daily import upsert_channel_daily
+from src.database.channel_analytics import upsert_channel_analytics
 from src.database.comments import upsert_comments
 from src.database.competitors import upsert_competitor_videos
 from src.database.db import get_connection, ensure_authenticated_channel_in_database
-from src.database.playlist_daily import upsert_playlist_daily_analytics
+from src.database.playlist_analytics import upsert_playlist_analytics
 from src.database.playlists import delete_playlists_not_in, replace_playlist_items, upsert_playlists
-from src.database.traffic_sources import upsert_traffic_sources
+from src.database.channel_traffic_sources import upsert_channel_traffic_sources
 from src.database.video_search_insights import upsert_video_search_insights
 from src.database.video_traffic_source import upsert_video_traffic_source
 from src.database.videos import list_playlist_video_ids_missing_video_rows, upsert_videos
@@ -353,7 +352,7 @@ def sync_video_analytics(
                 continue
             rows, video_api_calls = fetch_video_daily_metrics(video_id, query_start, segment.end, publish_date=publish_date)
             sync_progress.increment_api_calls(video_api_calls)
-            upsert_daily_analytics(video_id, rows)
+            upsert_video_analytics(video_id, rows)
             latest_by_video[video_id] = segment.end
             sync_progress.increment()
 
@@ -517,7 +516,7 @@ def sync_channel_analytics(
         )
         rows, channel_api_calls = fetch_channel_analytics(segment.start, segment.end)
         sync_progress.increment_api_calls(channel_api_calls)
-        upsert_channel_daily(rows)
+        upsert_channel_analytics(rows)
         sync_progress.increment()
 
 
@@ -551,7 +550,7 @@ def sync_traffic_sources(
         )
         rows, traffic_api_calls = fetch_traffic_sources(segment.start, segment.end)
         sync_progress.increment_api_calls(traffic_api_calls)
-        upsert_traffic_sources(rows)
+        upsert_channel_traffic_sources(rows)
         sync_progress.increment()
 
 
@@ -690,7 +689,7 @@ def sync_playlist_analytics(
                 playlist_id, query_start, segment.end, publish_date=publish_map.get(playlist_id)
             )
             sync_progress.increment_api_calls(playlist_api_calls)
-            upsert_playlist_daily_analytics(playlist_id, rows)
+            upsert_playlist_analytics(playlist_id, rows)
             latest_by_playlist[playlist_id] = segment.end
             sync_progress.increment()
 

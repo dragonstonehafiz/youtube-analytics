@@ -46,8 +46,8 @@ export function useChannelAnalytics(
       try {
         const buildUrl = (start: string, end: string) =>
           contentType === 'all'
-            ? `http://localhost:8000/analytics/channel-daily?start_date=${start}&end_date=${end}`
-            : `http://localhost:8000/analytics/daily/summary?start_date=${start}&end_date=${end}&content_type=${contentType}`
+            ? `http://localhost:8000/analytics/channel?start_date=${start}&end_date=${end}`
+            : `http://localhost:8000/analytics/video/aggregate?start_date=${start}&end_date=${end}&content_type=${contentType}`
         const [currentRes, previousRes] = await Promise.all([
           fetch(buildUrl(range.start, range.end)),
           fetch(buildUrl(previousRange.start, previousRange.end)),

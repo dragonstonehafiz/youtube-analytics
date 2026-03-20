@@ -96,7 +96,7 @@ function ContentInsightsCard({ data, range, playlistId }: ContentInsightsCardPro
       try {
         const playlistParam = playlistId ? `&playlist_id=${playlistId}` : ''
         const response = await fetch(
-          `http://localhost:8000/analytics/content-insights?start_date=${previousRange.start}&end_date=${previousRange.end}${playlistParam}`
+          `http://localhost:8000/insights/content?start_date=${previousRange.start}&end_date=${previousRange.end}${playlistParam}`
         )
         const prevData = await response.json()
         setPreviousData(prevData)

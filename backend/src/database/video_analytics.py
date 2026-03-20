@@ -3,7 +3,7 @@ from __future__ import annotations
 from src.database.db import get_connection
 
 
-def upsert_daily_analytics(video_id: str, rows: list[dict]) -> int:
+def upsert_video_analytics(video_id: str, rows: list[dict]) -> int:
     """Insert or update daily analytics rows for a video."""
     if not rows:
         return 0
@@ -71,6 +71,3 @@ def upsert_daily_analytics(video_id: str, rows: list[dict]) -> int:
         conn.executemany(sql, values)
         conn.commit()
     return len(values)
-
-
-

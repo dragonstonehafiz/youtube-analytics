@@ -57,7 +57,7 @@ export default function EngagementTab({ range, granularity, dataSources, selecte
         const params = new URLSearchParams({ start_date: range.start, end_date: range.end })
         if (contentType && contentType !== 'all') params.set('content_type', contentType)
         if (videoIdsKey.length > 0) params.set('video_ids', videoIdsKey)
-        const response = await fetch(`http://localhost:8000/analytics/engagement-insights?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/insights/engagement?${params.toString()}`)
         if (!response.ok) throw new Error(`Failed to load engagement insights (${response.status})`)
         setEngagementInsights(await response.json())
       } catch {

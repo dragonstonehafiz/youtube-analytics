@@ -52,7 +52,7 @@ function ChannelAnalyticsCard() {
         const previousStart = new Date(previousEnd)
         previousStart.setUTCDate(previousStart.getUTCDate() - 27)
         const response = await fetch(
-            `http://localhost:8000/analytics/channel-card-summary` +
+            `http://localhost:8000/stats/channel-card-summary` +
             `?current_start=${format(currentStart)}&current_end=${format(today)}` +
             `&previous_start=${format(previousStart)}&previous_end=${format(previousEnd)}`
           )

@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from src.database.db import get_connection, row_to_dict
+from src.database.db import get_connection
 from src.routes.helpers import (
-    estimate_min_api_calls_for_table,
-    expected_value_label,
     get_table_row_counts,
     get_table_storage,
-    resolve_table_date_bounds,
 )
 
 router = APIRouter()
@@ -76,58 +73,91 @@ def get_overview_stats() -> dict:
     }
 
 
-@router.get("/stats/table-details")
-def get_table_details(table: str) -> dict:
-    """Return date bounds and column expectations for one table."""
-    if not table:
-        raise HTTPException(status_code=400, detail="Missing table name.")
+@router.get("/stats/years/channel")
+def get_channel_years() -> dict:
+    """Return distinct years present in daily analytics data."""
     with get_connection() as conn:
-        exists_row = conn.execute(
-            "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ? AND name NOT LIKE 'sqlite_%'",
-            (table,),
+        daily_row = conn.execute(
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM video_analytics"
         ).fetchone()
-        if not exists_row:
-            raise HTTPException(status_code=404, detail="Table not found.")
-        info_rows = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
-        columns = [
-            {
-                "name": str(row["name"]),
-                "declared_type": str(row["type"] or "TEXT"),
-                "expected_value": expected_value_label(str(row["name"]), str(row["type"] or ""), int(row["notnull"] or 0)),
-            }
-            for row in info_rows
-        ]
-        bounds = resolve_table_date_bounds(conn, table)
-    return {
-        "table": table,
-        "date_column": bounds["column"],
-        "oldest_item_date": bounds["oldest"],
-        "newest_item_date": bounds["newest"],
-        "columns": columns,
-    }
+        channel_row = conn.execute(
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM channel_analytics"
+        ).fetchone()
+    min_dates = [row["min_date"] for row in (daily_row, channel_row) if row and row["min_date"]]
+    max_dates = [row["max_date"] for row in (daily_row, channel_row) if row and row["max_date"]]
+    if not min_dates or not max_dates:
+        return {"years": []}
+    min_year = int(str(min(min_dates))[:4])
+    max_year = int(str(max(max_dates))[:4])
+    years = [str(year) for year in range(max_year, min_year - 1, -1)]
+    return {"years": years}
 
 
-@router.get("/stats/table-api-calls")
-def get_table_api_calls(
-    table: str,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    deep_sync: bool = False,
+@router.get("/stats/years/video")
+def get_video_years(video_id: str) -> dict:
+    """Return year range for a specific video."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT MIN(date) AS min_date, MAX(date) AS max_date FROM video_analytics WHERE video_id = ?",
+            (video_id,)
+        ).fetchone()
+    if not row or not row["min_date"] or not row["max_date"]:
+        return {"years": []}
+    min_year = int(str(row["min_date"])[:4])
+    max_year = int(str(row["max_date"])[:4])
+    years = [str(year) for year in range(max_year, min_year - 1, -1)]
+    return {"years": years}
+
+
+@router.get("/stats/channel-card-summary")
+def get_channel_card_summary(
+    current_start: str,
+    current_end: str,
+    previous_start: str,
+    previous_end: str,
 ) -> dict:
-    """Estimate minimum Google API calls for a selected table and sync period."""
-    if not table:
-        raise HTTPException(status_code=400, detail="Missing table name.")
+    """Return all data needed by the channel analytics dashboard card in a single query."""
     with get_connection() as conn:
-        exists_row = conn.execute(
-            "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ? AND name NOT LIKE 'sqlite_%'",
-            (table,),
+        row = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN views ELSE 0 END), 0)               AS current_views,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN watch_time_minutes ELSE 0 END), 0)  AS current_watch_time_minutes,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN estimated_revenue ELSE 0 END), 0)   AS current_estimated_revenue,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN subscribers_gained ELSE 0 END), 0)  AS current_subscribers_gained,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN subscribers_lost ELSE 0 END), 0)    AS current_subscribers_lost,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN views ELSE 0 END), 0)               AS previous_views,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN watch_time_minutes ELSE 0 END), 0)  AS previous_watch_time_minutes,
+                COALESCE(SUM(CASE WHEN date >= ? AND date <= ? THEN estimated_revenue ELSE 0 END), 0)   AS previous_estimated_revenue,
+                COALESCE(SUM(subscribers_gained), 0) - COALESCE(SUM(subscribers_lost), 0)              AS subscribers_net
+            FROM channel_analytics
+            WHERE date <= ?
+            """,
+            (
+                current_start, current_end,
+                current_start, current_end,
+                current_start, current_end,
+                current_start, current_end,
+                current_start, current_end,
+                previous_start, previous_end,
+                previous_start, previous_end,
+                previous_start, previous_end,
+                current_end,
+            ),
         ).fetchone()
-        if not exists_row:
-            raise HTTPException(status_code=404, detail="Table not found.")
-        estimate = estimate_min_api_calls_for_table(conn, table, start_date, end_date, deep_sync)
+    r = dict(row) if row else {}
     return {
-        "table": table,
-        "deep_sync": deep_sync,
-        "minimum_api_calls": int(estimate["minimum_api_calls"]),
-        "basis": estimate["basis"],
+        "subscribers_net": r.get("subscribers_net", 0),
+        "current": {
+            "views": r.get("current_views", 0),
+            "watch_time_minutes": r.get("current_watch_time_minutes", 0),
+            "estimated_revenue": r.get("current_estimated_revenue", 0),
+            "subscribers_gained": r.get("current_subscribers_gained", 0),
+            "subscribers_lost": r.get("current_subscribers_lost", 0),
+        },
+        "previous": {
+            "views": r.get("previous_views", 0),
+            "watch_time_minutes": r.get("previous_watch_time_minutes", 0),
+            "estimated_revenue": r.get("previous_estimated_revenue", 0),
+        },
     }

@@ -3,7 +3,7 @@ from __future__ import annotations
 from src.database.db import get_connection
 
 
-def upsert_channel_daily(rows: list[dict]) -> int:
+def upsert_channel_analytics(rows: list[dict]) -> int:
     """Insert or update channel-level daily analytics rows."""
     if not rows:
         return 0

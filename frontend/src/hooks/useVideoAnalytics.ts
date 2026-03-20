@@ -22,7 +22,7 @@ export function normalizeVideoRows(items: unknown[]): VideoDailyRow[] {
 async function fetchVideoDaily(videoIds: string[], start: string, end: string): Promise<VideoDailyRow[]> {
   const csv = encodeURIComponent(videoIds.join(','))
   const res = await fetch(
-    `http://localhost:8000/analytics/video-daily?video_ids=${csv}&start_date=${start}&end_date=${end}`
+    `http://localhost:8000/analytics/video?video_ids=${csv}&start_date=${start}&end_date=${end}`
   )
   if (!res.ok) throw new Error(`Failed to load video analytics (${res.status})`)
   const data = await res.json()

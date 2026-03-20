@@ -3,7 +3,7 @@ from __future__ import annotations
 from src.database.db import get_connection
 
 
-def upsert_playlist_daily_analytics(playlist_id: str, rows: list[dict]) -> int:
+def upsert_playlist_analytics(playlist_id: str, rows: list[dict]) -> int:
     """Insert or update daily playlist analytics rows for a playlist."""
     if not rows:
         return 0

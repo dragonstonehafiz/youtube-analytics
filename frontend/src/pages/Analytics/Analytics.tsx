@@ -104,11 +104,11 @@ function Analytics() {
           items.map((item) => ({ day: String(item?.day ?? ''), traffic_source: String(item?.traffic_source ?? ''), views: Number(item?.views ?? 0), watch_time_minutes: Number(item?.watch_time_minutes ?? 0) }))
         let currentUrl: string, previousUrl: string
         if (contentSelection === 'all') {
-          currentUrl = `http://localhost:8000/analytics/traffic-sources?start_date=${range.start}&end_date=${range.end}`
-          previousUrl = `http://localhost:8000/analytics/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}`
+          currentUrl = `http://localhost:8000/discovery/channel/traffic-sources?start_date=${range.start}&end_date=${range.end}`
+          previousUrl = `http://localhost:8000/discovery/channel/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}`
         } else {
-          currentUrl = `http://localhost:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
-          previousUrl = `http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentSelection}`
+          currentUrl = `http://localhost:8000/discovery/video/traffic-sources?start_date=${range.start}&end_date=${range.end}&content_type=${contentSelection}`
+          previousUrl = `http://localhost:8000/discovery/video/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&content_type=${contentSelection}`
         }
         const [currentRes, previousRes] = await Promise.all([fetch(currentUrl), fetch(previousUrl)])
         const [currentPayload, previousPayload] = await Promise.all([currentRes.json(), previousRes.json()])
@@ -128,7 +128,7 @@ function Analytics() {
     async function loadTopContent() {
       try {
         const contentParam = contentSelection === 'all' ? '' : `&content_type=${contentSelection}`
-        const response = await fetch(`http://localhost:8000/analytics/top-content?start_date=${start}&end_date=${end}&limit=10${contentParam}`)
+        const response = await fetch(`http://localhost:8000/insights/top-content?start_date=${start}&end_date=${end}&limit=10${contentParam}`)
         const data = await response.json()
         const items = Array.isArray(data.items) ? data.items : []
         const transformed = items.map((item: Record<string, unknown>, index: number) => ({
@@ -171,12 +171,12 @@ function Analytics() {
       try {
         const requests: Promise<Response>[] = []
         if (contentSelection === 'all' || contentSelection === 'video') {
-          requests.push(fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc`))
+          requests.push(fetch(`http://localhost:8000/insights/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=video&sort_by=views&direction=desc`))
         } else {
           requests.push(Promise.resolve(new Response(JSON.stringify({ items: [] }))))
         }
         if (contentSelection === 'all' || contentSelection === 'short') {
-          requests.push(fetch(`http://localhost:8000/analytics/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc`))
+          requests.push(fetch(`http://localhost:8000/insights/top-content?start_date=${startDate}&end_date=${end}&limit=10&content_type=short&sort_by=views&direction=desc`))
         } else {
           requests.push(Promise.resolve(new Response(JSON.stringify({ items: [] }))))
         }

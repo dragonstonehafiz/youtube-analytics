@@ -62,8 +62,8 @@ export function useVideoDiscovery(
       setTrafficError(null)
       try {
         const [currentResponse, previousResponse] = await Promise.all([
-          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${range.start}&end_date=${range.end}&video_id=${videoId}`),
-          fetch(`http://localhost:8000/analytics/video-traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&video_id=${videoId}`),
+          fetch(`http://localhost:8000/discovery/video/traffic-sources?start_date=${range.start}&end_date=${range.end}&video_ids=${videoId}`),
+          fetch(`http://localhost:8000/discovery/video/traffic-sources?start_date=${previousRange.start}&end_date=${previousRange.end}&video_ids=${videoId}`),
         ])
         const [currentData, previousData] = await Promise.all([currentResponse.json(), previousResponse.json()])
         if (!cancelled) {
@@ -102,7 +102,7 @@ export function useVideoDiscovery(
       setSearchTopTermsError(null)
       try {
         const params = new URLSearchParams({ start_date: range.start, end_date: range.end, video_ids: currentVideoId })
-        const response = await fetch(`http://localhost:8000/analytics/video-search-insights?${params.toString()}`)
+        const response = await fetch(`http://localhost:8000/discovery/video/search-insights?${params.toString()}`)
         if (!response.ok) throw new Error(`Failed to load top search terms (${response.status})`)
         const payload = await response.json()
         const items = (Array.isArray(payload?.items) ? payload.items : []) as TopSearchResponseItem[]
