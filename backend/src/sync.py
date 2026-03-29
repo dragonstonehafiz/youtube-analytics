@@ -3,6 +3,7 @@ from __future__ import annotations
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
+from math import ceil
 
 from googleapiclient.errors import HttpError
 
@@ -27,7 +28,11 @@ from src.database.playlists import delete_playlists_not_in, replace_playlist_ite
 from src.database.channel_traffic_sources import upsert_channel_traffic_sources
 from src.database.video_search_insights import upsert_video_search_insights
 from src.database.video_traffic_source import upsert_video_traffic_source
-from src.database.videos import list_playlist_video_ids_missing_video_rows, upsert_videos
+from src.database.videos import (
+    list_playlist_video_ids_missing_video_rows, 
+    upsert_videos,
+    remove_deleted_videos,
+)
 from src.youtube.analytics import (
     DateRange,
     chunk_date_range,
@@ -47,9 +52,9 @@ from src.youtube.videos import (
     get_uploads_playlist_id,
     get_channel_uploads_playlist_id,
     get_all_videos,
+    
 )
 from src.utils.logger import get_logger
-from config import settings
 
 sync_progress = SyncProgress()
 sync_logger = get_logger("sync", filename="sync.log")
@@ -124,33 +129,54 @@ def find_next_month_sync_date(latest_date: str | None, fallback_start: str) -> s
 
 def sync_videos() -> None:
     """Sync all video metadata into the database."""
-    sync_progress.set_total(3)
     sync_progress.raise_if_stop_requested("Stop requested.")
     try:
-        api_calls = 1  # For get_uploads_playlist_id
+        # Pre-calculate total expected API calls based on channel metadata
+        with get_connection() as conn:
+            channel_row = conn.execute("SELECT video_count FROM channels WHERE is_own = 1").fetchone()
+            channel_video_count = int(channel_row["video_count"] or 0) if channel_row else 0
+            db_row = conn.execute("SELECT COUNT(*) as count FROM videos").fetchone()
+            db_video_count = int(db_row["count"] or 0) if db_row else 0
+
+        # Estimate total steps:
+        # 1 step for loading uploads playlist
+        # 1 step for finding shorts
+        # ceil(channel_video_count / 50) steps for video details batches
+        # ceil(db_video_count / 50) steps for delete-check batches
+        max_steps = 2 + ceil(channel_video_count / 50) + ceil(db_video_count / 50)
+        sync_progress.set_total(max_steps)
         sync_progress.set_current(0)
+
+        # Load uploads playlist ID
         sync_progress.format_message("Pulling videos [{current}/{total}]: loading uploads")
         uploads_playlist_id = get_uploads_playlist_id()
-        sync_progress.increment_api_calls(api_calls)
+        sync_progress.increment()
 
-        # Fetch shorts upfront so we know which videos are shorts
-        sync_progress.set_current(1)
+        # Fetch shorts
         sync_progress.format_message("Pulling videos [{current}/{total}]: finding all shorts")
-        short_video_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
-        sync_progress.increment_api_calls(fetch_api_calls)
+        short_video_ids, _ = get_short_video_ids(uploads_playlist_id)
+        sync_progress.increment()
 
         # Callback to upsert each batch with shorts info
         def on_batch(batch_videos):
             upsert_videos(batch_videos, short_video_ids=short_video_ids)
 
-        sync_progress.set_current(2)
+        # Pull all videos (progress incremented per details batch)
         sync_progress.format_message("Pulling videos [{current}/{total}]: finding all videos and details")
+        fetch_api_calls = get_all_videos(
+            uploads_playlist_id,
+            on_batch=on_batch,
+            on_progress=sync_progress.increment
+        )
+        sync_progress.increment_api_calls(1 + fetch_api_calls)
 
-        videos, fetch_api_calls = get_all_videos(uploads_playlist_id, on_batch=on_batch)
-        sync_progress.increment_api_calls(fetch_api_calls)
+        # Delete deleted videos (progress incremented per batch check)
+        sync_progress.format_message("Deleting deleted videos [{current}/{total}]")
+        api_calls = remove_deleted_videos(on_progress=sync_progress.increment)
+        sync_progress.increment_api_calls(api_calls)
+
     except HttpError as exc:
         raise RuntimeError(f"YouTube API error: {exc}") from exc
-    sync_progress.increment()
 
 
 def sync_channels(channel_ids: list[str] | None = None) -> None:
@@ -197,8 +223,18 @@ def sync_channels(channel_ids: list[str] | None = None) -> None:
             _finish_sync_run(run_id, "success", api_delta)
             return
 
-        competitor_count = len(enabled_competitors)
-        sync_progress.set_total(competitor_count)
+        # Pre-calculate total steps based on video counts for all competitors
+        total_video_steps = 0
+        with get_connection() as conn:
+            for _, channel_id in enabled_competitors:
+                row = conn.execute(
+                    "SELECT video_count FROM channels WHERE channel_id = ?",
+                    (channel_id,)
+                ).fetchone()
+                video_count = int(row["video_count"] or 0) if row else 0
+                total_video_steps += ceil(video_count / 50)
+
+        sync_progress.set_total(total_video_steps)
         sync_progress.set_current(0)
 
         all_short_ids: set[str] = set()
@@ -210,24 +246,24 @@ def sync_channels(channel_ids: list[str] | None = None) -> None:
             try:
                 # Get uploads playlist ID
                 uploads_playlist_id = get_channel_uploads_playlist_id(channel_id)
-                sync_progress.increment_api_calls(1)
 
                 # Fetch shorts upfront
-                short_ids, fetch_api_calls = get_short_video_ids(uploads_playlist_id)
+                short_ids, _ = get_short_video_ids(uploads_playlist_id)
                 all_short_ids.update(short_ids)
-                sync_progress.increment_api_calls(fetch_api_calls)
 
                 # Callback to upsert each batch with shorts info
                 def on_batch(batch_videos):
                     upsert_competitor_videos(batch_videos, short_video_ids=short_ids)
 
-                # Fetch videos (upserts happen in callback)
-                videos, fetch_api_calls = get_all_videos(uploads_playlist_id, on_batch=on_batch)
-                sync_progress.increment_api_calls(fetch_api_calls)
+                # Fetch videos (progress incremented per details batch)
+                fetch_api_calls = get_all_videos(
+                    uploads_playlist_id,
+                    on_batch=on_batch,
+                    on_progress=sync_progress.increment
+                )
+                sync_progress.increment_api_calls(1 + fetch_api_calls)
             except HttpError as exc:
                 raise RuntimeError(f"YouTube API error for channel {name} ({channel_id}): {exc}") from exc
-
-            sync_progress.increment()
 
         sync_progress.format_message("Syncing competitors [{current}/{total}] complete")
 
