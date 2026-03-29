@@ -140,12 +140,18 @@ function DataSyncTab({
         onRefresh={onRefresh}
       />
       <table className="sync-table">
+        <colgroup>
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '200px' }} />
+          <col style={{ width: '100px' }} />
+          <col style={{ width: '60px' }} />
+        </colgroup>
         <thead>
           <tr>
-            <th className="sync-col-w-200">Table Name</th>
-            <th className="sync-col-w-200">Row Count</th>
-            <th className="sync-col-w-100">Include</th>
-            <th className="sync-col-w-60"></th>
+            <th style={{ textAlign: 'left' }}>Table Name</th>
+            <th style={{ textAlign: 'center' }}>Row Count</th>
+            <th style={{ textAlign: 'center' }}>Include</th>
+            <th style={{ textAlign: 'center' }}></th>
           </tr>
         </thead>
         <tbody>
@@ -155,14 +161,14 @@ function DataSyncTab({
               <tr key={opt.value}>
                 <td className="sync-stage-label">{opt.label}</td>
                 <td className="sync-row-count">{formatWholeNumber(tableRowCounts[opt.value] || 0)} rows</td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     checked={cfg.included}
                     onChange={() => toggleDataConfig(opt.value, 'included')}
                   />
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <ActionButton
                     label={resettingTableName === opt.value ? 'Deleting...' : 'Delete'}
                     onClick={() => onResetTable(opt.value)}

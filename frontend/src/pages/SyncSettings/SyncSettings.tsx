@@ -283,8 +283,8 @@ function SyncSettings() {
         </div>
       </header>
 
-      {tableStorage.length > 0 && (
-        <PageCard title="Storage Usage">
+      <PageCard title="Storage Usage">
+        {tableStorage.length > 0 ? (
           <DonutChartCard
             segments={tableStorage.map((item, index) => {
               const colors = ['#0ea5e9', '#14b8a6', '#f59e0b', '#f97316', '#84cc16', '#22c55e', '#6366f1', '#e11d48']
@@ -300,8 +300,10 @@ function SyncSettings() {
             centerValue={`${(totalStorageBytes / 1024 / 1024).toFixed(1)} MB`}
             ariaLabel="Storage usage by table"
           />
-        </PageCard>
-      )}
+        ) : (
+          <div className="sync-empty">No storage data available.</div>
+        )}
+      </PageCard>
 
       <div className="sync-tab-row">
         <button

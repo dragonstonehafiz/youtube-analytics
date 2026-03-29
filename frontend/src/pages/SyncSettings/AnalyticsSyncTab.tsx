@@ -244,14 +244,22 @@ function AnalyticsSyncTab({
         onRefresh={onRefresh}
       />
       <table className="sync-table">
+        <colgroup>
+          <col style={{ width: '140px' }} />
+          <col style={{ width: '140px' }} />
+          <col style={{ width: '350px' }} />
+          <col style={{ width: '70px' }} />
+          <col style={{ width: '70px' }} />
+          <col style={{ width: '70px' }} />
+        </colgroup>
         <thead>
           <tr>
-            <th className="sync-col-w-120">Table Name</th>
-            <th className="sync-col-w-120">Row Count</th>
-            <th className="sync-col-w-400">Period</th>
-            <th className="sync-col-w-60">Include</th>
-            <th className="sync-col-w-60">Deep Sync</th>
-            <th className="sync-col-w-60"></th>
+            <th style={{ textAlign: 'left' }}>Table Name</th>
+            <th style={{ textAlign: 'center' }}>Row Count</th>
+            <th style={{ textAlign: 'left' }}>Period</th>
+            <th style={{ textAlign: 'center' }}>Include</th>
+            <th style={{ textAlign: 'center' }}>Deep Sync</th>
+            <th style={{ textAlign: 'center' }}></th>
           </tr>
         </thead>
         <tbody>
@@ -262,7 +270,7 @@ function AnalyticsSyncTab({
               <tr key={opt.value}>
                 <td className="sync-stage-label">{opt.label}</td>
                 <td className="sync-row-count">{formatWholeNumber(tableRowCounts[tableName] || 0)} rows</td>
-                <td>
+                <td style={{ textAlign: 'left' }}>
                   {cfg.included ? (
                     <div className="sync-stage-date-controls">
                       <Dropdown
@@ -294,14 +302,14 @@ function AnalyticsSyncTab({
                     </div>
                   ) : null}
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     checked={cfg.included}
                     onChange={() => toggleAnalyticsConfig(opt.value, 'included')}
                   />
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     checked={cfg.deepSync}
@@ -309,7 +317,7 @@ function AnalyticsSyncTab({
                     onChange={() => toggleAnalyticsConfig(opt.value, 'deepSync')}
                   />
                 </td>
-                <td>
+                <td style={{ textAlign: 'center' }}>
                   <ActionButton
                     label={resettingTableName === tableName ? 'Deleting...' : 'Delete'}
                     onClick={() => onResetTable(tableName)}
