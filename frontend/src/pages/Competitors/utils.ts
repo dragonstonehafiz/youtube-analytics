@@ -51,6 +51,8 @@ export function insertThumbnailsAtRandom(
   videos: CompetitorVideoRow[],
   thumbnails: Thumbnail[],
   title: string,
+  channelName: string = 'Your Channel',
+  channelAvatarUrl: string | null = null,
 ): CompetitorVideoRow[] {
   const result = [...videos]
   thumbnails.forEach((thumbnail, index) => {
@@ -58,7 +60,8 @@ export function insertThumbnailsAtRandom(
       id: `user-thumbnail-${index}`,
       title: title || 'Your Video',
       description: null,
-      channel_title: 'Your Channel',
+      channel_title: channelName,
+      channel_avatar_url: channelAvatarUrl,
       published_at: new Date().toISOString(),
       views: 0,
       thumbnail_url: thumbnail.preview,

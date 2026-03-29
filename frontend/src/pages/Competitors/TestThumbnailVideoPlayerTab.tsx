@@ -283,7 +283,12 @@ function TestThumbnailVideoPlayerTab() {
                     </div>
                     <div className="thumbnail-player-sidebar-info">
                       <h4 className="thumbnail-player-sidebar-title">{video.title}</h4>
-                      <p className="thumbnail-player-sidebar-channel">{video.channel_title}</p>
+                      <div className="thumbnail-channel-info">
+                        {video.channel_avatar_url !== undefined && (
+                          <ProfileImage src={video.channel_avatar_url ?? null} name={video.channel_title} size={20} />
+                        )}
+                        <p className="thumbnail-player-sidebar-channel">{video.channel_title}</p>
+                      </div>
                       <p className="thumbnail-player-sidebar-stats">
                         {(video.views ?? 0).toLocaleString()} views • {formatDisplayDate(video.published_at)}
                       </p>

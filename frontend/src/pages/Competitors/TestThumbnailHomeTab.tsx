@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PageCard } from '@components/ui'
+import { PageCard, ProfileImage } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
 import { getStored, setStored } from '@utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
@@ -26,6 +26,8 @@ function TestThumbnailHome() {
   const [allVideos, setAllVideos] = useState<CompetitorVideoRow[]>([])
   const [selectedCategory, setSelectedCategory] = useState(getStored('thumbnailTestCategory', 'all'))
   const [loading, setLoading] = useState(true)
+  const [channelName, setChannelName] = useState<string>('Your Channel')
+  const [channelAvatarUrl, setChannelAvatarUrl] = useState<string | null>(null)
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -59,6 +61,15 @@ function TestThumbnailHome() {
     // Load initial videos on mount only
     const title = getStored('thumbnailTitle', '')
     fetchVideos(title)
+
+    // Fetch channel info
+    fetch('http://localhost:8000/me')
+      .then((res) => res.json())
+      .then((data) => {
+        setChannelName(data.title || 'Your Channel')
+        setChannelAvatarUrl(data.thumbnail_url || null)
+      })
+      .catch((error) => console.error('Failed to load channel info', error))
   }, [fetchVideos])
 
   useEffect(() => {
@@ -76,6 +87,8 @@ function TestThumbnailHome() {
       allRegularVideos,
       thumbnails,
       thumbnailTitle,
+      channelName,
+      channelAvatarUrl,
     )
     const shorts = allShorts
 
@@ -121,7 +134,7 @@ function TestThumbnailHome() {
         content.push(
           <div key={`shorts-${shortIndex}`} className="thumbnail-shorts-grid">
             {shorts.slice(shortIndex, shortIndex + 5).map((video) => (
-              <VideoCard key={video.id} video={video} isShort />
+              <VideoCard key={video.id} video={video} isShort avatarUrl={channelAvatarUrl} channelName={channelName} />
             ))}
           </div>
         )
@@ -130,7 +143,7 @@ function TestThumbnailHome() {
     }
 
     return content
-  }, [allVideos, loading])
+  }, [allVideos, loading, channelName, channelAvatarUrl])
 
   return (
     <div className="page-body">
@@ -176,7 +189,12 @@ function VideoCard({ video, isShort = false }: { video: CompetitorVideoRow; isSh
       <div className="thumbnail-video-info">
         <h3 className="thumbnail-video-title">{video.title}</h3>
         <div className="thumbnail-video-metadata">
-          <span className="thumbnail-channel-name">{video.channel_title ?? 'Unknown'}</span>
+          <div className="thumbnail-channel-info">
+            {video.channel_avatar_url !== undefined && (
+              <ProfileImage src={video.channel_avatar_url ?? null} name={video.channel_title} size={24} />
+            )}
+            <span className="thumbnail-channel-name">{video.channel_title ?? 'Unknown'}</span>
+          </div>
           <div className="thumbnail-video-stats">
             <span>{(video.views ?? 0).toLocaleString()} views</span>
             <span>•</span>

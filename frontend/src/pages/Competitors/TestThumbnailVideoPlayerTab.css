@@ -331,6 +331,16 @@
   overflow: hidden;
 }
 
+.thumbnail-channel-info .thumbnail-player-sidebar-channel {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
 .thumbnail-player-sidebar-channel {
   margin: 0;
   font-size: 11px;

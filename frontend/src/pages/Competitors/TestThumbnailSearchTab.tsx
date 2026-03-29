@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PageCard } from '@components/ui'
+import { PageCard, ProfileImage } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
 import { getStored } from '@utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
@@ -14,6 +14,8 @@ function TestThumbnailSearchTab() {
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState('All')
+  const [channelName, setChannelName] = useState<string>('Your Channel')
+  const [channelAvatarUrl, setChannelAvatarUrl] = useState<string | null>(null)
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -29,6 +31,8 @@ function TestThumbnailSearchTab() {
         allVideos.slice(0, 10),
         thumbnails,
         thumbnailTitle,
+        channelName,
+        channelAvatarUrl,
       )
 
       setVideos(regularVideos)
@@ -38,7 +42,7 @@ function TestThumbnailSearchTab() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [channelName, channelAvatarUrl])
 
 
   const handleGetVideos = useCallback(() => {
@@ -50,6 +54,15 @@ function TestThumbnailSearchTab() {
     // Load initial videos on mount only
     const title = getStored('thumbnailTitle', '')
     fetchVideos(title)
+
+    // Fetch channel info
+    fetch('http://localhost:8000/me')
+      .then((res) => res.json())
+      .then((data) => {
+        setChannelName(data.title || 'Your Channel')
+        setChannelAvatarUrl(data.thumbnail_url || null)
+      })
+      .catch((error) => console.error('Failed to load channel info', error))
   }, [fetchVideos])
 
   // Use competitor videos only
@@ -71,7 +84,12 @@ function TestThumbnailSearchTab() {
       <div className="thumbnail-search-info">
         <h3 className="thumbnail-search-title">{video.title}</h3>
         <div className="thumbnail-search-metadata">
-          <span className="thumbnail-search-channel">{video.channel_title ?? 'Unknown'}</span>
+          <div className="thumbnail-channel-info">
+            {video.channel_avatar_url !== undefined && (
+              <ProfileImage src={video.channel_avatar_url ?? null} name={video.channel_title} size={24} />
+            )}
+            <span className="thumbnail-search-channel">{video.channel_title ?? 'Unknown'}</span>
+          </div>
           <div className="thumbnail-search-stats">
             <span>{(video.views ?? 0).toLocaleString()} views</span>
             <span>•</span>
