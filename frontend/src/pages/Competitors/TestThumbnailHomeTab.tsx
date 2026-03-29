@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard, ProfileImage } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
 import { getStored, setStored } from '@utils/storage'
+import { loadThumbnails } from '@utils/indexedDB'
 import ThumbnailUploader from './ThumbnailUploader'
-import type { CompetitorVideoRow } from '@types'
+import type { CompetitorVideoRow, Thumbnail } from '@types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 
 type Category = {
@@ -22,12 +23,22 @@ const CATEGORIES: Category[] = [
   { id: 'news', label: 'News' },
 ]
 
+// Initialize thumbnails from localStorage for immediate access
+function initThumbnails(): Thumbnail[] {
+  try {
+    return JSON.parse(getStored('thumbnails', '[]') as string)
+  } catch {
+    return []
+  }
+}
+
 function TestThumbnailHome() {
   const [allVideos, setAllVideos] = useState<CompetitorVideoRow[]>([])
   const [selectedCategory, setSelectedCategory] = useState(getStored('thumbnailTestCategory', 'all'))
   const [loading, setLoading] = useState(true)
   const [channelName, setChannelName] = useState<string>('Your Channel')
   const [channelAvatarUrl, setChannelAvatarUrl] = useState<string | null>(null)
+  const [uploadedThumbnails, setUploadedThumbnails] = useState<Thumbnail[]>(initThumbnails())
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -70,6 +81,13 @@ function TestThumbnailHome() {
         setChannelAvatarUrl(data.thumbnail_url || null)
       })
       .catch((error) => console.error('Failed to load channel info', error))
+
+    // Sync thumbnails from IndexedDB (update if different from localStorage)
+    loadThumbnails().then((loaded) => {
+      if (loaded.length > 0 && loaded.length !== uploadedThumbnails.length) {
+        setUploadedThumbnails(loaded)
+      }
+    })
   }, [fetchVideos])
 
   useEffect(() => {
@@ -78,14 +96,13 @@ function TestThumbnailHome() {
 
   // Arrange competitor videos in home layout
   const renderContent = useMemo(() => {
-    const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
     const thumbnailTitle = getStored('thumbnailTitle', '')
     const allRegularVideos = allVideos.filter((v) => v.content_type !== 'short')
     const allShorts = allVideos.filter((v) => v.content_type === 'short')
 
     const regularVideos = insertThumbnailsAtRandom(
       allRegularVideos,
-      thumbnails,
+      uploadedThumbnails,
       thumbnailTitle,
       channelName,
       channelAvatarUrl,
@@ -143,7 +160,7 @@ function TestThumbnailHome() {
     }
 
     return content
-  }, [allVideos, loading, channelName, channelAvatarUrl])
+  }, [allVideos, loading, channelName, channelAvatarUrl, uploadedThumbnails])
 
   return (
     <div className="page-body">

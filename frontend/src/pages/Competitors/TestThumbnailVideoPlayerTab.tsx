@@ -4,8 +4,9 @@ import { ProfileImage } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
 import { formatWholeNumber } from '@utils/number'
 import { getStored } from '@utils/storage'
+import { loadThumbnails } from '@utils/indexedDB'
 import ThumbnailUploader from './ThumbnailUploader'
-import type { CompetitorVideoRow } from '@types'
+import type { CompetitorVideoRow, Thumbnail } from '@types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailVideoPlayerTab.css'
 
@@ -23,6 +24,15 @@ type Comment = {
   author_profile_image_url: string | null
 }
 
+// Initialize thumbnails from localStorage for immediate access
+function initThumbnails(): Thumbnail[] {
+  try {
+    return JSON.parse(getStored('thumbnails', '[]') as string)
+  } catch {
+    return []
+  }
+}
+
 function TestThumbnailVideoPlayerTab() {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
   const [shorts, setShorts] = useState<CompetitorVideoRow[]>([])
@@ -31,6 +41,7 @@ function TestThumbnailVideoPlayerTab() {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
+  const [uploadedThumbnails, setUploadedThumbnails] = useState<Thumbnail[]>(initThumbnails())
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -57,11 +68,10 @@ function TestThumbnailVideoPlayerTab() {
         videoId = selectedVideo.id
       }
 
-      const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
       const thumbnailTitle = getStored('thumbnailTitle', '')
       const regularVideos = insertThumbnailsAtRandom(
         allVideos.slice(0, 20),
-        thumbnails,
+        uploadedThumbnails,
         thumbnailTitle,
       )
 
@@ -108,6 +118,13 @@ function TestThumbnailVideoPlayerTab() {
     // Load initial videos on mount only
     const title = getStored('thumbnailTitle', '')
     fetchVideos(title)
+
+    // Sync thumbnails from IndexedDB (update if different from localStorage)
+    loadThumbnails().then((loaded) => {
+      if (loaded.length > 0 && loaded.length !== uploadedThumbnails.length) {
+        setUploadedThumbnails(loaded)
+      }
+    })
   }, [fetchVideos])
 
   // Use competitor videos only

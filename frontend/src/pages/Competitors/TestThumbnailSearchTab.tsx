@@ -2,12 +2,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard, ProfileImage } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
 import { getStored } from '@utils/storage'
+import { loadThumbnails } from '@utils/indexedDB'
 import ThumbnailUploader from './ThumbnailUploader'
-import type { CompetitorVideoRow } from '@types'
+import type { CompetitorVideoRow, Thumbnail } from '@types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailSearchTab.css'
 
 const FILTER_BUTTONS = ['All', 'Shorts', 'Videos', 'Unwatched', 'Watched', 'Recently uploaded', 'Live']
+
+// Initialize thumbnails from localStorage for immediate access
+function initThumbnails(): Thumbnail[] {
+  try {
+    return JSON.parse(getStored('thumbnails', '[]') as string)
+  } catch {
+    return []
+  }
+}
 
 function TestThumbnailSearchTab() {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
@@ -16,6 +26,7 @@ function TestThumbnailSearchTab() {
   const [activeFilter, setActiveFilter] = useState('All')
   const [channelName, setChannelName] = useState<string>('Your Channel')
   const [channelAvatarUrl, setChannelAvatarUrl] = useState<string | null>(null)
+  const [uploadedThumbnails, setUploadedThumbnails] = useState<Thumbnail[]>(initThumbnails())
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -25,11 +36,10 @@ function TestThumbnailSearchTab() {
       const numShortsToInclude = getStored('numShortsToInclude', '')
       const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 20, numShortsToInclude || 10)
 
-      const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
       const thumbnailTitle = getStored('thumbnailTitle', '')
       const regularVideos = insertThumbnailsAtRandom(
         allVideos.slice(0, 10),
-        thumbnails,
+        uploadedThumbnails,
         thumbnailTitle,
         channelName,
         channelAvatarUrl,
@@ -63,6 +73,13 @@ function TestThumbnailSearchTab() {
         setChannelAvatarUrl(data.thumbnail_url || null)
       })
       .catch((error) => console.error('Failed to load channel info', error))
+
+    // Sync thumbnails from IndexedDB (update if different from localStorage)
+    loadThumbnails().then((loaded) => {
+      if (loaded.length > 0 && loaded.length !== uploadedThumbnails.length) {
+        setUploadedThumbnails(loaded)
+      }
+    })
   }, [fetchVideos])
 
   // Use competitor videos only

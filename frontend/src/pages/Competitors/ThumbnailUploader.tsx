@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import ActionButton from '@components/ui/navigation/ActionButton'
 import TextInput from '@components/ui/controls/TextInput'
 import { getStored, setStored } from '@utils/storage'
+import { saveThumbnails, loadThumbnails } from '@utils/indexedDB'
 import type { Thumbnail } from '@types'
 import './ThumbnailUploader.css'
 
@@ -11,7 +12,7 @@ type ThumbnailUploaderProps = {
 
 function ThumbnailUploader({ onReloadThumbnails }: ThumbnailUploaderProps) {
   const [title, setTitle] = useState(getStored('thumbnailTitle', ''))
-  const [thumbnails, setThumbnails] = useState<Thumbnail[]>(JSON.parse(getStored('thumbnails', '[]') as string))
+  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([])
   const [includeShorts, setIncludeShorts] = useState(getStored<boolean>('includeShorts', false))
   const [numVideosToInclude, setNumVideosToInclude] = useState(getStored('numVideosToInclude', ''))
   const [numShortsToInclude, setNumShortsToInclude] = useState(getStored('numShortsToInclude', ''))
@@ -20,8 +21,20 @@ function ThumbnailUploader({ onReloadThumbnails }: ThumbnailUploaderProps) {
     setStored('thumbnailTitle', title)
   }, [title])
 
+  // Load thumbnails from IndexedDB on mount
   useEffect(() => {
-    setStored('thumbnails', JSON.stringify(thumbnails))
+    loadThumbnails().then((loaded) => {
+      if (loaded.length > 0) {
+        setThumbnails(loaded)
+      }
+    })
+  }, [])
+
+  // Save thumbnails to IndexedDB when they change
+  useEffect(() => {
+    if (thumbnails.length > 0) {
+      saveThumbnails(thumbnails)
+    }
   }, [thumbnails])
 
   useEffect(() => {
