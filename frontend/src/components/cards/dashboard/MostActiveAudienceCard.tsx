@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ActionButton, ProfileAvatar } from '@components/ui'
+import { ActionButton, ProfileImage } from '@components/ui'
 import './MostActiveAudienceCard.css'
 
 type ActiveAudienceItem = {
@@ -53,11 +53,10 @@ function MostActiveAudienceCard() {
           {items.map((item) => (
             <article key={item.channel_id} className="dashboard-active-audience-item">
               <div className="dashboard-active-audience-main">
-                <ProfileAvatar
-                  className="dashboard-active-audience-avatar"
+                <ProfileImage
+                  size={34}
                   src={item.profile_image_url}
                   name={item.display_name}
-                  size={88}
                 />
                 <div className="dashboard-active-audience-content">
                   <Link to={`/audience/${encodeURIComponent(item.channel_id)}`} className="dashboard-active-audience-name">

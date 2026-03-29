@@ -1,4 +1,4 @@
-import { ActionButton, ProfileAvatar, TextLink, DisplayDate } from '@components/ui'
+import { ActionButton, ProfileImage, TextLink, DisplayDate } from '@components/ui'
 import { useHideDescription } from '@hooks/usePrivacyMode'
 import { formatHandle } from '@utils/handle'
 import './CommentThreadItem.css'
@@ -41,11 +41,10 @@ function CommentThreadItem({ thread, videoId }: Props) {
   return (
     <article className="comment-thread-item">
       <div className="comment-thread-row">
-        <ProfileAvatar
-          className="comment-thread-avatar"
+        <ProfileImage
+          size={34}
           src={thread.parent.author_profile_image_url}
           name={thread.parent.author_name}
-          size={88}
         />
         <div className="comment-thread-main">
           <header className="comment-thread-header">

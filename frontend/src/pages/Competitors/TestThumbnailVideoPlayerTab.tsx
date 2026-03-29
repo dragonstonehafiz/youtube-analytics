@@ -153,7 +153,7 @@ function TestThumbnailVideoPlayerTab() {
                     <ProfileImage
                       src={null}
                       name={selectedVideo.channel_title}
-                      className="thumbnail-player-channel-avatar"
+                      size={48}
                       fallbackInitial="C"
                     />
                     <div className="thumbnail-player-channel-info">
@@ -216,7 +216,7 @@ function TestThumbnailVideoPlayerTab() {
                 <ProfileImage
                   src={null}
                   name="You"
-                  className="thumbnail-player-comment-avatar"
+                  size={36}
                   fallbackInitial="U"
                 />
                 <input type="text" placeholder="Add a comment..." />
@@ -228,7 +228,7 @@ function TestThumbnailVideoPlayerTab() {
                     <ProfileImage
                       src={null}
                       name={comment.author}
-                      className="thumbnail-player-comment-avatar"
+                      size={36}
                     />
                     <div className="thumbnail-player-comment-content">
                       <div className="thumbnail-player-comment-header">

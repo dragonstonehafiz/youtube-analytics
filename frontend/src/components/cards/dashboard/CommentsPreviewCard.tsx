@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ActionButton, ProfileAvatar, VideoThumbnail, TextLink } from '@components/ui'
+import { ActionButton, ProfileImage, VideoThumbnail, TextLink } from '@components/ui'
 import { useHideDescription } from '@hooks/usePrivacyMode'
 import { formatHandle } from '@utils/handle'
 import './CommentsPreviewCard.css'
@@ -89,11 +89,10 @@ function CommentsPreviewCard() {
                   disabled={!item.author_channel_id}
                   aria-label="View audience member"
                 >
-                  <ProfileAvatar
-                    className="dashboard-comment-avatar"
+                  <ProfileImage
+                    size={34}
                     src={item.author_profile_image_url}
                     name={item.author_name}
-                    size={88}
                   />
                 </button>
                 <div className="dashboard-comment-content">

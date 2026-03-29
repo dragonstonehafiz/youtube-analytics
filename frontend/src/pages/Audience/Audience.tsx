@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageCard } from '@components/ui'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileAvatar, DisplayDate } from '@components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage, DisplayDate } from '@components/ui'
 import usePagination from '@hooks/usePagination'
 import { getStored, setStored } from '@utils/storage'
 import '../shared.css'
@@ -197,8 +197,8 @@ function Audience() {
                   {rows.map((row) => (
                     <tr key={row.channel_id}>
                       <td className="audience-cell">
-                        <ProfileAvatar
-                          className="audience-avatar"
+                        <ProfileImage
+                          size={34}
                           src={row.profile_image_url}
                           name={row.display_name}
                         />
