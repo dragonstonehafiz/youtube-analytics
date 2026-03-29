@@ -34,18 +34,47 @@ def health() -> dict:
 @router.get("/me")
 def me() -> dict:
     """Return authenticated channel metadata."""
-    channel = get_channel_info()
-    snippet = channel.get("snippet", {})
-    stats = channel.get("statistics", {})
+    # Get own channel from database
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM channels WHERE is_own = 1"
+        ).fetchone()
+        if row:
+            own_channel = row_to_dict(row)
+        else:
+            own_channel = None
+
+    # Fall back to YouTube API if not in database
+    if not own_channel:
+        channel = get_channel_info()
+        snippet = channel.get("snippet", {})
+        stats = channel.get("statistics", {})
+        thumbnails = snippet.get("thumbnails", {})
+        thumbnail_url = (
+            thumbnails.get("high", {}).get("url")
+            or thumbnails.get("medium", {}).get("url")
+            or thumbnails.get("default", {}).get("url")
+        )
+        return {
+            "id": channel.get("id"),
+            "title": snippet.get("title"),
+            "description": snippet.get("description"),
+            "published_at": snippet.get("publishedAt"),
+            "country": snippet.get("country"),
+            "views": stats.get("viewCount"),
+            "subscriber_count": stats.get("subscriberCount"),
+            "video_count": stats.get("videoCount"),
+            "thumbnail_url": thumbnail_url,
+        }
+
     return {
-        "id": channel.get("id"),
-        "title": snippet.get("title"),
-        "description": snippet.get("description"),
-        "published_at": snippet.get("publishedAt"),
-        "country": snippet.get("country"),
-        "views": stats.get("viewCount"),
-        "subscriber_count": stats.get("subscriberCount"),
-        "video_count": stats.get("videoCount"),
+        "id": own_channel.get("channel_id"),
+        "title": own_channel.get("label"),
+        "description": own_channel.get("description"),
+        "views": own_channel.get("view_count"),
+        "subscriber_count": own_channel.get("subscriber_count"),
+        "video_count": own_channel.get("video_count"),
+        "thumbnail_url": own_channel.get("thumbnail_url"),
     }
 
 

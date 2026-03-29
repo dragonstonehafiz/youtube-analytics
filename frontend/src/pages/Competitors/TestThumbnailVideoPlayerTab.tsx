@@ -2,38 +2,26 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard } from '@components/ui'
 import { ProfileImage } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
+import { formatWholeNumber } from '@utils/number'
 import { getStored } from '@utils/storage'
 import ThumbnailUploader from './ThumbnailUploader'
 import type { CompetitorVideoRow } from '@types'
 import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailVideoPlayerTab.css'
 
-const SAMPLE_COMMENT_TEXTS = [
-  'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-  'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-  'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
-  'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum.',
-  'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia.',
-  'Nulla facilisi. Cras non velit nec insit tempor feugiat non magnis.',
-  'Pellentesque habitant morbi tristique senectus et netus et malesuada fames.',
-  'Vestibulum tortor quam, feugiat vitae, ultricies eget, consequat quis.',
-  'Integer posuere erat a ante venenatis dapibus posuere velit aliquet.',
-  'Aenean lacinia bibendum nulla sed consectetur. Praesent commodo cursus magna.',
-  'Vivamus suscipit tortor eget felis porttitor volutpat. Cras ultricies libero.',
-  'Donec sollicitudin molestie malesuada. Nulla porttitor accumsan tincidunt.',
-  'Mauris blandit aliquet elit, eget tincidunt nibh pulvinar a. Sed porttitor.',
-]
-
-const generateSampleComments = () => {
-  return SAMPLE_COMMENT_TEXTS.map((text, idx) => ({
-    author: `User ${idx + 1}`,
-    text,
-    likes: Math.floor(Math.random() * 1000) + 100,
-    timeAgo: ['1 day ago', '2 days ago', '3 days ago', '4 hours ago', '2 hours ago', '6 hours ago', '12 hours ago', '18 hours ago'][idx % 8],
-  }))
+type ChannelInfo = {
+  title: string
+  subscriberCount: string
+  thumbnailUrl: string | null
 }
 
-const SAMPLE_COMMENTS = generateSampleComments()
+type Comment = {
+  author_name: string
+  text_display: string
+  like_count: number
+  published_at: string
+  author_profile_image_url: string | null
+}
 
 function TestThumbnailVideoPlayerTab() {
   const [videos, setVideos] = useState<CompetitorVideoRow[]>([])
@@ -41,6 +29,8 @@ function TestThumbnailVideoPlayerTab() {
   const [selectedVideo, setSelectedVideo] = useState<CompetitorVideoRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
+  const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null)
+  const [comments, setComments] = useState<Comment[]>([])
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -51,16 +41,20 @@ function TestThumbnailVideoPlayerTab() {
       const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 100, numShortsToInclude || 3)
 
       // First, get user's most viewed video if not already loaded
+      let videoId: string | null = null
       if (!selectedVideo) {
         try {
           const myVideoResponse = await fetch('http://localhost:8000/videos?limit=1&sort=views&direction=desc')
           const myVideoData = await myVideoResponse.json()
           if (Array.isArray(myVideoData.items) && myVideoData.items.length > 0) {
             setSelectedVideo(myVideoData.items[0] as CompetitorVideoRow)
+            videoId = myVideoData.items[0].id
           }
         } catch (error) {
           console.error('Failed to load top video', error)
         }
+      } else {
+        videoId = selectedVideo.id
       }
 
       const thumbnails = JSON.parse(getStored('thumbnails', '[]') as string)
@@ -73,6 +67,30 @@ function TestThumbnailVideoPlayerTab() {
 
       setVideos(regularVideos)
       setShorts(shortVideos.slice(0, 3))
+
+      // Fetch channel info
+      try {
+        const meResponse = await fetch('http://localhost:8000/me')
+        const meData = await meResponse.json()
+        setChannelInfo({
+          title: meData.title,
+          subscriberCount: `${formatWholeNumber(meData.subscriber_count)} subscribers`,
+          thumbnailUrl: meData.thumbnail_url,
+        })
+      } catch (error) {
+        console.error('Failed to load channel info', error)
+      }
+
+      // Fetch comments for the selected video
+      if (videoId) {
+        try {
+          const commentsResponse = await fetch(`http://localhost:8000/comments?video_id=${videoId}&limit=20&sort_by=likes&direction=desc`)
+          const commentsData = await commentsResponse.json()
+          setComments(commentsData.items || [])
+        } catch (error) {
+          console.error('Failed to load comments', error)
+        }
+      }
     } catch (error) {
       console.error('Failed to load videos', error)
     } finally {
@@ -151,14 +169,14 @@ function TestThumbnailVideoPlayerTab() {
                 <div className="thumbnail-player-header-row">
                   <div className="thumbnail-player-channel">
                     <ProfileImage
-                      src={null}
-                      name={selectedVideo.channel_title}
+                      src={channelInfo?.thumbnailUrl ?? null}
+                      name={channelInfo?.title}
                       size={48}
                       fallbackInitial="C"
                     />
                     <div className="thumbnail-player-channel-info">
-                      <div className="thumbnail-player-channel-name">{selectedVideo.channel_title || 'Channel Name'}</div>
-                      <div className="thumbnail-player-channel-subs">Placeholder subscribers</div>
+                      <div className="thumbnail-player-channel-name">{channelInfo?.title || 'Channel Name'}</div>
+                      <div className="thumbnail-player-channel-subs">{channelInfo?.subscriberCount || 'Loading...'}</div>
                     </div>
                     <button className="thumbnail-player-action">Bell</button>
                     <button className="thumbnail-player-subscribe">Subscribe</button>
@@ -210,7 +228,7 @@ function TestThumbnailVideoPlayerTab() {
 
             {/* Comments Section */}
             <div className="thumbnail-player-comments">
-              <h3 className="thumbnail-player-comments-title">{SAMPLE_COMMENTS.length} Comments</h3>
+              <h3 className="thumbnail-player-comments-title">{comments.length} Comments</h3>
 
               <div className="thumbnail-player-comment-input">
                 <ProfileImage
@@ -223,21 +241,21 @@ function TestThumbnailVideoPlayerTab() {
               </div>
 
               <div className="thumbnail-player-comments-list">
-                {SAMPLE_COMMENTS.map((comment, idx) => (
+                {comments.map((comment, idx) => (
                   <div key={idx} className="thumbnail-player-comment">
                     <ProfileImage
-                      src={null}
-                      name={comment.author}
+                      src={comment.author_profile_image_url ?? null}
+                      name={comment.author_name}
                       size={36}
                     />
                     <div className="thumbnail-player-comment-content">
                       <div className="thumbnail-player-comment-header">
-                        <span className="thumbnail-player-comment-author">{comment.author}</span>
-                        <span className="thumbnail-player-comment-time">{comment.timeAgo}</span>
+                        <span className="thumbnail-player-comment-author">{comment.author_name}</span>
+                        <span className="thumbnail-player-comment-time">{formatDisplayDate(comment.published_at)}</span>
                       </div>
-                      <p className="thumbnail-player-comment-text">{comment.text}</p>
+                      <p className="thumbnail-player-comment-text">{comment.text_display}</p>
                       <div className="thumbnail-player-comment-actions">
-                        <button>Like {comment.likes}</button>
+                        <button>Like {formatWholeNumber(comment.like_count)}</button>
                         <button>Dislike</button>
                         <button>Reply</button>
                       </div>
