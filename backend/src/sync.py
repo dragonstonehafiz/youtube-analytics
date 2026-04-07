@@ -625,6 +625,13 @@ def sync_audience() -> None:
 
 def sync_playlists() -> None:
     """Sync playlists and playlist items."""
+    ensure_authenticated_channel_in_database()
+    with get_connection() as conn:
+        own_channel_row = conn.execute(
+            "SELECT channel_id FROM channels WHERE is_own = 1 ORDER BY channel_id ASC LIMIT 1"
+        ).fetchone()
+    own_channel_id = str(own_channel_row["channel_id"]) if own_channel_row and own_channel_row["channel_id"] else None
+
     sync_progress.set_total(1)
     sync_progress.set_current(0)
     sync_progress.format_message("Pulling playlists [{current}/{total}] loading playlists")
@@ -655,7 +662,14 @@ def sync_playlists() -> None:
     for index in range(0, len(missing_video_ids), 50):
         sync_progress.raise_if_stop_requested("Stop requested.")
         batch_videos, batch_api_calls = fetch_video_details(missing_video_ids[index : index + 50])
-        recovered_videos.extend(batch_videos)
+        if own_channel_id:
+            recovered_videos.extend(
+                [
+                    video
+                    for video in batch_videos
+                    if str(video.get("snippet", {}).get("channelId") or "") == own_channel_id
+                ]
+            )
         sync_progress.increment_api_calls(batch_api_calls)
     if recovered_videos:
         upsert_videos(recovered_videos)
