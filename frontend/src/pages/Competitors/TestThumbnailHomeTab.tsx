@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard, ProfileImage } from '@components/ui'
-import { formatDisplayDate } from '@utils/date'
 import { getStored, setStored } from '@utils/storage'
 import { loadThumbnails } from '@utils/indexedDB'
 import ThumbnailUploader from './ThumbnailUploader'
 import type { CompetitorVideoRow, Thumbnail } from '@types'
-import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
+import { fetchCompetitorVideoBuckets, formatCompactViewCount, formatRelativeUploadAge, insertThumbnailsAtRandom, shuffleArray } from './utils'
 
 type Category = {
   id: string
@@ -23,7 +22,6 @@ const CATEGORIES: Category[] = [
   { id: 'news', label: 'News' },
 ]
 
-// Initialize thumbnails from localStorage for immediate access
 function initThumbnails(): Thumbnail[] {
   try {
     return JSON.parse(getStored('thumbnails', '[]') as string)
@@ -48,20 +46,16 @@ function TestThumbnailHome() {
       const numShortsToInclude = getStored('numShortsToInclude', '')
       const { videos, shorts } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 24, numShortsToInclude || 10)
 
-      const allVideos = [
+      setAllVideos([
         ...shuffleArray(videos),
         ...shuffleArray(shorts),
-      ]
-
-      setAllVideos(allVideos)
+      ])
     } catch (error) {
       console.error('Failed to load videos', error)
     } finally {
       setLoading(false)
     }
-
   }, [])
-
 
   const handleGetVideos = useCallback(() => {
     const currentTitle = getStored('thumbnailTitle', '')
@@ -69,11 +63,9 @@ function TestThumbnailHome() {
   }, [fetchVideos])
 
   useEffect(() => {
-    // Load initial videos on mount only
     const title = getStored('thumbnailTitle', '')
     fetchVideos(title)
 
-    // Fetch channel info
     fetch('http://localhost:8000/me')
       .then((res) => res.json())
       .then((data) => {
@@ -82,19 +74,17 @@ function TestThumbnailHome() {
       })
       .catch((error) => console.error('Failed to load channel info', error))
 
-    // Sync thumbnails from IndexedDB (update if different from localStorage)
     loadThumbnails().then((loaded) => {
       if (loaded.length > 0 && loaded.length !== uploadedThumbnails.length) {
         setUploadedThumbnails(loaded)
       }
     })
-  }, [fetchVideos])
+  }, [fetchVideos, uploadedThumbnails.length])
 
   useEffect(() => {
     setStored('thumbnailTestCategory', selectedCategory)
   }, [selectedCategory])
 
-  // Arrange competitor videos in home layout
   const renderContent = useMemo(() => {
     const thumbnailTitle = getStored('thumbnailTitle', '')
     const allRegularVideos = allVideos.filter((v) => v.content_type !== 'short')
@@ -121,9 +111,7 @@ function TestThumbnailHome() {
     let videoIndex = 0
     let shortIndex = 0
 
-    // Pattern: 2 rows of 4 videos (8 total) → 5 shorts → repeat
     while (videoIndex < regularVideos.length || shortIndex < shorts.length) {
-      // 2 rows of 4 regular videos
       if (videoIndex < regularVideos.length) {
         content.push(
           <div key={`regular-${videoIndex}`} className="thumbnail-grid">
@@ -146,12 +134,11 @@ function TestThumbnailHome() {
         videoIndex += 4
       }
 
-      // 5 shorts
       if (shortIndex < shorts.length) {
         content.push(
           <div key={`shorts-${shortIndex}`} className="thumbnail-shorts-grid">
             {shorts.slice(shortIndex, shortIndex + 5).map((video) => (
-              <VideoCard key={video.id} video={video} isShort avatarUrl={channelAvatarUrl} channelName={channelName} />
+              <VideoCard key={video.id} video={video} isShort />
             ))}
           </div>
         )
@@ -170,22 +157,22 @@ function TestThumbnailHome() {
       <div className="page-row">
         <PageCard>
           <div className="thumbnail-home-container">
-          <div className="thumbnail-categories-wrapper">
-            <div className="thumbnail-categories">
-              {CATEGORIES.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  className={selectedCategory === category.id ? 'thumbnail-category-button active' : 'thumbnail-category-button'}
-                  onClick={() => setSelectedCategory(category.id)}
-                >
-                  {category.label}
-                </button>
-              ))}
+            <div className="thumbnail-categories-wrapper">
+              <div className="thumbnail-categories">
+                {CATEGORIES.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className={selectedCategory === category.id ? 'thumbnail-category-button active' : 'thumbnail-category-button'}
+                    onClick={() => setSelectedCategory(category.id)}
+                  >
+                    {category.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div className="thumbnail-videos-content">{renderContent}</div>
+            <div className="thumbnail-videos-content">{renderContent}</div>
           </div>
         </PageCard>
       </div>
@@ -213,9 +200,8 @@ function VideoCard({ video, isShort = false }: { video: CompetitorVideoRow; isSh
             <span className="thumbnail-channel-name">{video.channel_title ?? 'Unknown'}</span>
           </div>
           <div className="thumbnail-video-stats">
-            <span>{(video.views ?? 0).toLocaleString()} views</span>
-            <span>•</span>
-            <span>{formatDisplayDate(video.published_at)}</span>
+            <span>{formatCompactViewCount(video.views)} views</span>
+            <span>{formatRelativeUploadAge(video.published_at, { short: true })}</span>
           </div>
         </div>
       </div>

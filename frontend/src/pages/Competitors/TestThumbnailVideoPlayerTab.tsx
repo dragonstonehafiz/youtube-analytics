@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { PageCard } from '@components/ui'
-import { ProfileImage } from '@components/ui'
+import { PageCard, ProfileImage } from '@components/ui'
 import { formatDisplayDate } from '@utils/date'
 import { formatWholeNumber } from '@utils/number'
 import { getStored } from '@utils/storage'
 import { loadThumbnails } from '@utils/indexedDB'
 import ThumbnailUploader from './ThumbnailUploader'
 import type { CompetitorVideoRow, Thumbnail } from '@types'
-import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
+import { fetchCompetitorVideoBuckets, formatCompactViewCount, formatRelativeUploadAge, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailVideoPlayerTab.css'
 
 type ChannelInfo = {
@@ -24,7 +23,75 @@ type Comment = {
   author_profile_image_url: string | null
 }
 
-// Initialize thumbnails from localStorage for immediate access
+const SIDEBAR_FILTERS = ['All', 'From your search', 'From the series', 'Related']
+
+function ThumbsUpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 21h4V9H3v12Zm18-11a2 2 0 0 0-2-2h-6.3l.96-4.58.02-.3c0-.36-.14-.7-.4-.96L12.17 1 6.6 6.58A2 2 0 0 0 6 8v11a2 2 0 0 0 2 2h8.28a2 2 0 0 0 1.9-1.37l2.68-8.03c.09-.2.14-.42.14-.6V10Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ThumbsDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M21 3h-4v12h4V3ZM3 14a2 2 0 0 0 2 2h6.3l-.96 4.58-.02.3c0 .36.14.7.4.96L11.83 23l5.58-5.58A2 2 0 0 0 18 16V5a2 2 0 0 0-2-2H7.72a2 2 0 0 0-1.9 1.37L3.14 12.4c-.09.2-.14.42-.14.6v1Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function HeartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12.1 21.35 10.55 19.94C5.4 15.27 2 12.18 2 8.4 2 5.31 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.31 22 8.4c0 3.78-3.4 6.87-8.55 11.55l-1.35 1.4Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14 5 21 12l-7 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 12H10a5 5 0 0 0-5 5v2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function PromoteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 11v2l10 5V6L3 11Zm10-5 7-2v16l-7-2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function AskIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m12 3 1.7 5.3H19l-4.3 3.1 1.6 5.2L12 13.5 7.7 16.6l1.6-5.2L5 8.3h5.3L12 3Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+    </svg>
+  )
+}
+
+function PlayStatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m8 6 10 6-10 6V6Z" fill="currentColor" />
+    </svg>
+  )
+}
+
 function initThumbnails(): Thumbnail[] {
   try {
     return JSON.parse(getStored('thumbnails', '[]') as string)
@@ -42,6 +109,8 @@ function TestThumbnailVideoPlayerTab() {
   const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
   const [uploadedThumbnails, setUploadedThumbnails] = useState<Thumbnail[]>(initThumbnails())
+  const channelName = channelInfo?.title ?? 'Your Channel'
+  const channelAvatarUrl = channelInfo?.thumbnailUrl ?? null
 
   const fetchVideos = useCallback(async (title: string = '') => {
     try {
@@ -51,7 +120,6 @@ function TestThumbnailVideoPlayerTab() {
       const numShortsToInclude = getStored('numShortsToInclude', '')
       const { videos: allVideos, shorts: shortVideos } = await fetchCompetitorVideoBuckets(title, includeShorts, numVideosToInclude || 100, numShortsToInclude || 3)
 
-      // First, get user's most viewed video if not already loaded
       let videoId: string | null = null
       if (!selectedVideo) {
         try {
@@ -73,12 +141,13 @@ function TestThumbnailVideoPlayerTab() {
         allVideos.slice(0, 20),
         uploadedThumbnails,
         thumbnailTitle,
+        channelName,
+        channelAvatarUrl,
       )
 
       setVideos(regularVideos)
       setShorts(shortVideos.slice(0, 3))
 
-      // Fetch channel info
       try {
         const meResponse = await fetch('http://localhost:8000/me')
         const meData = await meResponse.json()
@@ -91,7 +160,6 @@ function TestThumbnailVideoPlayerTab() {
         console.error('Failed to load channel info', error)
       }
 
-      // Fetch comments for the selected video
       if (videoId) {
         try {
           const commentsResponse = await fetch(`http://localhost:8000/comments?video_id=${videoId}&limit=20&sort_by=likes&direction=desc`)
@@ -106,8 +174,7 @@ function TestThumbnailVideoPlayerTab() {
     } finally {
       setLoading(false)
     }
-  }, [selectedVideo])
-
+  }, [selectedVideo, uploadedThumbnails, channelName, channelAvatarUrl])
 
   const handleGetVideos = useCallback(() => {
     const currentTitle = getStored('thumbnailTitle', '')
@@ -115,40 +182,37 @@ function TestThumbnailVideoPlayerTab() {
   }, [fetchVideos])
 
   useEffect(() => {
-    // Load initial videos on mount only
     const title = getStored('thumbnailTitle', '')
     fetchVideos(title)
 
-    // Sync thumbnails from IndexedDB (update if different from localStorage)
     loadThumbnails().then((loaded) => {
       if (loaded.length > 0 && loaded.length !== uploadedThumbnails.length) {
         setUploadedThumbnails(loaded)
       }
     })
-  }, [fetchVideos])
+  }, [fetchVideos, uploadedThumbnails.length])
 
-  // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
     allVideosCombined: shuffleArray(videos),
     allShortsCombined: shuffleArray(shorts),
   }), [videos, shorts])
 
-  // Build sidebar with videos and shorts
+  const formatCommentAuthor = (authorName: string) => (
+    authorName.startsWith('@') ? authorName : `@${authorName.replace(/\s+/g, '')}`
+  )
+
   const sidebarItems = useMemo(() => {
     const sidebar: { type: string; data: CompetitorVideoRow | CompetitorVideoRow[] }[] = []
     const allItems = [...allVideosCombined]
 
-    // Add first 4 videos
     allItems.slice(0, 4).forEach((video) => {
       sidebar.push({ type: 'video', data: video })
     })
 
-    // Add shorts section after first 4 videos
     if (allShortsCombined.length > 0) {
       sidebar.push({ type: 'shorts-section', data: allShortsCombined })
     }
 
-    // Add remaining videos
     allItems.slice(4).forEach((video) => {
       sidebar.push({ type: 'video', data: video })
     })
@@ -166,177 +230,215 @@ function TestThumbnailVideoPlayerTab() {
           {loading ? (
             <div className="thumbnail-loading">Loading...</div>
           ) : (
-          <div className="thumbnail-player-wrapper">
-          <div className="thumbnail-player-main">
-            {/* Video Player */}
-            <div className="thumbnail-player-video">
-              {selectedVideo?.thumbnail_url ? (
-                <img src={selectedVideo.thumbnail_url} alt={selectedVideo.title} className="thumbnail-player-image" />
-              ) : (
-                <div className="thumbnail-player-placeholder" />
-              )}
-            </div>
+            <div className="thumbnail-player-wrapper">
+              <div className="thumbnail-player-main">
+                <div className="thumbnail-player-video">
+                  {selectedVideo?.thumbnail_url ? (
+                    <img src={selectedVideo.thumbnail_url} alt={selectedVideo.title} className="thumbnail-player-image" />
+                  ) : (
+                    <div className="thumbnail-player-placeholder" />
+                  )}
+                </div>
 
-            {/* Video Info */}
-            {selectedVideo && (
-              <div className="thumbnail-player-info">
-                <h1 className="thumbnail-player-title">{selectedVideo.title}</h1>
+                {selectedVideo && (
+                  <div className="thumbnail-player-info">
+                    <h1 className="thumbnail-player-title">{selectedVideo.title}</h1>
 
-                {/* Channel and Actions Row */}
-                <div className="thumbnail-player-header-row">
-                  <div className="thumbnail-player-channel">
-                    <ProfileImage
-                      src={channelInfo?.thumbnailUrl ?? null}
-                      name={channelInfo?.title}
-                      size={48}
-                      fallbackInitial="C"
-                    />
-                    <div className="thumbnail-player-channel-info">
-                      <div className="thumbnail-player-channel-name">{channelInfo?.title || 'Channel Name'}</div>
-                      <div className="thumbnail-player-channel-subs">{channelInfo?.subscriberCount || 'Loading...'}</div>
+                    <div className="thumbnail-player-header-row">
+                      <div className="thumbnail-player-channel">
+                        <ProfileImage
+                          src={channelInfo?.thumbnailUrl ?? null}
+                          name={channelInfo?.title}
+                          size={48}
+                          fallbackInitial="C"
+                        />
+                        <div className="thumbnail-player-channel-info">
+                          <div className="thumbnail-player-channel-name">{channelInfo?.title || 'Channel Name'}</div>
+                          <div className="thumbnail-player-channel-subs">{channelInfo?.subscriberCount || 'Loading...'}</div>
+                        </div>
+                        <button type="button" className="thumbnail-player-creator-button">Analytics</button>
+                        <button type="button" className="thumbnail-player-creator-button">Edit video</button>
+                      </div>
+
+                      <div className="thumbnail-player-actions">
+                        <div className="thumbnail-player-like-group">
+                          <button type="button" className="thumbnail-player-action thumbnail-player-action-icon-text">
+                            <ThumbsUpIcon />
+                            <span>{formatWholeNumber(selectedVideo.like_count ?? 0)}</span>
+                          </button>
+                          <span className="thumbnail-player-like-divider" />
+                          <button type="button" className="thumbnail-player-action thumbnail-player-action-icon-only" aria-label="Dislike">
+                            <ThumbsDownIcon />
+                          </button>
+                        </div>
+                        <button type="button" className="thumbnail-player-action thumbnail-player-action-icon-text">
+                          <ShareIcon />
+                          <span>Share</span>
+                        </button>
+                        <button type="button" className="thumbnail-player-action thumbnail-player-action-icon-text">
+                          <PromoteIcon />
+                          <span>Promote</span>
+                        </button>
+                        <button type="button" className="thumbnail-player-action thumbnail-player-action-icon-text">
+                          <AskIcon />
+                          <span>Ask</span>
+                        </button>
+                        <button type="button" className="thumbnail-player-action thumbnail-player-action-icon-only" aria-label="More actions">
+                          <MoreIcon />
+                        </button>
+                      </div>
                     </div>
-                    <button className="thumbnail-player-action">Bell</button>
-                    <button className="thumbnail-player-subscribe">Subscribe</button>
+
+                    <div className="thumbnail-player-metadata">
+                      <span>{formatCompactViewCount(selectedVideo.views)} views</span>
+                      <span>{formatRelativeUploadAge(selectedVideo.published_at)}</span>
+                    </div>
+
+                    <div className="thumbnail-player-description-section">
+                      <div className={descriptionExpanded ? 'thumbnail-player-description expanded' : 'thumbnail-player-description'}>
+                        {(selectedVideo.description || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.').split('\n').map((line, idx) => (
+                          <div key={idx}>{line}</div>
+                        ))}
+                      </div>
+                      {!descriptionExpanded && (selectedVideo.description || '').length > 150 && (
+                        <button
+                          className="thumbnail-player-expand-button"
+                          onClick={() => setDescriptionExpanded(true)}
+                        >
+                          ...more
+                        </button>
+                      )}
+                      {descriptionExpanded && (
+                        <button
+                          className="thumbnail-player-expand-button"
+                          onClick={() => setDescriptionExpanded(false)}
+                        >
+                          Show less
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="thumbnail-player-comments">
+                  <h3 className="thumbnail-player-comments-title">{comments.length} Comments</h3>
+
+                  <div className="thumbnail-player-comment-input">
+                    <ProfileImage
+                      src={null}
+                      name="You"
+                      size={36}
+                      fallbackInitial="U"
+                    />
+                    <input type="text" placeholder="Add a comment..." />
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="thumbnail-player-actions">
-                    <button className="thumbnail-player-action">Like</button>
-                    <button className="thumbnail-player-action">Dislike</button>
-                    <button className="thumbnail-player-action">Share</button>
-                    <button className="thumbnail-player-action">Save</button>
-                    <button className="thumbnail-player-action">Clip</button>
-                    <button className="thumbnail-player-action">More</button>
-                  </div>
-                </div>
-
-                <div className="thumbnail-player-metadata">
-                  <span>{(selectedVideo.views ?? 0).toLocaleString()} views</span>
-                  <span>•</span>
-                  <span>{formatDisplayDate(selectedVideo.published_at)}</span>
-                </div>
-
-                {/* Description */}
-                <div className="thumbnail-player-description-section">
-                  <div className={descriptionExpanded ? 'thumbnail-player-description expanded' : 'thumbnail-player-description'}>
-                    {(selectedVideo.description || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.').split('\n').map((line, idx) => (
-                      <div key={idx}>{line}</div>
+                  <div className="thumbnail-player-comments-list">
+                    {comments.map((comment, idx) => (
+                      <div key={idx} className="thumbnail-player-comment">
+                        <ProfileImage
+                          src={comment.author_profile_image_url ?? null}
+                          name={comment.author_name}
+                          size={36}
+                        />
+                        <div className="thumbnail-player-comment-content">
+                          <div className="thumbnail-player-comment-header">
+                            <span className="thumbnail-player-comment-author">{formatCommentAuthor(comment.author_name)}</span>
+                            <span className="thumbnail-player-comment-time">{formatDisplayDate(comment.published_at)}</span>
+                          </div>
+                          <p className="thumbnail-player-comment-text">{comment.text_display}</p>
+                          <div className="thumbnail-player-comment-actions">
+                            <button type="button" className="thumbnail-player-comment-icon-button" aria-label="Like comment">
+                              <ThumbsUpIcon />
+                            </button>
+                            <span className="thumbnail-player-comment-like-count">
+                              {comment.like_count > 0 ? formatWholeNumber(comment.like_count) : ''}
+                            </span>
+                            <button type="button" className="thumbnail-player-comment-icon-button" aria-label="Dislike comment">
+                              <ThumbsDownIcon />
+                            </button>
+                            <button type="button" className="thumbnail-player-comment-icon-button" aria-label="Heart comment">
+                              <HeartIcon />
+                            </button>
+                            <button type="button" className="thumbnail-player-comment-reply">Reply</button>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  {!descriptionExpanded && (selectedVideo.description || '').length > 150 && (
-                    <button
-                      className="thumbnail-player-expand-button"
-                      onClick={() => setDescriptionExpanded(true)}
-                    >
-                      ...more
-                    </button>
-                  )}
-                  {descriptionExpanded && (
-                    <button
-                      className="thumbnail-player-expand-button"
-                      onClick={() => setDescriptionExpanded(false)}
-                    >
-                      Show less
-                    </button>
-                  )}
                 </div>
               </div>
-            )}
 
-            {/* Comments Section */}
-            <div className="thumbnail-player-comments">
-              <h3 className="thumbnail-player-comments-title">{comments.length} Comments</h3>
-
-              <div className="thumbnail-player-comment-input">
-                <ProfileImage
-                  src={null}
-                  name="You"
-                  size={36}
-                  fallbackInitial="U"
-                />
-                <input type="text" placeholder="Add a comment..." />
-              </div>
-
-              <div className="thumbnail-player-comments-list">
-                {comments.map((comment, idx) => (
-                  <div key={idx} className="thumbnail-player-comment">
-                    <ProfileImage
-                      src={comment.author_profile_image_url ?? null}
-                      name={comment.author_name}
-                      size={36}
-                    />
-                    <div className="thumbnail-player-comment-content">
-                      <div className="thumbnail-player-comment-header">
-                        <span className="thumbnail-player-comment-author">{comment.author_name}</span>
-                        <span className="thumbnail-player-comment-time">{formatDisplayDate(comment.published_at)}</span>
+              <div className="thumbnail-player-sidebar">
+                <div className="thumbnail-player-sidebar-filters" aria-label="Recommendation filters">
+                  {SIDEBAR_FILTERS.map((filter, index) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      className={index === 1 ? 'thumbnail-player-sidebar-filter active' : 'thumbnail-player-sidebar-filter'}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                  <button type="button" className="thumbnail-player-sidebar-filter-arrow" aria-label="More filters">
+                    {'>'}
+                  </button>
+                </div>
+                {sidebarItems.map((item, idx) => {
+                  if (item.type === 'video') {
+                    const video = item.data as CompetitorVideoRow
+                    return (
+                      <div key={`video-${idx}`} className="thumbnail-player-sidebar-item">
+                        <div className="thumbnail-player-sidebar-thumbnail">
+                          {video.thumbnail_url ? (
+                            <img src={video.thumbnail_url} alt={video.title} />
+                          ) : (
+                            <div className="thumbnail-player-sidebar-placeholder" />
+                          )}
+                          <span className="thumbnail-player-sidebar-duration">8:09</span>
+                        </div>
+                        <div className="thumbnail-player-sidebar-info">
+                          <h4 className="thumbnail-player-sidebar-title">{video.title}</h4>
+                          <div className="thumbnail-channel-info">
+                            {video.channel_avatar_url !== undefined && (
+                              <ProfileImage src={video.channel_avatar_url ?? null} name={video.channel_title} size={20} />
+                            )}
+                            <p className="thumbnail-player-sidebar-channel">{video.channel_title}</p>
+                          </div>
+                          <div className="thumbnail-player-sidebar-stats">
+                            <PlayStatIcon />
+                            <span>{formatCompactViewCount(video.views)}</span>
+                            <span>{formatRelativeUploadAge(video.published_at, { short: true })}</span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="thumbnail-player-comment-text">{comment.text_display}</p>
-                      <div className="thumbnail-player-comment-actions">
-                        <button>Like {formatWholeNumber(comment.like_count)}</button>
-                        <button>Dislike</button>
-                        <button>Reply</button>
+                    )
+                  }
+                  if (item.type === 'shorts-section') {
+                    const shortsData = item.data as CompetitorVideoRow[]
+                    return (
+                      <div key="shorts-section" className="thumbnail-player-shorts-section">
+                        <div className="thumbnail-player-shorts-grid">
+                          {shortsData.map((short) => (
+                            <div key={short.id} className="thumbnail-player-short">
+                              <div className="thumbnail-player-short-image">
+                                {short.thumbnail_url ? (
+                                  <img src={short.thumbnail_url} alt={short.title} />
+                                ) : (
+                                  <div className="thumbnail-player-sidebar-placeholder" />
+                                )}
+                              </div>
+                              <p className="thumbnail-player-short-title">{short.title}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    )
+                  }
+                  return null
+                })}
               </div>
             </div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="thumbnail-player-sidebar">
-            {sidebarItems.map((item, idx) => {
-              if (item.type === 'video') {
-                const video = item.data as CompetitorVideoRow
-                return (
-                  <div key={`video-${idx}`} className="thumbnail-player-sidebar-item">
-                    <div className="thumbnail-player-sidebar-thumbnail">
-                      {video.thumbnail_url ? (
-                        <img src={video.thumbnail_url} alt={video.title} />
-                      ) : (
-                        <div className="thumbnail-player-sidebar-placeholder" />
-                      )}
-                      <span className="thumbnail-player-sidebar-duration">8:09</span>
-                    </div>
-                    <div className="thumbnail-player-sidebar-info">
-                      <h4 className="thumbnail-player-sidebar-title">{video.title}</h4>
-                      <div className="thumbnail-channel-info">
-                        {video.channel_avatar_url !== undefined && (
-                          <ProfileImage src={video.channel_avatar_url ?? null} name={video.channel_title} size={20} />
-                        )}
-                        <p className="thumbnail-player-sidebar-channel">{video.channel_title}</p>
-                      </div>
-                      <p className="thumbnail-player-sidebar-stats">
-                        {(video.views ?? 0).toLocaleString()} views • {formatDisplayDate(video.published_at)}
-                      </p>
-                    </div>
-                  </div>
-                )
-              } else if (item.type === 'shorts-section') {
-                const shortsData = item.data as CompetitorVideoRow[]
-                return (
-                  <div key="shorts-section" className="thumbnail-player-shorts-section">
-                    <div className="thumbnail-player-shorts-grid">
-                      {shortsData.map((short) => (
-                        <div key={short.id} className="thumbnail-player-short">
-                          <div className="thumbnail-player-short-image">
-                            {short.thumbnail_url ? (
-                              <img src={short.thumbnail_url} alt={short.title} />
-                            ) : (
-                              <div className="thumbnail-player-sidebar-placeholder" />
-                            )}
-                          </div>
-                          <p className="thumbnail-player-short-title">{short.title}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              }
-              return null
-            })}
-          </div>
-        </div>
           )}
         </PageCard>
       </div>

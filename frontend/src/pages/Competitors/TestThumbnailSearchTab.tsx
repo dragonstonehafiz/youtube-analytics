@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PageCard, ProfileImage } from '@components/ui'
-import { formatDisplayDate } from '@utils/date'
 import { getStored } from '@utils/storage'
 import { loadThumbnails } from '@utils/indexedDB'
 import ThumbnailUploader from './ThumbnailUploader'
 import type { CompetitorVideoRow, Thumbnail } from '@types'
-import { fetchCompetitorVideoBuckets, insertThumbnailsAtRandom, shuffleArray } from './utils'
+import { fetchCompetitorVideoBuckets, formatCompactViewCount, formatRelativeUploadAge, insertThumbnailsAtRandom, shuffleArray } from './utils'
 import './TestThumbnailSearchTab.css'
 
 const FILTER_BUTTONS = ['All', 'Shorts', 'Videos', 'Unwatched', 'Watched', 'Recently uploaded', 'Live']
 
-// Initialize thumbnails from localStorage for immediate access
 function initThumbnails(): Thumbnail[] {
   try {
     return JSON.parse(getStored('thumbnails', '[]') as string)
@@ -52,8 +50,7 @@ function TestThumbnailSearchTab() {
     } finally {
       setLoading(false)
     }
-  }, [channelName, channelAvatarUrl])
-
+  }, [channelName, channelAvatarUrl, uploadedThumbnails])
 
   const handleGetVideos = useCallback(() => {
     const currentTitle = getStored('thumbnailTitle', '')
@@ -61,11 +58,9 @@ function TestThumbnailSearchTab() {
   }, [fetchVideos])
 
   useEffect(() => {
-    // Load initial videos on mount only
     const title = getStored('thumbnailTitle', '')
     fetchVideos(title)
 
-    // Fetch channel info
     fetch('http://localhost:8000/me')
       .then((res) => res.json())
       .then((data) => {
@@ -74,15 +69,13 @@ function TestThumbnailSearchTab() {
       })
       .catch((error) => console.error('Failed to load channel info', error))
 
-    // Sync thumbnails from IndexedDB (update if different from localStorage)
     loadThumbnails().then((loaded) => {
       if (loaded.length > 0 && loaded.length !== uploadedThumbnails.length) {
         setUploadedThumbnails(loaded)
       }
     })
-  }, [fetchVideos])
+  }, [fetchVideos, uploadedThumbnails.length])
 
-  // Use competitor videos only
   const { allVideosCombined, allShortsCombined } = useMemo(() => ({
     allVideosCombined: shuffleArray(videos),
     allShortsCombined: shuffleArray(shorts),
@@ -108,9 +101,8 @@ function TestThumbnailSearchTab() {
             <span className="thumbnail-search-channel">{video.channel_title ?? 'Unknown'}</span>
           </div>
           <div className="thumbnail-search-stats">
-            <span>{(video.views ?? 0).toLocaleString()} views</span>
-            <span>•</span>
-            <span>{formatDisplayDate(video.published_at)}</span>
+            <span>{formatCompactViewCount(video.views)} views</span>
+            <span>{formatRelativeUploadAge(video.published_at, { short: true })}</span>
           </div>
         </div>
         {video.description && <p className="thumbnail-search-description">{video.description}</p>}
@@ -118,13 +110,14 @@ function TestThumbnailSearchTab() {
     </div>
   )
 
-  // Combine filtered results
   const getFilteredResults = () => {
     if (activeFilter === 'All') {
       return [...allVideosCombined, ...allShortsCombined]
-    } else if (activeFilter === 'Videos') {
+    }
+    if (activeFilter === 'Videos') {
       return allVideosCombined
-    } else if (activeFilter === 'Shorts') {
+    }
+    if (activeFilter === 'Shorts') {
       return allShortsCombined
     }
     return []
@@ -140,28 +133,26 @@ function TestThumbnailSearchTab() {
       <div className="page-row">
         <PageCard>
           <div className="thumbnail-search-container">
-          {loading && <div className="thumbnail-loading">Loading search results...</div>}
+            {loading && <div className="thumbnail-loading">Loading search results...</div>}
 
-          {/* Filter Buttons */}
-          <div className="thumbnail-search-filters">
-            {FILTER_BUTTONS.map((filter) => (
-              <button
-                key={filter}
-                type="button"
-                className={activeFilter === filter ? 'thumbnail-search-filter active' : 'thumbnail-search-filter'}
-                onClick={() => setActiveFilter(filter)}
-              >
-                {filter}
-              </button>
-            ))}
-          </div>
+            <div className="thumbnail-search-filters">
+              {FILTER_BUTTONS.map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  className={activeFilter === filter ? 'thumbnail-search-filter active' : 'thumbnail-search-filter'}
+                  onClick={() => setActiveFilter(filter)}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
 
-          {/* Results */}
-          {filteredResults.length > 0 ? (
-            <div className="thumbnail-search-section">{filteredResults.map(renderVideo)}</div>
-          ) : (
-            !loading && <div className="thumbnail-loading">No results found for this filter.</div>
-          )}
+            {filteredResults.length > 0 ? (
+              <div className="thumbnail-search-section">{filteredResults.map(renderVideo)}</div>
+            ) : (
+              !loading && <div className="thumbnail-loading">No results found for this filter.</div>
+            )}
           </div>
         </PageCard>
       </div>

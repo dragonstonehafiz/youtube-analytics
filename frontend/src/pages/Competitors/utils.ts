@@ -72,3 +72,50 @@ export function insertThumbnailsAtRandom(
   })
   return result
 }
+
+export function formatCompactViewCount(views: number | null | undefined): string {
+  const value = Math.max(0, Number(views ?? 0))
+  if (value >= 1000000000) {
+    return `${(value / 1000000000).toFixed(1).replace(/\.0$/, '')}B`
+  }
+  if (value >= 1000000) {
+    return `${(value / 1000000).toFixed(1).replace(/\.0$/, '')}M`
+  }
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(0)}K`
+  }
+  return value.toLocaleString()
+}
+
+export function formatRelativeUploadAge(
+  publishedAt: string | null | undefined,
+  options: { short?: boolean } = {},
+): string {
+  if (!publishedAt) {
+    return ''
+  }
+  const published = new Date(publishedAt)
+  if (Number.isNaN(published.getTime())) {
+    return ''
+  }
+  const now = new Date()
+  const diffMs = Math.max(0, now.getTime() - published.getTime())
+  const dayMs = 24 * 60 * 60 * 1000
+  const days = Math.floor(diffMs / dayMs)
+  const short = options.short === true
+
+  if (days < 1) {
+    return short ? 'today' : 'today'
+  }
+  if (days < 30) {
+    return short ? `${days}d ago` : `${days} day${days === 1 ? '' : 's'} ago`
+  }
+
+  const months = Math.floor(days / 30)
+  if (months < 12) {
+    return short ? `${months}mo ago` : `${months} month${months === 1 ? '' : 's'} ago`
+  }
+
+  const years = Math.floor(days / 365)
+  return short ? `${years}y ago` : `${years} year${years === 1 ? '' : 's'} ago`
+}
