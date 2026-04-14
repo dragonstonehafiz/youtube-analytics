@@ -6,6 +6,12 @@ YouTube analytics dashboard — FastAPI + React/TypeScript + SQLite.
 YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 ```
 
+**Import path rules:**
+- prefer alias imports over relative imports
+- deep alias imports are allowed when they are shorter or clearer than going through a barrel
+- barrel imports are optional, not required
+- use the shortest clear import path; do not expand imports just to force barrel usage
+
 ---
 
 ### Do
@@ -20,7 +26,7 @@ YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 - use `usePagination.ts` hook for shared page-size state
 - use local storage keys namespaced by page (e.g. `videoDetailGranularity`)
 - keep `.method()` on same line as object in Python — no chained calls starting on new lines
-- keep CSS in colocated `.css` files; no inline styles
+- keep CSS in colocated `.css` files; inline styles are allowed when they are the pragmatic fit (for dynamic sizing/positioning, SVG/chart geometry, or cases where a class-only approach would add noise)
 - import `../shared.css` in every page component before the page-specific CSS
 - use path aliases for imports: `@components/`, `@pages/`, `@hooks/`, `@utils/`, `@types/`, `@tabs/`, `@assets/` (see Frontend imports below)
 
@@ -59,7 +65,7 @@ cd frontend && npm run build
 
 ### Frontend imports (path aliases)
 
-Use path aliases instead of relative imports. Configured in `vite.config.ts` and `tsconfig.app.json`:
+Use path aliases instead of relative imports. Prefer aliases because they are shorter, easier to scan, and reduce import line length. Configured in `vite.config.ts` and `tsconfig.app.json`:
 
 ```ts
 // Components
@@ -267,9 +273,13 @@ frontend/
 - sync stage → any stage function in `backend/src/sync.py`
 - API route → `backend/src/routes/analytics.py`
 
+### Data fetching guidance
+- direct `fetch()` inside a component or tab is allowed when the data is local to that unit
+- when the same dataset is needed by multiple child components, fetch once in the parent/page and pass it down to avoid duplicate requests and duplicated state
+- prefer shared hooks or parent-owned loading only when it reduces repeated pulling of the same data
+
 ### Don't copy
-- any inline `style={{}}` usage — use colocated CSS instead
-- direct `fetch()` in components — call from the page component and pass data down
+- duplicate requests for the same shared dataset across sibling components or tabs
 
 ---
 
