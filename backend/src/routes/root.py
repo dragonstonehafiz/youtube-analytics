@@ -21,6 +21,12 @@ def me() -> dict:
     channel = get_channel_info()
     snippet = channel.get("snippet", {})
     stats = channel.get("statistics", {})
+    thumbnails = snippet.get("thumbnails", {})
+    thumbnail_url = (
+        thumbnails.get("high", {}).get("url")
+        or thumbnails.get("medium", {}).get("url")
+        or thumbnails.get("default", {}).get("url")
+    )
     return {
         "id": channel.get("id"),
         "title": snippet.get("title"),
@@ -30,4 +36,5 @@ def me() -> dict:
         "views": stats.get("viewCount"),
         "subscriber_count": stats.get("subscriberCount"),
         "video_count": stats.get("videoCount"),
+        "thumbnail_url": thumbnail_url,
     }
