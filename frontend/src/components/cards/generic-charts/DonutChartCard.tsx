@@ -64,7 +64,7 @@ function DonutChartCard({ segments, centerLabel, centerValue, ariaLabel, size = 
                   <div className="donut-chart-card-bar-wrap">
                     <RatioBar length="100%" color={segment.color} ratio={percent} />
                   </div>
-                  <span className="donut-chart-card-value">{segment.displayValue}</span>
+                  <span className="donut-chart-card-value">{percent.toFixed(1)}%</span>
                 </div>
               )
             })}

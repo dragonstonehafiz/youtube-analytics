@@ -8,12 +8,10 @@ type Props = {
 }
 
 export default function PlaylistItemsSection({ playlistId }: Props) {
-  const { items, loadingItems, errorItems, sortBy, direction, page, setPage, pageSize, setPageSize, totalPages, toggleSort } = usePlaylistItems(playlistId)
+  const { items, errorItems, sortBy, direction, page, setPage, pageSize, setPageSize, totalPages, toggleSort } = usePlaylistItems(playlistId)
   return (
     <PageCard>
-      {loadingItems ? (
-        <div className="video-detail-state">Loading playlist items...</div>
-      ) : errorItems ? (
+      {errorItems ? (
         <div className="video-detail-state">{errorItems}</div>
       ) : (
         <PlaylistItemsTable items={items} sortBy={sortBy} direction={direction} onToggleSort={toggleSort} />

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { CommentVideoGroup, type CommentRow, type CommentThread } from '@components/tables'
 import { PageCard } from '@components/ui'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileAvatar, DisplayDate } from '@components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage, DisplayDate } from '@components/ui'
 import usePagination from '@hooks/usePagination'
 import '../shared.css'
 import './AudienceDetail.css'
@@ -173,7 +173,7 @@ function AudienceDetail() {
             ) : item ? (
               <div className="audience-detail-layout">
                 <div className="audience-detail-main">
-                  <ProfileAvatar className="audience-detail-avatar" src={item.profile_image_url} name={item.display_name} />
+                  <ProfileImage size={72} src={item.profile_image_url} name={item.display_name} />
                   <div className="audience-detail-main-text">
                     <div className="audience-detail-name">{item.display_name || '(unknown)'}</div>
                   </div>

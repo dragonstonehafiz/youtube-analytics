@@ -20,13 +20,12 @@ function TrafficSourceShareCard({ items }: TrafficSourceShareCardProps) {
   const segments = useMemo<DonutChartCardSegment[]>(
     () =>
       items.map((item, index) => {
-        const percent = totalViews > 0 ? (item.views / totalViews) * 100 : 0
         return {
           key: item.key,
           label: item.label,
           value: item.views,
           color: PIE_COLORS[index % PIE_COLORS.length],
-          displayValue: `${percent.toFixed(1)}%`,
+          displayValue: formatWholeNumber(item.views),
         }
       }),
     [items, totalViews]

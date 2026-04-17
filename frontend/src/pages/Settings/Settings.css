@@ -4,34 +4,12 @@
   gap: 24px;
 }
 
-.settings-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-}
-
 .settings-section {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
-  padding: 16px 0;
 }
 
-.settings-section:first-child {
-  padding-bottom: 16px;
-}
-
-.settings-divider {
-  height: 1px;
-  background: rgba(148, 163, 184, 0.2);
-  margin: 0;
-}
-
-.llm-settings-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-}
 
 .llm-settings-header {
   display: flex;

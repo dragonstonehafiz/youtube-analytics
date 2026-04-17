@@ -1,4 +1,4 @@
-/* Playlists page styles */
+/* Playlists page specific styles */
 
 .page {
   display: flex;
@@ -6,54 +6,25 @@
   gap: 24px;
 }
 
-.playlist-table {
+.playlist-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.playlist-meta {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.playlist-table-header,
-.playlist-table-row {
-  display: grid;
-  grid-template-columns: minmax(0, 2.8fr) minmax(0, 0.9fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 12px;
-  align-items: center;
-}
-
-.playlist-table-header {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-muted);
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.playlist-table-row {
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  font-size: 13px;
-}
-
-.playlist-table-header > span,
-.playlist-table-header > button,
-.playlist-table-row > span {
+  gap: 2px;
+  flex: 1;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.playlist-actions {
-  display: inline-flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 6px;
 }
 
 .playlist-desc {
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

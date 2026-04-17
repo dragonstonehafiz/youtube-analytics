@@ -86,18 +86,3 @@
   box-shadow: none;
 }
 
-.comment-thread-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  object-fit: cover;
-  overflow: hidden;
-  background: #e2e8f0;
-  color: #0f172a;
-  font-size: 13px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 34px;
-}

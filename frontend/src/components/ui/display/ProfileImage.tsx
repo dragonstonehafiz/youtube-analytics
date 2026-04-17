@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import './ProfileImage.css'
 
 type ProfileImageProps = {
   src?: string | null
   name?: string | null
-  className: string
-  alt?: string
-  youtubeAvatarSize?: number
+  size?: number
   fallbackInitial?: string
 }
 
@@ -28,9 +27,7 @@ function upscaleYouTubeAvatar(url: string, size: number): string {
 function ProfileImage({
   src,
   name,
-  className,
-  alt,
-  youtubeAvatarSize = 0,
+  size = 34,
   fallbackInitial = '?',
 }: ProfileImageProps) {
   const [failed, setFailed] = useState(false)
@@ -38,22 +35,37 @@ function ProfileImage({
     if (!src) {
       return null
     }
-    if (youtubeAvatarSize > 0) {
-      return upscaleYouTubeAvatar(src, youtubeAvatarSize)
-    }
-    return src
-  }, [src, youtubeAvatarSize])
+    return upscaleYouTubeAvatar(src, size)
+  }, [src, size])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFailed(false)
   }, [resolvedSrc])
 
-  if (resolvedSrc && !failed) {
-    return <img className={className} src={resolvedSrc} alt={alt || name || 'Profile'} onError={() => setFailed(true)} />
+  const dynamicStyle = {
+    width: size,
+    height: size,
+    fontSize: Math.round(size * 0.35),
   }
 
-  return <div className={className}>{toInitial(name, fallbackInitial)}</div>
+  if (resolvedSrc && !failed) {
+    return (
+      <img
+        className="profile-image"
+        style={dynamicStyle}
+        src={resolvedSrc}
+        alt={name || 'Profile'}
+        onError={() => setFailed(true)}
+      />
+    )
+  }
+
+  return (
+    <div className="profile-image" style={dynamicStyle}>
+      {toInitial(name, fallbackInitial)}
+    </div>
+  )
 }
 
 export default ProfileImage

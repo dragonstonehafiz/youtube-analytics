@@ -13,6 +13,7 @@ export type CompetitorVideoRow = {
   title: string
   description?: string | null
   channel_title: string | null
+  channel_avatar_url?: string | null
   published_at: string | null
   views: number | null
   thumbnail_url: string | null

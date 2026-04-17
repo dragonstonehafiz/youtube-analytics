@@ -39,39 +39,41 @@ function PlaylistItemRow({ item }: PlaylistItemRowProps) {
   const hasVideo = Boolean(item.video_id)
 
   return (
-    <div className="playlist-items-row">
-      <span className="right">{item.position ?? '-'}</span>
-      <div className="video-cell">
-        <VideoThumbnail url={thumb} title={title} className="video-thumb" />
-        <div className="video-meta">
-          {hasVideo ? (
-            <TextLink text={title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="video-title-button" />
-          ) : (
-            <TextLink text={title} hideText={hideVideoTitles} />
-          )}
-          {hasVideo ? (
-            <div className="video-detail-sub">
-              <div className="video-desc">{description}</div>
-              <div className="video-actions">
-                <ActionButton
-                  label="Open in YouTube"
-                  onClick={() => window.open(`https://www.youtube.com/watch?v=${item.video_id}`, '_blank')}
-                  variant="soft"
-                  className="video-action"
-                />
+    <tr>
+      <td className="table-center">{item.position ?? '-'}</td>
+      <td>
+        <div className="playlist-cell">
+          <VideoThumbnail url={thumb} title={title} className="video-thumb" />
+          <div className="video-meta">
+            {hasVideo ? (
+              <TextLink text={title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="video-title-button" />
+            ) : (
+              <TextLink text={title} hideText={hideVideoTitles} />
+            )}
+            {hasVideo ? (
+              <div className="video-detail-sub">
+                <div className="video-desc">{description}</div>
+                <div className="video-actions">
+                  <ActionButton
+                    label="Open in YouTube"
+                    onClick={() => window.open(`https://www.youtube.com/watch?v=${item.video_id}`, '_blank')}
+                    variant="soft"
+                    className="video-action"
+                  />
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="video-muted">Video unavailable</div>
-          )}
+            ) : (
+              <div className="video-muted">Video unavailable</div>
+            )}
+          </div>
         </div>
-      </div>
-      <span><DisplayDate date={item.published_at} /></span>
-      <span className="video-muted">{item.video_privacy_status || item.privacy_status || '-'}</span>
-      <span className="right">{(item.views ?? 0).toLocaleString()}</span>
-      <span className="right">{(item.video_comment_count ?? 0).toLocaleString()}</span>
-      <span className="right">{(item.video_like_count ?? 0).toLocaleString()}</span>
-    </div>
+      </td>
+      <td><DisplayDate date={item.published_at} /></td>
+      <td className="video-muted">{item.video_privacy_status || item.privacy_status || '-'}</td>
+      <td>{(item.views ?? 0).toLocaleString()}</td>
+      <td>{(item.video_comment_count ?? 0).toLocaleString()}</td>
+      <td>{(item.video_like_count ?? 0).toLocaleString()}</td>
+    </tr>
   )
 }
 

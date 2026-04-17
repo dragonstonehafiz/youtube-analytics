@@ -11,57 +11,73 @@ type PlaylistItemsTableProps = {
 
 function PlaylistItemsTable({ items, sortBy, direction, onToggleSort }: PlaylistItemsTableProps) {
   return (
-    <div className="playlist-items-table">
-      <div className="playlist-items-header">
-        <button
-          type="button"
-          className={sortBy === 'position' ? 'video-sort-button active right' : 'video-sort-button right'}
-          onClick={() => onToggleSort('position')}
-        >
-          Pos
-          {sortBy === 'position' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
-        </button>
-        <span>Video</span>
-        <button
-          type="button"
-          className={sortBy === 'published_at' ? 'video-sort-button active' : 'video-sort-button'}
-          onClick={() => onToggleSort('published_at')}
-        >
-          Added
-          {sortBy === 'published_at' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
-        </button>
-        <span>Visibility</span>
-        <button
-          type="button"
-          className={sortBy === 'views' ? 'video-sort-button active right' : 'video-sort-button right'}
-          onClick={() => onToggleSort('views')}
-        >
-          Views
-          {sortBy === 'views' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
-        </button>
-        <button
-          type="button"
-          className={sortBy === 'comments' ? 'video-sort-button active right' : 'video-sort-button right'}
-          onClick={() => onToggleSort('comments')}
-        >
-          Comments
-          {sortBy === 'comments' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
-        </button>
-        <button
-          type="button"
-          className={sortBy === 'likes' ? 'video-sort-button active right' : 'video-sort-button right'}
-          onClick={() => onToggleSort('likes')}
-        >
-          Likes
-          {sortBy === 'likes' ? <span className="video-sort">{direction === 'asc' ? '↑' : '↓'}</span> : null}
-        </button>
-      </div>
+    <>
       {items.length === 0 ? (
         <div className="video-detail-state">No playlist items found.</div>
       ) : (
-        items.map((item) => <PlaylistItemRow key={item.id} item={item} />)
+        <table className="playlist-items-table">
+          <thead>
+            <tr>
+              <th>
+                <button
+                  type="button"
+                  className={sortBy === 'position' ? 'table-sort-button active' : 'table-sort-button'}
+                  onClick={() => onToggleSort('position')}
+                >
+                  Pos
+                  {sortBy === 'position' ? <span className="sort-arrow">{direction === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+              </th>
+              <th>Video</th>
+              <th>
+                <button
+                  type="button"
+                  className={sortBy === 'published_at' ? 'table-sort-button active' : 'table-sort-button'}
+                  onClick={() => onToggleSort('published_at')}
+                >
+                  Added
+                  {sortBy === 'published_at' ? <span className="sort-arrow">{direction === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+              </th>
+              <th>Visibility</th>
+              <th>
+                <button
+                  type="button"
+                  className={sortBy === 'views' ? 'table-sort-button active' : 'table-sort-button'}
+                  onClick={() => onToggleSort('views')}
+                >
+                  Views
+                  {sortBy === 'views' ? <span className="sort-arrow">{direction === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  className={sortBy === 'comments' ? 'table-sort-button active' : 'table-sort-button'}
+                  onClick={() => onToggleSort('comments')}
+                >
+                  Comments
+                  {sortBy === 'comments' ? <span className="sort-arrow">{direction === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+              </th>
+              <th>
+                <button
+                  type="button"
+                  className={sortBy === 'likes' ? 'table-sort-button active' : 'table-sort-button'}
+                  onClick={() => onToggleSort('likes')}
+                >
+                  Likes
+                  {sortBy === 'likes' ? <span className="sort-arrow">{direction === 'asc' ? '↑' : '↓'}</span> : null}
+                </button>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => <PlaylistItemRow key={item.id} item={item} />)}
+          </tbody>
+        </table>
       )}
-    </div>
+    </>
   )
 }
 

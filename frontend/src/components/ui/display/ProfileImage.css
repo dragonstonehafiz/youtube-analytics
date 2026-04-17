@@ -1,0 +1,12 @@
+.profile-image {
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  object-fit: cover;
+  flex-shrink: 0;
+}

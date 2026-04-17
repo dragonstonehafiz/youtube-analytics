@@ -139,7 +139,7 @@ function VideoDetailListCard({
         <>
           <div className="video-detail-list-thumb-wrap">
             <VideoThumbnail url={activeItem.thumbnail_url} title={activeItem.title} className="video-detail-list-thumb" />
-            <div className="video-detail-list-thumb-title"><TextLink text={activeItem.title} /></div>
+            <div className="video-detail-list-thumb-title"><TextLink text={activeItem.title} to={`/videos/${activeItem.video_id}`} /></div>
           </div>
           <div className="video-detail-list-metrics">
             {[
