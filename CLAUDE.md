@@ -6,6 +6,12 @@ YouTube analytics dashboard — FastAPI + React/TypeScript + SQLite.
 YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 ```
 
+**Import path rules:**
+- prefer alias imports over relative imports
+- deep alias imports are allowed when they are shorter or clearer than going through a barrel
+- barrel imports are optional, not required
+- use the shortest clear import path; do not expand imports just to force barrel usage
+
 ---
 
 ### Do
@@ -16,12 +22,13 @@ YouTube API → Backend Sync → SQLite → Backend API → Frontend UI
 - use existing UI components before writing custom controls
 - use `MetricChartCard` for all time-series charts; pass raw daily series (it handles aggregation)
 - use `Dropdown` (not native `<select>`) for all dropdowns
+- use HTML `<table>` elements for all data tables — never CSS Grid divs masquerading as tables
 - use `usePagination.ts` hook for shared page-size state
 - use local storage keys namespaced by page (e.g. `videoDetailGranularity`)
 - keep `.method()` on same line as object in Python — no chained calls starting on new lines
-- keep CSS in colocated `.css` files; no inline styles
+- keep CSS in colocated `.css` files; inline styles are allowed when they are the pragmatic fit (for dynamic sizing/positioning, SVG/chart geometry, or cases where a class-only approach would add noise)
 - import `../shared.css` in every page component before the page-specific CSS
-- use `'../../components/...'` import paths from inside page subdirectories
+- use path aliases for imports: `@components/`, `@pages/`, `@hooks/`, `@utils/`, `@types/`, `@tabs/`, `@assets/` (see Frontend imports below)
 
 ### Don't
 - don't add `updated_at` tracking to `videos`, `playlists`, `playlist_items`, or `comments`
@@ -53,6 +60,44 @@ cd frontend && npx eslint src/pages/Videos/Videos.tsx --fix
 # Frontend — full build (only when explicitly requested)
 cd frontend && npm run build
 ```
+
+---
+
+### Frontend imports (path aliases)
+
+Use path aliases instead of relative imports. Prefer aliases because they are shorter, easier to scan, and reduce import line length. Configured in `vite.config.ts` and `tsconfig.app.json`:
+
+```ts
+// Components
+import { StatCard } from '@components/ui'
+import Videos from '@pages/Videos'
+
+// Hooks & utilities
+import { useAnalyticsDateRange } from '@hooks/useAnalyticsDateRange'
+import { formatWholeNumber } from '@utils/number'
+
+// Types
+import type { AnalyticsRow } from '@types/analytics'
+
+// Shared tabs
+import { InsightsTab } from '@tabs/InsightsTab'
+
+// Assets
+import AnalyticsIcon from '@assets/analytics.svg?react'
+
+// Generic src imports
+import { something } from '@/path/to/file'
+```
+
+**Aliases:**
+- `@/` → `src/`
+- `@components/` → `src/components/`
+- `@pages/` → `src/pages/`
+- `@hooks/` → `src/hooks/`
+- `@utils/` → `src/utils/`
+- `@types/` → `src/types/`
+- `@tabs/` → `src/tabs/`
+- `@assets/` → `src/assets/`
 
 ---
 
@@ -107,16 +152,12 @@ frontend/
     Settings/, SyncSettings/, VideoDetail/, Videos/
   src/types/                     # centralized data-shape types (analytics, monetization, etc.)
   src/components/
-    ui/                          # primitives
+    ui/                          # controls, display, navigation, overlay primitives
     charts/                      # visualizations
-    cards/primitives/            # generic card wrappers
-    cards/pages/                 # domain-specific cards, grouped by page area
-      analytics/discovery/       # TrafficSourceShareCard, TrafficSourceTopVideosCard, SearchInsightsTopTermsCard
-      analytics/engagement/      # EngagementInsightCommentCard, EngagementInsightSubscriberCard
-      analytics/insights/        # ContentInsightsCard
-      analytics/monetization/    # MonetizationEarningsCard, MonetizationContentPerformanceCard
-      dashboard/                 # ChannelAnalyticsCard, VideoDetailListCard, CommentsPreviewCard, MostActiveAudienceCard
-      comments/                  # LlmSummaryCard, CommentsWordCloudCard
+    cards/generic-charts/        # chart-wrapper cards (DonutChartCard, HistogramChartCard, BarChartCard)
+    cards/analytics/             # TrafficSourceShareCard, TrafficSourceTopVideosCard, SearchInsightsTopTermsCard, EngagementInsightCommentCard, EngagementInsightSubscriberCard, ContentInsightsCard, MonetizationEarningsCard, MonetizationContentPerformanceCard
+    cards/dashboard/             # ChannelAnalyticsCard, VideoDetailListCard, CommentsPreviewCard, MostActiveAudienceCard
+    cards/comments/              # LlmSummaryCard, CommentsWordCloudCard
     tables/                      # table + list components
     features/                    # complex composite components
   src/tabs/                      # shared tab components used by 2+ pages (Analytics, PlaylistDetail, VideoDetail)
@@ -140,6 +181,7 @@ frontend/
 - `Sidebar` — app navigation sidebar
 - `StatCard` — single-metric stat display
 - `Tooltip`, `TooltipIcon` — viewport-clamped tooltip and help indicator
+- `PageCard` — generic page section container (import from `@components/ui`)
 
 **Charts** (`components/charts/`):
 - `MetricChartCard` — primary time-series chart: KPI chips, trend indicators, granularity bucketing (Daily/7-days/28-days/90-days/Monthly/Yearly), zero-fill, upload markers
@@ -151,12 +193,12 @@ frontend/
 - `UploadPublishTooltip` — tooltip showing videos for a chart data point
 - `SpikeTooltipOverlay` — spike hover tooltip overlay; wrap after `MetricChartCard` in any tab using `useSpikes`
 
-**Card primitives** (`components/cards/primitives/`):
-- `PageCard` — generic card container
-- `DonutChartCard` — card wrapping a donut chart
+**Generic chart cards** (`components/cards/generic-charts/`):
+- `BarChartCard` — card wrapping a bar chart
+- `DonutChartCard` — card wrapping a donut chart with legend
 - `HistogramChartCard` — card wrapping a histogram
 
-**Page cards** (`components/cards/pages/`):
+**Page cards** (`components/cards/` — subfolders: `analytics/`, `dashboard/`, `comments/`):
 - `ChannelAnalyticsCard` — dashboard channel metrics summary
 - `CommentsPreviewCard` — dashboard recent comments preview
 - `CommentsWordCloudCard` — word-cloud PNG display with Word types multiselect and manual generate button
@@ -231,9 +273,13 @@ frontend/
 - sync stage → any stage function in `backend/src/sync.py`
 - API route → `backend/src/routes/analytics.py`
 
+### Data fetching guidance
+- direct `fetch()` inside a component or tab is allowed when the data is local to that unit
+- when the same dataset is needed by multiple child components, fetch once in the parent/page and pass it down to avoid duplicate requests and duplicated state
+- prefer shared hooks or parent-owned loading only when it reduces repeated pulling of the same data
+
 ### Don't copy
-- any inline `style={{}}` usage — use colocated CSS instead
-- direct `fetch()` in components — call from the page component and pass data down
+- duplicate requests for the same shared dataset across sibling components or tabs
 
 ---
 
@@ -462,7 +508,7 @@ Multi-tab pages should centralize shared types, utilities, and components to red
 Example: `Competitors/` page uses `types.ts` for image/thumbnail models, `utils.ts` for shared filter/layout logic, and `ThumbnailUploader.tsx` as a reusable component across test tabs.
 
 ### Adding a new reusable component
-1. Pick category: `ui/` primitives · `charts/` · `cards/primitives/` · `cards/pages/<area>/` · `tables/` · `features/`
+1. Pick category: `ui/` primitives · `charts/` · `cards/generic-charts/` · `cards/<area>/` (`analytics/`, `dashboard/`, `comments/`) · `tables/` · `features/`
 2. Create `<ComponentName>.tsx` + colocated `<ComponentName>.css` if needed
 3. Export from the directory's `index.ts`
 

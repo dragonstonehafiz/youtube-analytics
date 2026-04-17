@@ -1,4 +1,4 @@
-import type { MonetizationMonthly } from '../types'
+import type { MonetizationMonthly } from '@types'
 
 export function buildMonthlyEarnings(
   rows: { day: string; estimated_revenue?: number | null }[],

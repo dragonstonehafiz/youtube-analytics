@@ -1,4 +1,4 @@
-import { RatioBar } from '../../components/charts'
+import { RatioBar } from '@components/charts'
 import type { ApiCallRow } from './utils'
 
 type Props = {

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { type UploadHoverState } from '../components/charts/UploadPublishTooltip'
+import { type UploadHoverState } from '@components/charts/UploadPublishTooltip'
 
 export type SpikeHoverHandlers = {
   setHoverSpike: (hover: UploadHoverState | null) => void

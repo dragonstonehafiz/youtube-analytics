@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { VideoDailyRow } from '../../types'
+import type { VideoDailyRow } from '@types'
 import { sortVideoDailyRows } from './utils'
 
 type UseVideoDailyRowsResult = {

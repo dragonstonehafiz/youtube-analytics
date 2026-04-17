@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DataRangeControl, type DateRangeValue } from '../../components/features'
-import { fetchChannelYears } from '../../utils/years'
-import { MetricsTab, EngagementTab, MonetizationTab, DiscoveryTab, InsightsTab } from '../../tabs'
-import { getStored, setStored } from '../../utils/storage'
-import { formatWholeNumber, formatDuration } from '../../utils/number'
-import { formatDisplayDate } from '../../utils/date'
-import { useChannelAnalytics } from '../../hooks/useChannelAnalytics'
-import type { PublishedItem } from '../../components/charts'
-import type { VideoDetailListItem } from '../../components/cards'
-import type { TopContentItem } from '../../components/tables'
-import type { TabDataSource, DiscoveryDataSource } from '../../types'
-import type { TrafficSourceRow } from '../../utils/trafficSeries'
+import { DataRangeControl, type DateRangeValue } from '@components/features'
+import { fetchChannelYears } from '@utils/years'
+import { MetricsTab, EngagementTab, MonetizationTab, DiscoveryTab, InsightsTab } from '@tabs'
+import { getStored, setStored } from '@utils/storage'
+import { formatWholeNumber, formatDuration } from '@utils/number'
+import { formatDisplayDate } from '@utils/date'
+import { useChannelAnalytics } from '@hooks/useChannelAnalytics'
+import type { PublishedItem } from '@components/charts'
+import type { VideoDetailListItem } from '@components/cards'
+import type { TopContentItem } from '@components/tables'
+import type { TabDataSource, DiscoveryDataSource } from '@types'
+import type { TrafficSourceRow } from '@utils/trafficSeries'
 import '../shared.css'
 import './Analytics.css'
 
@@ -243,7 +243,6 @@ function Analytics() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -253,7 +252,6 @@ function Analytics() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -263,7 +261,6 @@ function Analytics() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={discoveryDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />

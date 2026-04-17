@@ -1,22 +1,22 @@
 import { useMemo, useState, useEffect } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity } from '../components/charts'
-import { PageCard, EngagementInsightCommentCard, EngagementInsightSubscriberCard, type CommentVideoItem, type SubscriberVideoItem } from '../components/cards'
-import { formatDuration, formatWholeNumber } from '../utils/number'
-import SpikeTooltipOverlay from '../components/charts/SpikeTooltipOverlay'
-import { useSpikes } from '../hooks/useSpikes'
-import { useSpikeHover } from '../hooks/useSpikeHover'
-import type { TabDataSource } from '../types'
+import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
+import { EngagementInsightCommentCard, EngagementInsightSubscriberCard, type CommentVideoItem, type SubscriberVideoItem } from '@components/cards'
+import { PageCard } from '@components/ui'
+import { formatDuration, formatWholeNumber } from '@utils/number'
+import SpikeTooltipOverlay from '@components/charts/SpikeTooltipOverlay'
+import { useSpikes } from '@hooks/useSpikes'
+import { useSpikeHover } from '@hooks/useSpikeHover'
+import type { TabDataSource } from '@types'
 
 type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string; daySpan?: number }
   granularity: Granularity
-  onOpenVideo: (videoId: string) => void
   dataSources: TabDataSource[]
   selectedSourceIndex: number
 }
 
-export default function EngagementTab({ range, granularity, onOpenVideo, dataSources, selectedSourceIndex }: Props) {
+export default function EngagementTab({ range, granularity, dataSources, selectedSourceIndex }: Props) {
   const selected = dataSources[selectedSourceIndex]
   const dailyData = selected?.dailyRows ?? []
   const previousDailyData = selected?.previousDailyRows ?? []
@@ -117,7 +117,6 @@ export default function EngagementTab({ range, granularity, onOpenVideo, dataSou
               totalComments={engagementInsights.total_comments}
               topCommentedVideos={engagementInsights.top_commented_videos}
               loading={engagementLoading}
-              onOpenVideo={onOpenVideo}
             />
           )}
         </PageCard>
@@ -127,7 +126,6 @@ export default function EngagementTab({ range, granularity, onOpenVideo, dataSou
               totalSubscribersGained={engagementInsights.total_subscribers_gained}
               topSubscriberVideos={engagementInsights.top_subscriber_videos}
               loading={engagementLoading}
-              onOpenVideo={onOpenVideo}
             />
           )}
         </PageCard>

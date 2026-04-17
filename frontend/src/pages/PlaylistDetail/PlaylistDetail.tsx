@@ -1,21 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ActionButton, StatCard, Textbox } from '../../components/ui'
-import { DataRangeControl, type DateRangeValue } from '../../components/features'
-import { fetchChannelYears } from '../../utils/years'
-import { PageCard, type VideoDetailListItem } from '../../components/cards'
-import type { TopContentItem } from '../../components/tables'
-import type { PublishedItem } from '../../components/charts'
+import { ActionButton, StatCard, Textbox, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
+import { DataRangeControl, type DateRangeValue } from '@components/features'
+import { fetchChannelYears } from '@utils/years'
+import { PageCard } from '@components/ui'
+import type { VideoDetailListItem } from '@components/cards'
+import type { TopContentItem } from '@components/tables'
+import type { PublishedItem } from '@components/charts'
 import CommentsTab from './CommentsTab'
-import { MetricsTab, EngagementTab, MonetizationTab, DiscoveryTab, InsightsTab } from '../../tabs'
-import { formatDisplayDate } from '../../utils/date'
-import { formatWholeNumber, formatDuration } from '../../utils/number'
-import { getStored, setStored } from '../../utils/storage'
-import { usePlaylistVideoIds } from '../../hooks/usePlaylistVideoIds'
-import { usePlaylistAnalytics } from '../../hooks/usePlaylistAnalytics'
-import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
-import type { PlaylistMeta, PlaylistAnalyticsTab, PlaylistViewMode, TabDataSource, DiscoveryDataSource } from '../../types'
-import type { TrafficSourceRow } from '../../utils/trafficSeries'
+import { MetricsTab, EngagementTab, MonetizationTab, DiscoveryTab, InsightsTab } from '@tabs'
+import { formatWholeNumber, formatDuration } from '@utils/number'
+import { formatDisplayDate } from '@utils/date'
+import { getStored, setStored } from '@utils/storage'
+import { usePlaylistVideoIds } from '@hooks/usePlaylistVideoIds'
+import { usePlaylistAnalytics } from '@hooks/usePlaylistAnalytics'
+import { useHideVideoTitles, useHideDescription } from '@hooks/usePrivacyMode'
+import type { PlaylistMeta, PlaylistAnalyticsTab, PlaylistViewMode, TabDataSource, DiscoveryDataSource } from '@types'
+import type { TrafficSourceRow } from '@utils/trafficSeries'
 import { PLAYLIST_DETAIL_TABS, parsePlaylistDetailTab, VIEW_MODE_OPTIONS } from './utils'
 import ContentTab from './ContentTab'
 import '../shared.css'
@@ -44,7 +45,6 @@ function PlaylistDetail() {
   const [previousVideoTrafficRows, setPreviousVideoTrafficRows] = useState<TrafficSourceRow[]>([])
   const videoIds = usePlaylistVideoIds(playlistId)
   const hideVideoTitles = useHideVideoTitles()
-  const hideVideoThumbnails = useHideVideoThumbnails()
   const hideDescription = useHideDescription()
 
   const range = rangeValue?.range ?? EMPTY_RANGE
@@ -270,21 +270,15 @@ function PlaylistDetail() {
             ) : meta ? (
               <div className="video-detail-layout">
                 <div className="video-detail-meta">
-                  {hideVideoThumbnails ? (
-                    <div className="video-detail-thumb" />
-                  ) : meta.thumbnail_url ? (
-                    <img className="video-detail-thumb" src={meta.thumbnail_url} alt={meta.title ?? 'Playlist'} />
-                  ) : (
-                    <div className="video-detail-thumb" />
-                  )}
+                  <VideoThumbnail url={meta.thumbnail_url} title={meta.title} className="video-detail-thumb" />
                   <div className="video-detail-meta-content">
-                    <div className="video-detail-title">{hideVideoTitles ? '••••••' : (meta.title || '(untitled)')}</div>
+                    <div className="video-detail-title"><TextLink text={meta.title} hideText={hideVideoTitles} /></div>
                     <Textbox value={hideDescription ? '' : (meta.description || '')} placeholder="This playlist does not have a description" />
                   </div>
                 </div>
                 <div className="video-detail-grid">
                   <StatCard label="Visibility" value={meta.privacy_status || '-'} size="smaller" />
-                  <StatCard label="Published" value={formatDisplayDate(meta.published_at)} size="smaller" />
+                  <StatCard label="Published" value={<DisplayDate date={meta.published_at} />} size="smaller" />
                   <StatCard label="Total Items" value={(meta.item_count ?? 0).toLocaleString()} size="smaller" />
                 </div>
                 <div className="video-detail-grid">
@@ -357,7 +351,6 @@ function PlaylistDetail() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -367,7 +360,6 @@ function PlaylistDetail() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={tabDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />
@@ -377,7 +369,6 @@ function PlaylistDetail() {
             range={rangeValue.range}
             previousRange={rangeValue.previousRange}
             granularity={rangeValue.granularity}
-            onOpenVideo={(videoId) => navigate(`/videos/${videoId}`)}
             dataSources={discoveryDataSources}
             selectedSourceIndex={selectedSourceIndex}
           />

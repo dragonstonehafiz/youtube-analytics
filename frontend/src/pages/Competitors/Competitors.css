@@ -149,12 +149,20 @@
   gap: 2px;
 }
 
+.thumbnail-channel-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .thumbnail-channel-name {
   font-size: 12px;
   color: var(--color-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
 }
 
 .thumbnail-video-stats {

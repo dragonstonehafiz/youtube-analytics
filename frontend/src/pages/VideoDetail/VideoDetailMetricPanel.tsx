@@ -1,5 +1,5 @@
-import { MetricChartCard, type Granularity, type MetricItem } from '../../components/charts'
-import { PageCard } from '../../components/cards'
+import { MetricChartCard, type Granularity, type MetricItem } from '@components/charts'
+import { PageCard } from '@components/ui'
 
 type Props = {
   loading: boolean
@@ -9,16 +9,20 @@ type Props = {
 }
 
 function VideoDetailMetricPanel({ loading, error, granularity, data }: Props) {
+  if (error) {
+    return (
+      <div className="page-row">
+        <PageCard>
+          <div className="video-detail-state">{error}</div>
+        </PageCard>
+      </div>
+    )
+  }
+
   return (
     <div className="page-row">
       <PageCard>
-        {loading ? (
-          <div className="video-detail-state">Loading video analytics...</div>
-        ) : error ? (
-          <div className="video-detail-state">{error}</div>
-        ) : (
-          <MetricChartCard data={data} granularity={granularity} />
-        )}
+        <MetricChartCard data={data} granularity={granularity} />
       </PageCard>
     </div>
   )

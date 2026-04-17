@@ -1,6 +1,6 @@
 import './TopContentTable.css'
-import { Link } from 'react-router-dom'
-import { useHideVideoTitles, useHideVideoThumbnails } from '../../hooks/usePrivacyMode'
+import { VideoThumbnail, TextLink } from '@components/ui'
+import { useHideVideoTitles } from '@hooks/usePrivacyMode'
 
 export type TopContentItem = {
   video_id: string
@@ -20,41 +20,37 @@ type TopContentTableProps = {
 
 function TopContentTable({ items }: TopContentTableProps) {
   const hideVideoTitles = useHideVideoTitles()
-  const hideVideoThumbnails = useHideVideoThumbnails()
-
   return (
     <div className="top-content">
       <div className="top-content-title">Your top content in this period</div>
-      <div className="top-content-table">
-        <div className="top-content-header">
-          <span>Content</span>
-          <span className="right">Upload date</span>
-          <span className="right">Average view duration</span>
-          <span className="right">Views</span>
-        </div>
-        {items.map((item) => (
-          <div key={item.rank} className="top-content-row">
-            <div className="content-cell">
-              <div className="rank">{item.rank}</div>
-              {hideVideoThumbnails ? (
-                <div className="thumb" />
-              ) : item.thumbnail_url ? (
-                <img className="thumb" src={item.thumbnail_url} alt={item.title} />
-              ) : (
-                <div className="thumb" />
-              )}
-              <div className="meta">
-                <Link className="title top-content-link" to={`/videos/${item.video_id}`}>
-                  {hideVideoTitles ? '••••••' : item.title}
-                </Link>
-              </div>
-            </div>
-            <div className="right">{item.upload_date}</div>
-            <div className="right">{item.avg_view_duration} ({item.avg_view_pct})</div>
-            <div className="right">{item.views}</div>
-          </div>
-        ))}
-      </div>
+      <table className="top-content-table">
+        <thead>
+          <tr>
+            <th>Content</th>
+            <th className="right">Upload date</th>
+            <th className="right">Average view duration</th>
+            <th className="right">Views</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.rank}>
+              <td>
+                <div className="content-cell">
+                  <div className="rank">{item.rank}</div>
+                  <VideoThumbnail url={item.thumbnail_url} title={item.title} className="thumb" />
+                  <div className="meta">
+                    <TextLink text={item.title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="title top-content-link" />
+                  </div>
+                </div>
+              </td>
+              <td className="right">{item.upload_date}</td>
+              <td className="right">{item.avg_view_duration} ({item.avg_view_pct})</td>
+              <td className="right">{item.views}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ActionButton, PageSizePicker, PageSwitcher } from '../../components/ui'
-import usePagination from '../../hooks/usePagination'
-import { ProgressBar } from '../../components/charts'
-import { DonutChartCard, PageCard } from '../../components/cards'
-import { formatDisplayDate } from '../../utils/date'
-import { getStored, setStored } from '../../utils/storage'
+import { ActionButton, PageSizePicker, PageSwitcher } from '@components/ui'
+import usePagination from '@hooks/usePagination'
+import { ProgressBar } from '@components/charts'
+import { DonutChartCard } from '@components/cards'
+import { PageCard } from '@components/ui'
+import { formatDisplayDate } from '@utils/date'
+import { getStored, setStored } from '@utils/storage'
 import DataSyncTab from './DataSyncTab'
 import AnalyticsSyncTab from './AnalyticsSyncTab'
 import ChannelsSyncTab from './ChannelsSyncTab'
@@ -282,8 +283,8 @@ function SyncSettings() {
         </div>
       </header>
 
-      {tableStorage.length > 0 && (
-        <PageCard title="Storage Usage">
+      <PageCard title="Storage Usage">
+        {tableStorage.length > 0 ? (
           <DonutChartCard
             segments={tableStorage.map((item, index) => {
               const colors = ['#0ea5e9', '#14b8a6', '#f59e0b', '#f97316', '#84cc16', '#22c55e', '#6366f1', '#e11d48']
@@ -299,8 +300,10 @@ function SyncSettings() {
             centerValue={`${(totalStorageBytes / 1024 / 1024).toFixed(1)} MB`}
             ariaLabel="Storage usage by table"
           />
-        </PageCard>
-      )}
+        ) : (
+          <div className="sync-empty">No storage data available.</div>
+        )}
+      </PageCard>
 
       <div className="sync-tab-row">
         <button

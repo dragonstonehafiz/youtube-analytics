@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher } from '../../components/ui'
-import { PageCard } from '../../components/cards'
-import usePagination from '../../hooks/usePagination'
-import { formatDisplayDate } from '../../utils/date'
-import { getStored, setStored } from '../../utils/storage'
-import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
+import { PageCard } from '@components/ui'
+import usePagination from '@hooks/usePagination'
+import { getStored, setStored } from '@utils/storage'
+import { useHideVideoTitles, useHideDescription } from '@hooks/usePrivacyMode'
 import '../shared.css'
 import './Playlists.css'
 
@@ -43,10 +41,8 @@ function Playlists() {
     q: storedFilters?.q ?? '',
     privacy_status: storedFilters?.privacy_status ?? '',
   })
-  const navigate = useNavigate()
   const { page, setPage, pageSize, setPageSize, totalPages } = usePagination({ total, defaultPageSize: 10 })
   const hideVideoTitles = useHideVideoTitles()
-  const hideVideoThumbnails = useHideVideoThumbnails()
   const hideDescription = useHideDescription()
 
   useEffect(() => {
@@ -148,76 +144,74 @@ function Playlists() {
         </div>
         <div className="page-row">
           <PageCard>
-            <div className="playlist-table">
-              <div className="playlist-table-header">
-                <span>Playlist</span>
-                <span>Visibility</span>
-                <button
-                  type="button"
-                  className={sortKey === 'item_count' ? 'video-sort-button active right' : 'video-sort-button right'}
-                  onClick={() => toggleSort('item_count')}
-                >
-                  Items
-                  {sortKey === 'item_count' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  type="button"
-                  className={sortKey === 'total_playlist_views' ? 'video-sort-button active right' : 'video-sort-button right'}
-                  onClick={() => toggleSort('total_playlist_views')}
-                >
-                  Playlist views
-                  {sortKey === 'total_playlist_views' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  type="button"
-                  className={sortKey === 'total_content_views' ? 'video-sort-button active right' : 'video-sort-button right'}
-                  onClick={() => toggleSort('total_content_views')}
-                >
-                  Content views
-                  {sortKey === 'total_content_views' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  type="button"
-                  className={sortKey === 'last_item_added_at' ? 'video-sort-button active' : 'video-sort-button'}
-                  onClick={() => toggleSort('last_item_added_at')}
-                >
-                  Last video added
-                  {sortKey === 'last_item_added_at' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-              </div>
-              {rows.length === 0 ? (
-                <div className="video-table-empty">No playlists found.</div>
-              ) : (
-                rows.map((playlist) => (
-                  <div key={playlist.id} className="playlist-table-row">
-                    <div className="video-cell">
-                      {hideVideoThumbnails ? (
-                        <div className="video-thumb" />
-                      ) : playlist.thumbnail_url ? (
-                        <img className="video-thumb" src={playlist.thumbnail_url} alt={playlist.title ?? 'Playlist'} />
-                      ) : (
-                        <div className="video-thumb" />
-                      )}
-                      <div className="video-meta">
-                        <button
-                          type="button"
-                          className="video-title-button"
-                          onClick={() => navigate(`/playlists/${playlist.id}`)}
-                        >
-                          {hideVideoTitles ? '••••••' : (playlist.title || '(untitled)')}
-                        </button>
-                        <div className="video-muted playlist-desc">{hideDescription ? '-' : (playlist.description || '-')}</div>
-                      </div>
-                    </div>
-                    <span className="video-muted">{playlist.privacy_status ?? '-'}</span>
-                    <span className="right">{(playlist.item_count ?? 0).toLocaleString()}</span>
-                    <span className="right">{(playlist.total_playlist_views ?? 0).toLocaleString()}</span>
-                    <span className="right">{(playlist.total_content_views ?? 0).toLocaleString()}</span>
-                    <span>{formatDisplayDate(playlist.last_item_added_at)}</span>
-                  </div>
-                ))
-              )}
-            </div>
+            {rows.length === 0 ? (
+              <div className="video-table-empty">No playlists found.</div>
+            ) : (
+              <table className="playlist-table">
+                <thead>
+                  <tr>
+                    <th>Playlist</th>
+                    <th>Visibility</th>
+                    <th>
+                      <button
+                        type="button"
+                        className={`table-sort-button ${sortKey === 'item_count' ? 'active' : ''}`}
+                        onClick={() => toggleSort('item_count')}
+                      >
+                        Items {sortKey === 'item_count' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        type="button"
+                        className={`table-sort-button ${sortKey === 'total_playlist_views' ? 'active' : ''}`}
+                        onClick={() => toggleSort('total_playlist_views')}
+                      >
+                        Playlist views {sortKey === 'total_playlist_views' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        type="button"
+                        className={`table-sort-button ${sortKey === 'total_content_views' ? 'active' : ''}`}
+                        onClick={() => toggleSort('total_content_views')}
+                      >
+                        Content views {sortKey === 'total_content_views' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        type="button"
+                        className={`table-sort-button ${sortKey === 'last_item_added_at' ? 'active' : ''}`}
+                        onClick={() => toggleSort('last_item_added_at')}
+                      >
+                        Last video added {sortKey === 'last_item_added_at' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((playlist) => (
+                    <tr key={playlist.id}>
+                      <td>
+                        <div className="playlist-cell">
+                          <VideoThumbnail url={playlist.thumbnail_url} title={playlist.title} className="video-thumb" />
+                          <div className="playlist-meta">
+                            <TextLink text={playlist.title} to={`/playlists/${playlist.id}`} className="video-title-button" hideText={hideVideoTitles} />
+                            <div className="video-muted playlist-desc">{hideDescription ? '-' : (playlist.description || '-')}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="video-muted">{playlist.privacy_status ?? '-'}</td>
+                      <td>{(playlist.item_count ?? 0).toLocaleString()}</td>
+                      <td>{(playlist.total_playlist_views ?? 0).toLocaleString()}</td>
+                      <td>{(playlist.total_content_views ?? 0).toLocaleString()}</td>
+                      <td><DisplayDate date={playlist.last_item_added_at} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             <div className="pagination-footer">
               <div className="pagination-main">
                 <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity } from '../components/charts'
+import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
 import {
-  PageCard,
   SearchInsightsTopTermsCard,
   TrafficSourceShareCard,
   TrafficSourceTopVideosCard,
@@ -9,10 +8,11 @@ import {
   type TopTrafficVideo,
   type TrafficSourceShareItem,
   type TrafficSourceOption,
-} from '../components/cards'
-import { buildTrafficSeries } from '../utils/trafficSeries'
-import { formatWholeNumber } from '../utils/number'
-import type { DiscoveryDataSource } from '../types'
+} from '@components/cards'
+import { PageCard } from '@components/ui'
+import { buildTrafficSeries } from '@utils/trafficSeries'
+import { formatWholeNumber } from '@utils/number'
+import type { DiscoveryDataSource } from '@types'
 
 type TopVideosBySourceResponseItem = { video_id: string; title: string; thumbnail_url: string; published_at: string; views: number; watch_time_minutes: number }
 type TopSearchResponseItem = { search_term: string; views: number; watch_time_minutes: number; video_count: number }
@@ -21,12 +21,11 @@ type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string; daySpan?: number }
   granularity: Granularity
-  onOpenVideo: (videoId: string) => void
   dataSources: DiscoveryDataSource[]
   selectedSourceIndex: number
 }
 
-export default function DiscoveryTab({ range, previousRange, granularity, onOpenVideo, dataSources, selectedSourceIndex }: Props) {
+export default function DiscoveryTab({ range, previousRange, granularity, dataSources, selectedSourceIndex }: Props) {
   const selected = dataSources[selectedSourceIndex]
   const trafficRows = selected?.trafficRows ?? []
   const previousTrafficRows = selected?.previousTrafficRows ?? []
@@ -157,7 +156,6 @@ export default function DiscoveryTab({ range, previousRange, granularity, onOpen
             loading={trafficTopLoading}
             error={trafficTopError}
             onSourceChange={setTrafficTopSource}
-            onOpenVideo={onOpenVideo}
           />
         </PageCard>
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Tooltip } from '../ui'
+import { Tooltip } from '@components/ui'
 import './BarChart.css'
 
 export type BarChartBarInfo = {

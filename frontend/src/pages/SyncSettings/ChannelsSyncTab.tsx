@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ActionButton, TextInput } from '../../components/ui'
-import { formatWholeNumber } from '../../utils/number'
+import { ActionButton, TextInput } from '@components/ui'
+import { formatWholeNumber } from '@utils/number'
 import SyncEstimatePanel from './SyncEstimatePanel'
 import SyncTabHeader from './SyncTabHeader'
 
@@ -148,7 +148,7 @@ function ChannelsSyncTab({
   const refreshData = async () => {
     try {
       const response = await fetch('http://localhost:8000/channels')
-      const data = await response.json()
+      const data = (await response.json()) as Record<string, ChannelConfig>
       // Preserve enabled state for each channel
       const merged = Object.entries(data || {}).reduce((acc, [key, channel]) => {
         acc[key] = {
@@ -194,27 +194,27 @@ function ChannelsSyncTab({
       </SyncTabHeader>
       <table className="sync-table">
         <colgroup>
-          <col />
-          <col />
-          <col />
-          <col />
-          <col />
-          <col />
+          <col style={{ width: '25px' }} />
+          <col style={{ width: '150px' }} />
+          <col style={{ width: '220px' }} />
+          <col style={{ width: '100px' }} />
+          <col style={{ width: '80px' }} />
+          <col style={{ width: '80px' }} />
         </colgroup>
         <thead>
           <tr>
-            <th></th>
-            <th>Channel Name</th>
-            <th>Channel ID</th>
-            <th>Row Count</th>
-            <th>Include</th>
-            <th></th>
+            <th style={{ textAlign: 'center' }}></th>
+            <th style={{ textAlign: 'left' }}>Channel Name</th>
+            <th style={{ textAlign: 'left' }}>Channel ID</th>
+            <th style={{ textAlign: 'center' }}>Row Count</th>
+            <th style={{ textAlign: 'center' }}>Include</th>
+            <th style={{ textAlign: 'center' }}></th>
           </tr>
         </thead>
         <tbody>
           {Object.entries(channelsConfig).map(([key, config], index) => (
             <tr key={key}>
-              <td>
+              <td style={{ textAlign: 'center' }}>
                 {config.thumbnail_url && (
                   <img
                     src={config.thumbnail_url}
@@ -223,8 +223,8 @@ function ChannelsSyncTab({
                   />
                 )}
               </td>
-              <td>{config.label}</td>
-              <td>
+              <td style={{ textAlign: 'left' }}>{config.label}</td>
+              <td style={{ textAlign: 'left' }}>
                 <TextInput
                   value={config.channel_id}
                   onChange={(v) => updateChannel(index, 'channel_id', v)}
@@ -234,15 +234,15 @@ function ChannelsSyncTab({
                   height="36px"
                 />
               </td>
-              <td className="sync-row-count">{formatWholeNumber(config.row_count || 0)} rows</td>
-              <td>
+              <td className="sync-row-count" style={{ textAlign: 'center' }}>{formatWholeNumber(config.row_count || 0)} rows</td>
+              <td style={{ textAlign: 'center' }}>
                 <input
                   type="checkbox"
                   checked={config.enabled}
                   onChange={(e) => updateChannel(index, 'enabled', e.target.checked)}
                 />
               </td>
-              <td>
+              <td style={{ textAlign: 'center' }}>
                 <ActionButton
                   label="Delete"
                   onClick={() => removeChannel(index)}

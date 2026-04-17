@@ -1,16 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
-import { MetricChartCard, type MetricItem, type Granularity } from '../components/charts'
-import { MonetizationContentPerformanceCard, MonetizationEarningsCard, PageCard } from '../components/cards'
-import { formatCurrency, formatWholeNumber } from '../utils/number'
-import { fillDayGaps } from '../utils/date'
-import SpikeTooltipOverlay from '../components/charts/SpikeTooltipOverlay'
-import { useSpikes } from '../hooks/useSpikes'
-import { useSpikeHover } from '../hooks/useSpikeHover'
-import { useHideMonetaryValues } from '../hooks/usePrivacyMode'
-import { buildMonthlyEarnings } from '../utils/analytics'
-import type { MonetizationContentType, MonetizationPerformance, MonetizationTopItem } from '../types'
-import type { TabDataSource } from '../types'
-import type { VideoDetailListItem } from '../components/cards'
+import { MetricChartCard, type MetricItem, type Granularity } from '@components/charts'
+import { MonetizationContentPerformanceCard, MonetizationEarningsCard } from '@components/cards'
+import { PageCard } from '@components/ui'
+import { formatCurrency, formatWholeNumber } from '@utils/number'
+import { fillDayGaps } from '@utils/date'
+import SpikeTooltipOverlay from '@components/charts/SpikeTooltipOverlay'
+import { useSpikes } from '@hooks/useSpikes'
+import { useSpikeHover } from '@hooks/useSpikeHover'
+import { useHideMonetaryValues } from '@hooks/usePrivacyMode'
+import { buildMonthlyEarnings } from '@utils/analytics'
+import type { MonetizationContentType, MonetizationPerformance, MonetizationTopItem } from '@types'
+import type { TabDataSource } from '@types'
+import type { VideoDetailListItem } from '@components/cards'
 
 type ContentSummaryPayload = { totals?: { views?: number; estimated_revenue?: number } }
 type ContentTopItem = { video_id?: string; title?: string; thumbnail_url?: string; estimated_revenue?: number }
@@ -32,14 +33,12 @@ type Props = {
   range: { start: string; end: string }
   previousRange: { start: string; end: string; daySpan?: number }
   granularity: Granularity
-  onOpenVideo: (videoId: string) => void
   dataSources: TabDataSource[]
   selectedSourceIndex: number
 }
 
-export default function MonetizationTab({ range, granularity, onOpenVideo, dataSources, selectedSourceIndex }: Props) {
+export default function MonetizationTab({ range, granularity, dataSources, selectedSourceIndex }: Props) {
   const hideMonetaryValues = useHideMonetaryValues()
-
   const selected = dataSources[selectedSourceIndex]
   const dailyRows = selected?.dailyRows ?? []
   const previousDailyRows = selected?.previousDailyRows ?? []
@@ -214,7 +213,6 @@ export default function MonetizationTab({ range, granularity, onOpenVideo, dataS
             onContentTypeChange={setMonetizationContentType}
             performance={sidePerformance}
             itemCount={7}
-            onOpenVideo={onOpenVideo}
           />
         </PageCard>
       </div>

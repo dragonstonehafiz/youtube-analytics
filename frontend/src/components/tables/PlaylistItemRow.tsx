@@ -1,7 +1,5 @@
-import { useNavigate } from 'react-router-dom'
-import { ActionButton } from '../ui'
-import { formatDisplayDate } from '../../utils/date'
-import { useHideVideoTitles, useHideVideoThumbnails, useHideDescription } from '../../hooks/usePrivacyMode'
+import { ActionButton, VideoThumbnail, TextLink, DisplayDate } from '@components/ui'
+import { useHideDescription, useHideVideoTitles } from '@hooks/usePrivacyMode'
 
 export type PlaylistItemRowData = {
   id: string
@@ -33,62 +31,49 @@ type PlaylistItemRowProps = {
 }
 
 function PlaylistItemRow({ item }: PlaylistItemRowProps) {
-  const navigate = useNavigate()
-  const hideVideoTitles = useHideVideoTitles()
-  const hideVideoThumbnails = useHideVideoThumbnails()
   const hideDescription = useHideDescription()
+  const hideVideoTitles = useHideVideoTitles()
   const title = item.video_title || item.title || '(untitled)'
   const description = hideDescription ? '-' : (item.video_description || item.description || '-')
   const thumb = item.video_thumbnail_url || item.thumbnail_url
   const hasVideo = Boolean(item.video_id)
-  const displayTitle = hideVideoTitles ? '••••••' : title
 
   return (
-    <div className="playlist-items-row">
-      <span className="right">{item.position ?? '-'}</span>
-      <div className="video-cell">
-        {hideVideoThumbnails ? (
-          <div className="video-thumb" />
-        ) : thumb ? (
-          <img className="video-thumb" src={thumb} alt={title} />
-        ) : (
-          <div className="video-thumb" />
-        )}
-        <div className="video-meta">
-          {hasVideo ? (
-            <button
-              type="button"
-              className="video-title-button"
-              onClick={() => navigate(`/videos/${item.video_id}`)}
-            >
-              {displayTitle}
-            </button>
-          ) : (
-            <div className="video-title">{displayTitle}</div>
-          )}
-          {hasVideo ? (
-            <div className="video-detail-sub">
-              <div className="video-desc">{description}</div>
-              <div className="video-actions">
-                <ActionButton
-                  label="Open in YouTube"
-                  onClick={() => window.open(`https://www.youtube.com/watch?v=${item.video_id}`, '_blank')}
-                  variant="soft"
-                  className="video-action"
-                />
+    <tr>
+      <td className="table-center">{item.position ?? '-'}</td>
+      <td>
+        <div className="playlist-cell">
+          <VideoThumbnail url={thumb} title={title} className="video-thumb" />
+          <div className="video-meta">
+            {hasVideo ? (
+              <TextLink text={title} to={`/videos/${item.video_id}`} hideText={hideVideoTitles} className="video-title-button" />
+            ) : (
+              <TextLink text={title} hideText={hideVideoTitles} />
+            )}
+            {hasVideo ? (
+              <div className="video-detail-sub">
+                <div className="video-desc">{description}</div>
+                <div className="video-actions">
+                  <ActionButton
+                    label="Open in YouTube"
+                    onClick={() => window.open(`https://www.youtube.com/watch?v=${item.video_id}`, '_blank')}
+                    variant="soft"
+                    className="video-action"
+                  />
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="video-muted">Video unavailable</div>
-          )}
+            ) : (
+              <div className="video-muted">Video unavailable</div>
+            )}
+          </div>
         </div>
-      </div>
-      <span>{formatDisplayDate(item.published_at)}</span>
-      <span className="video-muted">{item.video_privacy_status || item.privacy_status || '-'}</span>
-      <span className="right">{(item.views ?? 0).toLocaleString()}</span>
-      <span className="right">{(item.video_comment_count ?? 0).toLocaleString()}</span>
-      <span className="right">{(item.video_like_count ?? 0).toLocaleString()}</span>
-    </div>
+      </td>
+      <td><DisplayDate date={item.published_at} /></td>
+      <td className="video-muted">{item.video_privacy_status || item.privacy_status || '-'}</td>
+      <td>{(item.views ?? 0).toLocaleString()}</td>
+      <td>{(item.video_comment_count ?? 0).toLocaleString()}</td>
+      <td>{(item.video_like_count ?? 0).toLocaleString()}</td>
+    </tr>
   )
 }
 

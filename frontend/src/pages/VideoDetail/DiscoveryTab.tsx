@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
-import { type MetricItem, type Granularity } from '../../components/charts'
+import { type MetricItem, type Granularity } from '@components/charts'
 import {
-  PageCard,
   SearchInsightsTopTermsCard,
   TrafficSourceShareCard,
   type TrafficSourceShareItem,
-} from '../../components/cards'
-import { buildTrafficSeries } from '../../utils/trafficSeries'
-import { formatWholeNumber } from '../../utils/number'
-import type { DateRange } from '../../types'
+} from '@components/cards'
+import { buildTrafficSeries } from '@utils/trafficSeries'
+import { formatWholeNumber } from '@utils/number'
+import type { DateRange } from '@types'
+import { PageCard } from '@components/ui'
 import VideoDetailMetricPanel from './VideoDetailMetricPanel'
 import { useVideoDiscovery } from './useVideoDiscovery'
 

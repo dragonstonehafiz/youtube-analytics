@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageCard } from '../../components/cards'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../../components/ui'
-import usePagination from '../../hooks/usePagination'
-import { formatDisplayDate } from '../../utils/date'
-import { getStored, setStored } from '../../utils/storage'
+import { PageCard } from '@components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage, DisplayDate } from '@components/ui'
+import usePagination from '@hooks/usePagination'
+import { getStored, setStored } from '@utils/storage'
 import '../shared.css'
 import './Audience.css'
 
@@ -136,75 +135,91 @@ function Audience() {
 
         <div className="page-row">
           <PageCard>
-            <div className="audience-table">
-              <div className="audience-table-header">
-                <span>Audience</span>
-                <span>Subscriber</span>
-                <button
-                  className={`video-sort-button ${sortKey === 'subscribed_at' ? 'active' : ''}`}
-                  onClick={() => toggleSort('subscribed_at')}
-                >
-                  Subscribed {sortKey === 'subscribed_at' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  className={`video-sort-button ${sortKey === 'first_commented_at' ? 'active' : ''}`}
-                  onClick={() => toggleSort('first_commented_at')}
-                >
-                  First comment {sortKey === 'first_commented_at' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  className={`video-sort-button ${sortKey === 'last_commented_at' ? 'active' : ''}`}
-                  onClick={() => toggleSort('last_commented_at')}
-                >
-                  Last comment {sortKey === 'last_commented_at' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  className={`video-sort-button right ${sortKey === 'comment_count' ? 'active' : ''}`}
-                  onClick={() => toggleSort('comment_count')}
-                >
-                  Comments {sortKey === 'comment_count' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  className={`video-sort-button right ${sortKey === 'total_comment_likes' ? 'active' : ''}`}
-                  onClick={() => toggleSort('total_comment_likes')}
-                >
-                  Total likes {sortKey === 'total_comment_likes' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-                <button
-                  className={`video-sort-button right ${sortKey === 'total_comment_replies' ? 'active' : ''}`}
-                  onClick={() => toggleSort('total_comment_replies')}
-                >
-                  Total replies {sortKey === 'total_comment_replies' ? <span className="video-sort">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
-                </button>
-              </div>
-              {rows.length === 0 ? (
-                <div className="video-table-empty">No audience rows found.</div>
-              ) : (
-                rows.map((row) => (
-                  <div className="audience-table-row" key={row.channel_id}>
-                    <div className="audience-cell">
-                      <ProfileImage
-                        className="audience-avatar"
-                        src={row.profile_image_url}
-                        name={row.display_name}
-                      />
-                      <div className="audience-meta">
-                        <Link to={`/audience/${row.channel_id}`} className="audience-name-link">
-                          {row.display_name || '(unknown)'}
-                        </Link>
-                      </div>
-                    </div>
-                    <span>{row.is_public_subscriber ? 'Yes' : 'No'}</span>
-                    <span>{formatDisplayDate(row.subscribed_at)}</span>
-                    <span>{formatDisplayDate(row.first_commented_at)}</span>
-                    <span>{formatDisplayDate(row.last_commented_at)}</span>
-                    <span className="right">{(row.comment_count ?? 0).toLocaleString()}</span>
-                    <span className="right">{(row.total_comment_likes ?? 0).toLocaleString()}</span>
-                    <span className="right">{(row.total_comment_replies ?? 0).toLocaleString()}</span>
-                  </div>
-                ))
-              )}
-            </div>
+            {rows.length === 0 ? (
+              <div className="video-table-empty">No audience rows found.</div>
+            ) : (
+              <table className="audience-table">
+                <thead>
+                  <tr>
+                    <th>Audience</th>
+                    <th>Subscriber</th>
+                    <th>
+                      <button
+                        className={`table-sort-button ${sortKey === 'subscribed_at' ? 'active' : ''}`}
+                        onClick={() => toggleSort('subscribed_at')}
+                      >
+                        Subscribed {sortKey === 'subscribed_at' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className={`table-sort-button ${sortKey === 'first_commented_at' ? 'active' : ''}`}
+                        onClick={() => toggleSort('first_commented_at')}
+                      >
+                        First comment {sortKey === 'first_commented_at' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className={`table-sort-button ${sortKey === 'last_commented_at' ? 'active' : ''}`}
+                        onClick={() => toggleSort('last_commented_at')}
+                      >
+                        Last comment {sortKey === 'last_commented_at' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className={`table-sort-button ${sortKey === 'comment_count' ? 'active' : ''}`}
+                        onClick={() => toggleSort('comment_count')}
+                      >
+                        Comments {sortKey === 'comment_count' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className={`table-sort-button ${sortKey === 'total_comment_likes' ? 'active' : ''}`}
+                        onClick={() => toggleSort('total_comment_likes')}
+                      >
+                        Total likes {sortKey === 'total_comment_likes' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                    <th>
+                      <button
+                        className={`table-sort-button ${sortKey === 'total_comment_replies' ? 'active' : ''}`}
+                        onClick={() => toggleSort('total_comment_replies')}
+                      >
+                        Total replies {sortKey === 'total_comment_replies' ? <span className="sort-arrow">{sortDir === 'asc' ? '↑' : '↓'}</span> : null}
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.channel_id}>
+                      <td className="audience-cell">
+                        <ProfileImage
+                          size={34}
+                          src={row.profile_image_url}
+                          name={row.display_name}
+                        />
+                        <div className="audience-meta">
+                          <Link to={`/audience/${row.channel_id}`} className="audience-name-link">
+                            {row.display_name || '(unknown)'}
+                          </Link>
+                        </div>
+                      </td>
+                      <td>{row.is_public_subscriber ? 'Yes' : 'No'}</td>
+                      <td><DisplayDate date={row.subscribed_at} /></td>
+                      <td><DisplayDate date={row.first_commented_at} /></td>
+                      <td><DisplayDate date={row.last_commented_at} /></td>
+                      <td>{(row.comment_count ?? 0).toLocaleString()}</td>
+                      <td>{(row.total_comment_likes ?? 0).toLocaleString()}</td>
+                      <td>{(row.total_comment_replies ?? 0).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             <div className="pagination-footer">
               <div className="pagination-main">
                 <PageSwitcher currentPage={page} totalPages={totalPages} onPageChange={setPage} />

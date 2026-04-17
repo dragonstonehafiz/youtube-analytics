@@ -192,21 +192,7 @@
 }
 
 .analytics-content-video-title {
-  border: none;
-  background: transparent;
-  padding: 0;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-ink);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: clip;
-}
-
-.analytics-content-video-title:hover {
-  text-decoration: underline;
+  min-width: 0;
 }
 
 .analytics-content-revenue {

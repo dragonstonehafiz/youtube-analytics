@@ -221,12 +221,22 @@ def get_related_videos(
                 placeholders = ",".join("?" * len(row_ids))
 
                 own_full_rows = conn.execute(
-                    f"SELECT * FROM videos WHERE id IN ({placeholders})",
+                    f"""
+                    SELECT v.*, c.thumbnail_url AS channel_avatar_url
+                    FROM videos v
+                    LEFT JOIN channels c ON c.channel_id = v.channel_id
+                    WHERE v.id IN ({placeholders})
+                    """,
                     row_ids,
                 ).fetchall()
 
                 channel_full_rows = conn.execute(
-                    f"SELECT * FROM videos_competitors WHERE id IN ({placeholders})",
+                    f"""
+                    SELECT vc.*, c.thumbnail_url AS channel_avatar_url
+                    FROM videos_competitors vc
+                    LEFT JOIN channels c ON c.channel_id = vc.channel_id
+                    WHERE vc.id IN ({placeholders})
+                    """,
                     row_ids,
                 ).fetchall()
 

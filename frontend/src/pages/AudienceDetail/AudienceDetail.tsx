@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { CommentVideoGroup, type CommentRow, type CommentThread } from '../../components/tables'
-import { PageCard } from '../../components/cards'
-import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage } from '../../components/ui'
-import usePagination from '../../hooks/usePagination'
-import { formatDisplayDate } from '../../utils/date'
+import { CommentVideoGroup, type CommentRow, type CommentThread } from '@components/tables'
+import { PageCard } from '@components/ui'
+import { ActionButton, Dropdown, PageSizePicker, PageSwitcher, ProfileImage, DisplayDate } from '@components/ui'
+import usePagination from '@hooks/usePagination'
 import '../shared.css'
 import './AudienceDetail.css'
 
@@ -174,7 +173,7 @@ function AudienceDetail() {
             ) : item ? (
               <div className="audience-detail-layout">
                 <div className="audience-detail-main">
-                  <ProfileImage className="audience-detail-avatar" src={item.profile_image_url} name={item.display_name} />
+                  <ProfileImage size={72} src={item.profile_image_url} name={item.display_name} />
                   <div className="audience-detail-main-text">
                     <div className="audience-detail-name">{item.display_name || '(unknown)'}</div>
                   </div>
@@ -186,15 +185,15 @@ function AudienceDetail() {
                   </div>
                   <div className="video-detail-item">
                     <span>Subscribed</span>
-                    <strong>{formatDisplayDate(item.subscribed_at)}</strong>
+                    <strong><DisplayDate date={item.subscribed_at} /></strong>
                   </div>
                   <div className="video-detail-item">
                     <span>First comment</span>
-                    <strong>{formatDisplayDate(item.first_commented_at)}</strong>
+                    <strong><DisplayDate date={item.first_commented_at} /></strong>
                   </div>
                   <div className="video-detail-item">
                     <span>Last comment</span>
-                    <strong>{formatDisplayDate(item.last_commented_at)}</strong>
+                    <strong><DisplayDate date={item.last_commented_at} /></strong>
                   </div>
                   <div className="video-detail-item">
                     <span>Comment count</span>

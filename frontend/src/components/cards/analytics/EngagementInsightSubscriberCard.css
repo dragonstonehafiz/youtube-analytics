@@ -1,0 +1,94 @@
+.engagement-insight-subscriber-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.engagement-insight-subscriber-stat {
+  margin-bottom: 8px;
+}
+
+.engagement-insight-subscriber-list {
+  display: grid;
+  gap: 8px;
+}
+
+.engagement-insight-subscriber-header {
+  display: grid;
+  grid-template-columns: 26px 72px minmax(0, 1fr) 80px;
+  gap: 10px;
+  align-items: center;
+  min-height: 26px;
+  color: #64748b;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.engagement-insight-subscriber-rank {
+  text-align: center;
+}
+
+.engagement-insight-subscriber-video {
+  grid-column: 2 / 4;
+  text-align: left;
+}
+
+.engagement-insight-subscriber-metric {
+  text-align: center;
+}
+
+.engagement-insight-subscriber-row {
+  display: grid;
+  grid-template-columns: 26px 72px minmax(0, 1fr) 80px;
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+}
+
+.engagement-insight-subscriber-rank {
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.engagement-insight-subscriber-thumb {
+  width: 72px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #e2e8f0;
+}
+
+.engagement-insight-subscriber-title {
+  min-width: 0;
+}
+
+.engagement-insight-subscriber-metric {
+  color: #0f172a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.engagement-insight-subscriber-state {
+  color: #64748b;
+  font-size: 13px;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 860px) {
+  .engagement-insight-subscriber-header {
+    grid-template-columns: 22px 64px minmax(0, 1fr) 70px;
+  }
+
+  .engagement-insight-subscriber-row {
+    grid-template-columns: 22px 64px minmax(0, 1fr) 70px;
+  }
+
+  .engagement-insight-subscriber-thumb {
+    width: 64px;
+    height: 36px;
+  }
+}

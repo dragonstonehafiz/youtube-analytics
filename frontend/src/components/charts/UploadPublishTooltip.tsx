@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { VideoThumbnail } from '@components/ui'
 
 export type UploadPublishTooltipItem = {
   video_id?: string
@@ -116,11 +117,7 @@ function UploadPublishTooltip({
       <ul>
         {hover.items.map((item, index) => (
           <li key={`${item.title}-${index}`} className="publish-item">
-            {item.thumbnail_url ? (
-              <img className="publish-thumb" src={item.thumbnail_url} alt={item.title} />
-            ) : (
-              <div className="publish-thumb" />
-            )}
+            <VideoThumbnail url={item.thumbnail_url} title={item.title} className="publish-thumb" />
             <div>
               {item.video_id ? (
                 <Link className="publish-title publish-title-link" to={`/videos/${item.video_id}`}>

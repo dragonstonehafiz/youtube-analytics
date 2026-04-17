@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { PublishedDates } from '../../types'
+import type { PublishedDates } from '@types'
 
 export function usePlaylistPublishedDates(
   playlistId: string | undefined,
