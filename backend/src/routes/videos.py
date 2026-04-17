@@ -59,14 +59,15 @@ def list_videos(
         """
         all_rows = conn.execute(query, tuple(params)).fetchall()
 
-    # If q is provided, filter by keyword match
+    # If q is provided, filter by matching against title or video ID
     if q:
-        keywords = q.lower().split()
+        q_lower = q.lower()
         filtered_rows = []
         for row in all_rows:
             title = (row["title"] or "").lower()
-            # Include if any keyword is present in title
-            if any(kw in title for kw in keywords):
+            video_id = (row["id"] or "").lower()
+            # Include if search query matches title or video ID
+            if q_lower in title or q_lower in video_id:
                 filtered_rows.append(row)
         all_rows = filtered_rows
 

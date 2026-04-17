@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from typing import Callable, Iterable
 
 from googleapiclient.errors import HttpError
 
@@ -113,15 +113,16 @@ def fetch_video_details(video_ids: list[str]) -> tuple[list[dict], int]:
     return response.get("items", []), 1
 
 
-def get_all_videos(uploads_playlist_id: str, on_batch: callable = None) -> tuple[list[dict], int]:
-    """Return full metadata for all uploaded videos and API call count.
+def get_all_videos(uploads_playlist_id: str, on_batch: Callable[[list[dict]], None] | None = None, on_progress: Callable[[], None] | None = None) -> int:
+    """Fetch and upsert all uploaded videos. Returns API call count.
 
     Args:
         uploads_playlist_id: The uploads playlist ID for a channel
-        on_batch: Optional callback(videos, api_calls) called after each batch is fetched
+        on_batch: Optional callback(videos) called after each batch is fetched
+        on_progress: Optional callback() called after each video details batch fetch
 
     Returns:
-        Tuple of (videos list, total api_calls made)
+        Total API calls made
     """
     # 1) Gather all upload video IDs (with pagination), 2) fetch details in 50-id batches.
     api_calls = 0
@@ -143,15 +144,15 @@ def get_all_videos(uploads_playlist_id: str, on_batch: callable = None) -> tuple
         if not page_token:
             break
 
-    videos: list[dict] = []
     for i in range(0, len(video_ids), 50):
         batch = video_ids[i : i + 50]
         batch_videos, batch_calls = fetch_video_details(batch)
-        videos.extend(batch_videos)
         api_calls += batch_calls
         if on_batch:
             on_batch(batch_videos)
-    return videos, api_calls
+        if on_progress:
+            on_progress()
+    return api_calls
 
 
 def get_channel_info() -> dict:

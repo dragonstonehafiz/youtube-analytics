@@ -1,10 +1,54 @@
 from __future__ import annotations
 
 import pickle
+from typing import Callable
 
 from src.database.db import get_connection
-from src.youtube.videos import parse_duration_to_seconds
+from src.youtube.videos import parse_duration_to_seconds, fetch_video_details
 from src.utils.embeddings import get_embedding_model
+
+
+def remove_deleted_videos(on_progress: Callable[[], None] | None = None) -> int:
+    """Check all videos in the database against YouTube and remove any that no longer exist.
+
+    Args:
+        on_progress: Optional callback() called after each batch check against YouTube
+
+    Returns the number of API calls made.
+    """
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id FROM videos").fetchall()
+
+    all_video_ids = [row["id"] for row in rows]
+    if not all_video_ids:
+        return 0
+
+    # Check videos in batches of 50
+    api_calls = 0
+    existing_ids = set()
+    for i in range(0, len(all_video_ids), 50):
+        batch = all_video_ids[i : i + 50]
+        videos, batch_api_calls = fetch_video_details(batch)
+        api_calls += batch_api_calls
+        for video in videos:
+            existing_ids.add(video["id"])
+        if on_progress:
+            on_progress()
+
+    # Find deleted videos
+    deleted_ids = [vid for vid in all_video_ids if vid not in existing_ids]
+
+    if deleted_ids:
+        # Delete them
+        with get_connection() as conn:
+            placeholders = ",".join("?" for _ in deleted_ids)
+            conn.execute(
+                f"DELETE FROM videos WHERE id IN ({placeholders})",
+                tuple(deleted_ids),
+            )
+            conn.commit()
+
+    return api_calls
 
 
 def list_playlist_video_ids_missing_video_rows() -> list[str]:
