@@ -27,6 +27,13 @@ To use this application:
 - **Sync** - Sync data from YouTube APIs
 - **Settings** - Configure application settings
 
+## Screenshots
+
+<p>
+  <img src="screenshots/youtubeAnalyticsVer1_1.png" alt="YouTube Analytics dashboard screenshot" width="420">
+  <img src="screenshots/youtubeAnalyticsVer1_5.png" alt="YouTube Analytics analytics page screenshot" width="420">
+</p>
+
 ## Data Sources
 
 Data comes from:
